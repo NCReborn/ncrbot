@@ -1,18 +1,31 @@
 const versionCooldowns = new Map();
 
-module.exports = {
-  checkCooldown: (key) => versionCooldowns.get(key) || 0,
+function checkCooldown(userId, cooldownTime) {
+  const now = Date.now();
+  const cooldownEndTime = versionCooldowns.get(userId) || 0;
   
-  setCooldown: (key, endTime) => versionCooldowns.set(key, endTime),
+  if (now < cooldownEndTime) {
+    return Math.ceil((cooldownEndTime - now) / 1000 / 60);
+  }
   
-  cleanupCooldowns: () => {
-    if (Math.random() < 0.1) {
-      const currentTime = Date.now();
-      for (const [key, endTime] of versionCooldowns.entries()) {
-        if (currentTime > endTime) {
-          versionCooldowns.delete(key);
-        }
-      }
+  return 0;
+}
+
+function setCooldown(userId, cooldownTime) {
+  versionCooldowns.set(userId, Date.now() + cooldownTime);
+}
+
+function cleanupOldCooldowns() {
+  const currentTime = Date.now();
+  for (const [key, endTime] of versionCooldowns.entries()) {
+    if (currentTime > endTime) {
+      versionCooldowns.delete(key);
     }
   }
+}
+
+module.exports = {
+  checkCooldown,
+  setCooldown,
+  cleanupOldCooldowns
 };
