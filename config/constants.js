@@ -1,12 +1,30 @@
-module.exports = {
-  BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
-  API_KEY: process.env.NEXUS_API_KEY,
-  API_URL: 'https://api-router.nexusmods.com/graphql',
-  APP_NAME: process.env.APP_NAME || 'CollectionDiffBot',
-  APP_VERSION: process.env.APP_VERSION || '1.0.0',
-  VERSION_INFO: {
-    version: "1.0.2",
-    changes: "Added !version support + Fixed some bugs"
+const VERSION_INFO = {
+  version: "1.0.4",
+  changes: "Split code base into chunks"
+    
+};
+
+const VERSION_COOLDOWN_TIME = 60 * 60 * 1000; // 60 minutes in milliseconds
+
+const COLLECTION_MAPPINGS = {
+  slugs: {
+    'ncr': 'rcuccp',
+    'adr': 'srpv39',
+    'ncr lite': 'vfy7w1',
+    'adr lite': 'ezxduq',
+    'ncrlite': 'vfy7w1',
+    'adrlite': 'ezxduq'
   },
-  VERSION_COOLDOWN_TIME: 60 * 60 * 1000, // 60 minutes
+  names: {
+    'rcuccp': 'NCR',
+    'srpv39': 'ADR',
+    'vfy7w1': 'NCR Lite',
+    'ezxduq': 'ADR Lite'
+  }
+};
+
+module.exports = {
+  VERSION_INFO,
+  VERSION_COOLDOWN_TIME,
+  COLLECTION_MAPPINGS
 };
