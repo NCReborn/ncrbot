@@ -1,24 +1,24 @@
 const { EmbedBuilder } = require('discord.js');
-const { splitLongDescription, sortModsAlphabetically, sortUpdatedModsAlphabetically, getCollectionName } = require('../utils/discordUtils');
-
-module.exports = {
-  sendCombinedChangelogMessages,
-  sendSingleChangelogMessages
-};
+const { 
+  sanitizeName, 
+  splitLongDescription, 
+  sortModsAlphabetically, 
+  sortUpdatedModsAlphabetically 
+} = require('../utils/discordUtils');
+const { getCollectionName } = require('../utils/nexusAPI');
 
 async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveChanges, slug1, oldRev1, newRev1, slug2, oldRev2, newRev2) {
-  const sanitizeName = (name) => name.replace(/[\[\]()|]/g, '');
   const collectionName1 = getCollectionName(slug1);
   const collectionName2 = getCollectionName(slug2);
 
   const embed1 = new EmbedBuilder()
     .setTitle(`Revision ${collectionName1}-${newRev1}/${collectionName2}-${newRev2} - Game Version 2.3`)
-    .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1346957358244433950>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1332486336040403075> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1329368428590399633> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
+    .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1400942550076100811>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1411463524017770580> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1400940644565782599> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
     .setColor(5814783);
 
   const embed1a = new EmbedBuilder()
     .setTitle("Updating collection")
-    .setDescription("If you run into any popups during installation check these threads <#1346957358244433950>\n<#1332486354063593524> & <#1332486336967610449>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"  <#1332486336967610449>")
+    .setDescription("If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"  <#1400942550076100811>")
     .setColor(16746072);
 
   await channel.send({ embeds: [embed1, embed1a] });
@@ -26,7 +26,7 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
   const collectionHeader = new EmbedBuilder()
     .setTitle(`${collectionName1} (v${oldRev1} → v${newRev1}) & ${collectionName2} (v${oldRev2} → v${newRev2}) Combined Changes`)
     .setColor(1146986);
-
+  
   await channel.send({ embeds: [collectionHeader] });
 
   // Added Mods
@@ -179,12 +179,12 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
 
   const embed1 = new EmbedBuilder()
     .setTitle(`Revision ${collectionName}-${newRev} - Game Version 2.3`)
-    .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1346957358244433950>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1332486336040403075> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1329368428590399633> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
+    .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1346957358244433950>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1332486336040403075> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1285796905640788030> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
     .setColor(5814783);
 
   const embed1a = new EmbedBuilder()
     .setTitle("Updating collection")
-    .setDescription("If you run into any popups during installation check these threads <#1346957358244433950>\n<#1332486354063593524> & <#1332486336967610449>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"  <#1332486336967610449>")
+    .setDescription("If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"  <#1332486336967610449>")
     .setColor(16746072);
 
   await channel.send({ embeds: [embed1, embed1a] });
@@ -192,7 +192,7 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
   const collectionHeader = new EmbedBuilder()
     .setTitle(`${collectionName} (v${oldRev} → v${newRev}) Changes`)
     .setColor(1146986);
-
+  
   await channel.send({ embeds: [collectionHeader] });
 
   // Added Mods
@@ -255,3 +255,8 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     await channel.send({ embeds: [embed] });
   }
 }
+
+module.exports = {
+  sendCombinedChangelogMessages,
+  sendSingleChangelogMessages
+};
