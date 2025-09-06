@@ -2,7 +2,6 @@ require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const { handleVersionCommand } = require('./commands/version');
 const { handleDiffCommand } = require('./commands/diff');
-const { startCrashLogMonitor } = require('./services/crashLogService');
 const { BOT_TOKEN } = require('./config/constants');
 
 const client = new Client({
