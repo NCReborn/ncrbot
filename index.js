@@ -21,7 +21,11 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  if (message.content.startsWith('!version')) {
+  // Support both !version and !versions as aliases
+  if (
+    message.content.startsWith('!version') ||
+    message.content.startsWith('!versions')
+  ) {
     await handleVersionCommand(message);
     return;
   }
