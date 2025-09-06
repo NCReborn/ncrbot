@@ -1,4 +1,4 @@
-const axios = require('axios');
+onst axios = require('axios');
 const { EmbedBuilder } = require('discord.js');
 
 // Map error patterns to suggested solutions (expand as needed)
