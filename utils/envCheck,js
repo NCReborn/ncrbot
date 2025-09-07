@@ -1,0 +1,34 @@
+const logger = require('./logger');
+
+const REQUIRED_ENV_VARS = [
+  'DISCORD_TOKEN',
+  'NEXUS_API_KEY',
+  'CRASH_LOG_CHANNEL_ID',
+  'LOG_SCAN_CHANNEL_ID',
+];
+
+const RECOMMENDED_ENV_VARS = [
+  'CLIENT_ID',
+  'APP_NAME',
+  'APP_VERSION',
+  // 'OPENAI_API_KEY', // Optional, only if AI log analysis is used
+];
+
+function checkEnv() {
+  const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    logger.error(
+      `Missing required environment variables: ${missing.join(', ')}`
+    );
+    process.exit(1);
+  }
+
+  const missingRecommended = RECOMMENDED_ENV_VARS.filter((key) => !process.env[key]);
+  if (missingRecommended.length > 0) {
+    logger.warn(
+      `Recommended environment variables are missing: ${missingRecommended.join(', ')}`
+    );
+  }
+}
+
+module.exports = { checkEnv };
