@@ -1,5 +1,10 @@
-// Map channelId => lastUsed timestamp
+// Map key => lastUsed timestamp
 const lastUsedMap = new Map();
+
+// Always use the same key format for status cooldowns: "status:channel:<channelId>"
+function makeStatusKey(channelId) {
+  return `status:channel:${channelId}`;
+}
 
 function cleanupOldCooldowns(cooldownMs = 10 * 60 * 1000) {
   // Remove entries older than cooldownMs (default: 10min)
@@ -10,14 +15,15 @@ function cleanupOldCooldowns(cooldownMs = 10 * 60 * 1000) {
 }
 
 /**
- * Checks if the cooldown has expired for the given key.
+ * Checks if the cooldown has expired for the given channel.
  * If expired, sets the new timestamp and returns 0.
  * If not expired, returns the seconds left.
- * @param {string|number} key - Unique key per channel (e.g. channelId)
+ * @param {string|number} channelId - Voice channel id (or unique context)
  * @param {number} cooldownMs - Cooldown time in ms
  * @returns {number} - 0 if allowed, or seconds left on cooldown
  */
-function checkAndSetCooldown(key, cooldownMs) {
+function checkAndSetCooldown(channelId, cooldownMs) {
+  const key = makeStatusKey(channelId);
   const now = Date.now();
   const lastUsed = lastUsedMap.get(key) || 0;
   if (now - lastUsed < cooldownMs) {
