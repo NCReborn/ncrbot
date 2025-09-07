@@ -4,6 +4,25 @@ A Discord bot for the NCR/ADR modding communities, providing revision tracking, 
 
 ---
 
+## Directory Structure
+
+```
+ncrbot/
+  commands/         # Slash command handlers (one per command)
+  config/           # Static config (constants, mappings, etc)
+  data/             # Persistent data files (e.g. collection_state.json)
+  services/         # High-level logic/services (e.g. changelogService.js)
+  utils/            # Helpers and low-level utilities (logger, cooldowns, etc)
+  .github/workflows/ # CI/CD workflows (GitHub Actions)
+  index.js          # Bot entry point
+  deploy-commands.js # Slash command registration
+  package.json      # Node.js manifest
+  README.md         # Project documentation
+  .env.example      # Environment variable template
+```
+
+---
+
 ## Features
 
 - **Revision Tracking:**  
