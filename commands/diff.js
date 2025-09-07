@@ -47,8 +47,8 @@ module.exports = {
       return;
     }
 
-    // Per-user rate limit
-    const userKey = `diff:${interaction.user.id}`;
+    // Per-user rate limit with consistent key: diff:user:<userId>
+    const userKey = `diff:user:${interaction.user.id}`;
     const userLeft = checkAndSetRateLimit(userKey, USER_COOLDOWN);
     if (userLeft > 0) {
       logger.info(`[DIFF] User cooldown hit by ${username} (${userLeft}s left)`);
