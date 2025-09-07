@@ -6,6 +6,17 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
 
+// Handle uncaught exceptions (fail fast, log for diagnostics)
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err.stack || err);
+  // Optionally, flush logs/cleanup here before exit
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
+});
+
 // Auto-sync slash commands on startup if enabled in .env
 if (process.env.AUTO_SYNC_COMMANDS === 'true') {
   const { syncSlashCommands } = require('./utils/commandSync');
@@ -16,10 +27,6 @@ if (process.env.AUTO_SYNC_COMMANDS === 'true') {
       process.exit(1); // Fail fast if you want to prevent running with invalid commands
     });
 }
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
-});
 
 // Import log analysis utilities
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
