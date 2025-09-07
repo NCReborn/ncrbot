@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const voiceConfig = require('../config/voiceChannels');
 const statusCooldown = require('../utils/statusCooldown');
+const logger = require('../utils/logger');
 const COOLDOWN_TIME = 5 * 60 * 1000;
 
 module.exports = {
@@ -31,6 +32,7 @@ module.exports = {
       await channel.setName('🟡┃Status : Issues Reported (Latest)');
       await interaction.editReply({ content: `Status channel updated to: Issues Reported (Latest)` });
     } catch (err) {
+      logger.error(`Failed to update channel in /investigating: ${err.stack || err}`);
       await interaction.editReply({ content: `Failed to update channel: ${err.message}` });
     }
   }
