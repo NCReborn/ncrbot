@@ -79,6 +79,9 @@ if (runtimeRegistrationFailed) {
 // Combined ready handler: send log scan button and start revision poller
 client.once('ready', async () => {
   logger.info(`Logged in as ${client.user.tag}`);
+  logger.info(`Loaded ${client.commands.size} commands.`);
+  logger.info(`Crash log channel: ${CRASH_LOG_CHANNEL_ID}, Log scan channel: ${LOG_SCAN_CHANNEL_ID}`);
+  logger.info(`Revision polling enabled: ${!!process.env.NEXUS_API_KEY}`);
   await sendLogScanButton(client, LOG_SCAN_CHANNEL_ID);
 
   logger.info('Bot ready - starting revision poller');
