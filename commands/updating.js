@@ -31,6 +31,7 @@ module.exports = {
 
       const channel = await interaction.guild.channels.fetch(channelId);
       if (!channel) throw new Error('Status channel not found.');
+      if (!channel.isVoiceBased()) throw new Error('Configured status channel is not a voice channel.');
       await channel.setName('🔵┃Status : Updating soon (Latest)');
       await interaction.editReply({ content: `Status channel updated to: Updating soon (Latest)` });
 
