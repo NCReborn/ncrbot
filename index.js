@@ -117,7 +117,7 @@ client.once('ready', async () => {
   const { setRevision, getRevision, getRevertAt } = require('./utils/revisionStore');
   const voiceConfig = require('./config/voiceChannels');
 
-  const POLL_INTERVAL = 10 * 60 * 1000; // 10 min
+  const POLL_INTERVAL = 60 * 1000; // 1 min
   const COLLECTION_SLUG = 'rcuccp';
 
   // If there's a pending revert, schedule it
