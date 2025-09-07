@@ -1,18 +1,18 @@
+const logger = require('./logger');
 const versionCooldowns = new Map();
 
 function checkCooldown(userId, cooldownTime) {
   const now = Date.now();
   const cooldownEndTime = versionCooldowns.get(userId) || 0;
-  
   if (now < cooldownEndTime) {
     return Math.ceil((cooldownEndTime - now) / 1000 / 60);
   }
-  
   return 0;
 }
 
 function setCooldown(userId, cooldownTime) {
   versionCooldowns.set(userId, Date.now() + cooldownTime);
+  logger.info(`Cooldown set for user ${userId} for ${cooldownTime / 60000} minutes`);
 }
 
 function cleanupOldCooldowns() {
@@ -20,6 +20,7 @@ function cleanupOldCooldowns() {
   for (const [key, endTime] of versionCooldowns.entries()) {
     if (currentTime > endTime) {
       versionCooldowns.delete(key);
+      logger.info(`Cooldown expired for user ${key}`);
     }
   }
 }
