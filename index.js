@@ -2,7 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, InteractionType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const logger = require('./utils/logger'); // <-- NEW: require the logger
+const logger = require('./utils/logger'); // <-- Use logger everywhere
 
 // Import log analysis utilities (only ONCE!)
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
