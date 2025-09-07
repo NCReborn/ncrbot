@@ -4,7 +4,7 @@ const cooldowns = new Map();
 /**
  * Checks if a key (user, command, channel, or composite) is rate limited,
  * and if not, sets the cooldown.
- * @param {string} key - Unique key for the action (e.g. `${userId}:diff`, `diff:global`)
+ * @param {string} key - Unique key for the action (e.g. 'diff:global', 'diff:user:123456', etc.)
  * @param {number} cooldownMs - Cooldown time in ms
  * @returns {number} - 0 if allowed, or seconds left on cooldown
  */
