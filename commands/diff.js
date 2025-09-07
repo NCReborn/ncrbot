@@ -5,7 +5,8 @@ const {
 } = require('../utils/nexusApi');
 const { sendCombinedChangelogMessages, sendSingleChangelogMessages } = require('../services/changelogService');
 const logger = require('../utils/logger');
-const { checkAndSetRateLimit } = require('../utils/rateLimiter'); // <-- Add this
+const { checkAndSetRateLimit } = require('../utils/rateLimiter');
+const { errorEmbed } = require('../utils/discordUtils');
 
 const USER_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 const GLOBAL_COOLDOWN = 30 * 1000;   // 30 seconds
@@ -30,7 +31,7 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
 
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      await interaction.editReply({ content: 'This command is only available to administrators.' });
+      await interaction.editReply({ embeds: [errorEmbed('Permission Denied', 'This command is only available to administrators.')] });
       return;
     }
 
@@ -38,7 +39,7 @@ module.exports = {
     const globalKey = 'diff:global';
     const globalLeft = checkAndSetRateLimit(globalKey, GLOBAL_COOLDOWN);
     if (globalLeft > 0) {
-      await interaction.editReply({ content: `⏳ Please wait ${globalLeft} more second(s) before anyone can use this command again.` });
+      await interaction.editReply({ embeds: [errorEmbed('Global Cooldown', `⏳ Please wait ${globalLeft} more second(s) before anyone can use this command again.`)] });
       return;
     }
 
@@ -46,11 +47,10 @@ module.exports = {
     const userKey = `diff:${interaction.user.id}`;
     const userLeft = checkAndSetRateLimit(userKey, USER_COOLDOWN);
     if (userLeft > 0) {
-      await interaction.editReply({ content: `⏳ You must wait ${userLeft} more minute(s) before you can use this command again.` });
+      await interaction.editReply({ embeds: [errorEmbed('User Cooldown', `⏳ You must wait ${userLeft} more minute(s) before you can use this command again.`)] });
       return;
     }
 
-    // ... rest of your diff logic unchanged ...
     const c1 = interaction.options.getString('collection1');
     const old1 = interaction.options.getInteger('oldrev1');
     const new1 = interaction.options.getInteger('newrev1');
@@ -98,8 +98,8 @@ module.exports = {
         await interaction.editReply({ content: `Combined changelog for ${c1} and ${c2}:` });
       }
     } catch (err) {
-      logger.error('Error:', err);
-      await interaction.editReply({ content: `Error: ${err.message}` });
+      logger.error('Error in /diff:', err);
+      await interaction.editReply({ embeds: [errorEmbed('Error Generating Changelog', err.message)] });
     }
   }
 };
