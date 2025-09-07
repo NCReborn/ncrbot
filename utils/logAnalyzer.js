@@ -58,6 +58,12 @@ const ERROR_PATTERNS = [
 
 // AI Diagnostics integration
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+/**
+ * Calls OpenAI for a diagnostic summary of the given log snippet.
+ * Logs detailed API errors for troubleshooting but never exposes secrets.
+ * @param {string} logSnippet
+ * @returns {Promise<string>}
+ */
 async function getAIDiagnostic(logSnippet) {
   if (!OPENAI_API_KEY) {
     return "AI diagnostics unavailable: no OpenAI API key configured.";
@@ -76,7 +82,20 @@ async function getAIDiagnostic(logSnippet) {
     );
     return resp.data.choices[0].message.content.trim();
   } catch (err) {
-    return "AI diagnostics failed: " + (err.response?.data?.error?.message || err.message);
+    // Enhanced logging for diagnostics (never log the API key or prompt)
+    const logger = require('./logger');
+    if (err.response) {
+      logger.error(`OpenAI API error: Status ${err.response.status} - ${err.response.statusText}`);
+      if (err.response.data && err.response.data.error) {
+        logger.error(`OpenAI API error details: ${JSON.stringify(err.response.data.error)}`);
+      }
+    } else if (err.request) {
+      logger.error('OpenAI API error: No response received from OpenAI API.');
+    } else {
+      logger.error(`OpenAI API error: ${err.message}`);
+    }
+    // Show a generic message to the user
+    return "AI diagnostics failed: An error occurred while contacting the OpenAI API. Please try again later.";
   }
 }
 
@@ -133,12 +152,12 @@ async function analyzeLogForErrors(logContent) {
   }
 
   // Always get an AI summary of the error lines (or logContent if no error lines)
-let aiSummary = null;
-if (matches.length > 0) {
-  aiSummary = await getAIDiagnostic(
-    matches.map(m => m.line).join('\n').slice(0, 2000)
-  );
-}
+  let aiSummary = null;
+  if (matches.length > 0) {
+    aiSummary = await getAIDiagnostic(
+      matches.map(m => m.line).join('\n').slice(0, 2000)
+    );
+  }
 
   return { matches, aiSummary };
 }
@@ -213,11 +232,11 @@ If you are still experiencing issues:
 
   // Always add the AI summary, if present
   if (aiSummary && matches.length > 0) {
-  embed.addFields({
-    name: "🤖 AI Summary of Potential Issues/Fixes",
-    value: aiSummary.length > 1024 ? aiSummary.slice(0, 1021) + '...' : aiSummary
-  });
-}
+    embed.addFields({
+      name: "🤖 AI Summary of Potential Issues/Fixes",
+      value: aiSummary.length > 1024 ? aiSummary.slice(0, 1021) + '...' : aiSummary
+    });
+  }
 
   // Only show "Original Message" section for non-ephemeral messages with a valid URL
   if (showOriginalMessage && messageUrl) {
