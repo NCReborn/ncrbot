@@ -110,11 +110,21 @@ The bot will log in and begin polling NexusMods for collection status changes, u
 - `/issues` — Set status channel to "Issues Detected (Latest)" (admin only).
 - `/investigating` — Set status channel to "Issues Reported (Latest)" (admin only).
 - `/updating` — Set status channel to "Updating soon (Latest)" (admin only).
+- `/help` — Show all available commands.
+- `/reload` — Reload all slash commands (admin only).
 
 ### Log Analysis
 
 - Upload a `.log` or `.txt` file to the crash log channel to trigger automated analysis.
 - Use the "Scan a Log File" button in the log scan channel to paste log content and receive analysis via modal.
+
+---
+
+## Admin & Maintenance Tips
+
+- Use `/reload` to reload slash commands after adding or updating commands.
+- Use `/help` to list all available commands.
+- To update environment variables, restart the bot process.
 
 ---
 
