@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const { fetchRevision, getCollectionSlug, getCollectionName, computeDiff, findExclusiveChanges, processModFiles } = require('../utils/nexusApi');
 const { sendCombinedChangelogMessages, sendSingleChangelogMessages } = require('../services/changelogService');
+const logger = require('../utils/logger'); // <-- Use logger
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -76,7 +77,7 @@ module.exports = {
         await interaction.editReply({ content: `Combined changelog for ${c1} and ${c2}:` });
       }
     } catch (err) {
-      console.error('Error:', err);
+      logger.error('Error:', err);
       await interaction.editReply({ content: `Error: ${err.message}` });
     }
   }
