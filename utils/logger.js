@@ -8,8 +8,8 @@ const logger = createLogger({
   ),
   transports: [
     new transports.Console(),
-    // Uncomment to enable file logging:
-    // new transports.File({ filename: 'ncrbot.log' })
+    // Enable file logging for persistent audit/history:
+    new transports.File({ filename: 'ncrbot.log' })
   ],
 });
 
