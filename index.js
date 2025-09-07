@@ -11,6 +11,10 @@ const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./
 const { sendLogScanButton, handleLogScanTicketInteraction } = require('./utils/logScanTicket');
 
 const BOT_TOKEN = process.env.DISCORD_TOKEN;
+if (!BOT_TOKEN) {
+  logger.error('DISCORD_TOKEN environment variable is not set!');
+  process.exit(1);
+}
 const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
 const LOG_SCAN_CHANNEL_ID = process.env.LOG_SCAN_CHANNEL_ID || '1414027269680267274';
 
