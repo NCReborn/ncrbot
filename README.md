@@ -1,25 +1,21 @@
-# NCR Utilities Bot
+# NCRBot
 
-A Discord bot for NCR/ADR communities.  
-It automates collection revision tracking, provides crash log scanning and analysis (with AI diagnostics), and allows staff to update status channels for users.
+A Discord bot for the NCR/ADR modding communities, providing revision tracking, crash log analysis, status channel management, and advanced utilities for Cyberpunk 2077 collection maintainers.
 
 ---
 
 ## Features
 
-- **Collection Revision Polling:**  
-  Automatically monitors NexusMods collection revisions and updates Discord channels accordingly.
-
-- **Crash Log Scanning:**  
-  Users can upload `.log` or `.txt` files for automated error detection and receive AI-powered troubleshooting tips.
-
-- **Slash Commands:**  
-  - `/diff` - Compare modlists between revisions/collections
-  - `/version` - Show bot version and changelog
-  - `/investigating`, `/issues`, `/stable`, `/updating` - Admin-only commands to update status channels
-
-- **Admin Utilities:**  
-  Staff can update status indicators for the community with built-in cooldowns to prevent spam.
+- **Revision Tracking:**  
+  Polls NexusMods for collection updates and updates Discord voice channels with the latest revision numbers and statuses.
+- **Crash Log Analysis:**  
+  Automated error pattern detection and optional AI-powered summaries for uploaded `.log` or `.txt` files.
+- **Status Channel Management:**  
+  Admin-only slash commands to set the status channel to "Stable", "Updating soon", "Issues Reported", etc.
+- **Mod Diff Changelogs:**  
+  Generate changelogs between collection revisions, optionally comparing two collections at once.
+- **User Log Scan Ticket:**  
+  Interactive button and modal for users to submit logs for automated scanning and advice.
 
 ---
 
@@ -27,30 +23,57 @@ It automates collection revision tracking, provides crash log scanning and analy
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18+
-- A Discord bot token ([guide](https://discord.com/developers/applications))
-- Nexus Mods API key (for revision polling)
-- (Optional) OpenAI API key for AI log explanations
+- Node.js **v18+** (required by discord.js v14)
+- A Discord bot application and its token
+- (Optional) [NexusMods API key](https://www.nexusmods.com/users/myaccount?tab=api%20access) for revision polling
+- (Optional) [OpenAI API key](https://platform.openai.com/) for AI log analysis
 
 ### Installation
 
-1. Clone the repo:
+1. **Clone the repo:**
    ```sh
    git clone https://github.com/mquiny/ncrbot.git
    cd ncrbot
    ```
 
-2. Install dependencies:
+2. **Install dependencies:**
    ```sh
    npm install
    ```
 
-3. Configure your environment:
-   - Copy the example env and fill in your values:
-     ```sh
-     cp .env.example .env
-     ```
-   - Edit `.env` and provide your Discord/Nexus/OpenAI keys.
+3. **Configure environment variables:**
+
+   Copy the example file and fill in your secrets:
+   ```sh
+   cp .env.example .env
+   ```
+
+   Edit `.env` in your favorite editor.  
+   See below for the required variables.
+
+---
+
+## Environment Variables
+
+All configuration is managed through `.env`.  
+**Never commit your real `.env` file—use `.env.example` as a template!**
+
+| Variable              | Description                                     |
+|-----------------------|-------------------------------------------------|
+| DISCORD_TOKEN         | Your Discord bot token (required)               |
+| CLIENT_ID             | Discord Application Client ID (for deploy-commands.js) |
+| NEXUS_API_KEY         | NexusMods API key (for revision polling)        |
+| APP_NAME              | Application name for Nexus API (optional)       |
+| APP_VERSION           | Application version for Nexus API (optional)    |
+| CRASH_LOG_CHANNEL_ID  | Channel ID for crash log uploads                |
+| LOG_SCAN_CHANNEL_ID   | Channel ID for scan button/modal submissions    |
+| OPENAI_API_KEY        | (Optional) OpenAI API key for AI log analysis   |
+
+See `.env.example` for a complete template.
+
+---
+
+## Usage
 
 ### Running the Bot
 
@@ -58,38 +81,38 @@ It automates collection revision tracking, provides crash log scanning and analy
 npm start
 ```
 
-The bot will log in and begin polling collections and listening for log uploads and commands.
+The bot will log in and begin polling NexusMods for collection status changes, updating voice channels, and listening for commands.
+
+### Slash Commands
+
+- `/version` — Show bot version and recent changes.
+- `/diff` — Show mod differences between collection revisions (admin only).
+- `/stable` — Set status channel to "Stable (Latest)" (admin only).
+- `/issues` — Set status channel to "Issues Detected (Latest)" (admin only).
+- `/investigating` — Set status channel to "Issues Reported (Latest)" (admin only).
+- `/updating` — Set status channel to "Updating soon (Latest)" (admin only).
+
+### Log Analysis
+
+- Upload a `.log` or `.txt` file to the crash log channel to trigger automated analysis.
+- Use the "Scan a Log File" button in the log scan channel to paste log content and receive analysis via modal.
 
 ---
 
-## Environment Variables
+## Deployment
 
-See `.env.example` for all available options.
-
-| Variable              | Description                          |
-|-----------------------|--------------------------------------|
-| DISCORD_TOKEN         | Your Discord bot token (required)    |
-| NEXUS_API_KEY         | NexusMods API key (required)         |
-| APP_NAME              | App name for Nexus API (optional)    |
-| APP_VERSION           | App version for Nexus API (optional) |
-| CRASH_LOG_CHANNEL_ID  | Channel for log uploads              |
-| LOG_SCAN_CHANNEL_ID   | Channel for scan button              |
-| OPENAI_API_KEY        | OpenAI API key (optional, for AI)    |
-
----
-
-## Usage
-
-- Users:  
-  - Upload crash logs in the configured channel or use the scan button for quick analysis.
-- Staff:  
-  - Use the slash commands to update status channels or get changelogs.
+- **Deploy Slash Commands:**  
+  Run `node deploy-commands.js` to register or update slash commands for your guild.
+- **Automated Restarts:**  
+  The provided GitHub Actions workflow triggers a server restart on push (see `.github/workflows/main.yml`).  
+  Requires `PTERODACTYL_API_KEY` and `SERVER_ID` as GitHub secrets/variables.
 
 ---
 
 ## Contributing
 
-Pull requests are welcome! For major changes, open an issue first to discuss.
+Pull requests and issues are welcome!  
+If you have suggestions, bug reports, or want to help improve the bot, please open an issue or PR on GitHub.
 
 ---
 
@@ -99,6 +122,9 @@ MIT
 
 ---
 
-## Help & Community
+## Credits
 
-- For help, ping `@mquiny` on Discord or open an issue in this repo.
+- [discord.js](https://discord.js.org/)
+- [NexusMods API](https://www.nexusmods.com/)
+- [OpenAI API](https://platform.openai.com/)
+- mquiny and contributors
