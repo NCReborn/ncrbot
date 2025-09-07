@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const voiceConfig = require('../config/voiceChannels');
-const statusCooldown = require('./statusCooldown');
+const statusCooldown = require('../utils/statusCooldown');
 const COOLDOWN_TIME = 5 * 60 * 1000;
 
 module.exports = {
