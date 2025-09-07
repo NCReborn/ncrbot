@@ -1,4 +1,4 @@
-onst axios = require('axios');
+const axios = require('axios');
 const { EmbedBuilder } = require('discord.js');
 
 // Map error patterns to suggested solutions (expand as needed)
@@ -56,6 +56,30 @@ const ERROR_PATTERNS = [
   }
 ];
 
+// AI Diagnostics integration
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+async function getAIDiagnostic(logSnippet) {
+  if (!OPENAI_API_KEY) {
+    return "AI diagnostics unavailable: no OpenAI API key configured.";
+  }
+  const prompt = `This is a crash log from a Cyberpunk 2077 modded setup. What does the following error mean and how do I fix it? Please keep your answer concise and actionable for a non-programmer.\n\nError snippet:\n${logSnippet}`;
+  try {
+    const resp = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 300,
+        temperature: 0.2,
+      },
+      { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } }
+    );
+    return resp.data.choices[0].message.content.trim();
+  } catch (err) {
+    return "AI diagnostics failed: " + (err.response?.data?.error?.message || err.message);
+  }
+}
+
 async function fetchLogAttachment(attachment) {
   const validExts = ['.log', '.txt', '.error'];
   if (!validExts.some(ext => attachment.name.toLowerCase().endsWith(ext))) return null;
@@ -67,9 +91,17 @@ async function fetchLogAttachment(attachment) {
   }
 }
 
-function analyzeLogForErrors(logContent) {
+/**
+ * Analyze the log for known errors and supplement with AI if needed.
+ * Returns an array of matches, each with { tool, lineNumber, line, solution }
+ */
+async function analyzeLogForErrors(logContent) {
   const lines = logContent.split('\n');
-  const errorLines = lines.filter(line => /^\[ERROR\b/i.test(line));
+  // Robust error line detection: matches any line that starts with [ERROR (case-insensitive)
+  const errorLines = lines.filter(line => line.toUpperCase().startsWith('[ERROR'));
+
+  // Optionally, log for debug:
+  // console.log("Detected errorLines:", errorLines.length, errorLines);
 
   let matches = [];
   errorLines.forEach((line, i) => {
@@ -87,13 +119,24 @@ function analyzeLogForErrors(logContent) {
     }
   });
 
-  // If compilation failed, highlight that even if no other match
   if (logContent.match(/REDScript compilation has failed/i) && !matches.some(m => m.tool === 'redscript')) {
     matches.push({
       tool: 'redscript',
       lineNumber: null,
       line: 'REDScript compilation has failed.',
       solution: ERROR_PATTERNS.find(p => p.tool === 'redscript').solution
+    });
+  }
+
+  // If no known matches, try AI on the first error line
+  if (matches.length === 0 && errorLines.length > 0) {
+    const firstErrorLine = errorLines[0];
+    const aiSolution = await getAIDiagnostic(firstErrorLine);
+    matches.push({
+      tool: 'AI',
+      lineNumber: lines.indexOf(firstErrorLine) + 1,
+      line: firstErrorLine,
+      solution: aiSolution
     });
   }
 
@@ -110,7 +153,15 @@ function extractModList(logContent) {
   return [];
 }
 
-function buildErrorEmbed(attachment, matches, logContent, messageUrl) {
+/**
+ * Builds an error analysis embed for a log file.
+ * @param {Object} attachment - {name, url}
+ * @param {Array<Object>} matches - Output of analyzeLogForErrors
+ * @param {string} logContent - The log's full content
+ * @param {string} messageUrl - The "jump to message" URL, or empty string if ephemeral
+ * @param {boolean} showOriginalMessage - If false, don't show "Original Message" block (for ephemeral replies)
+ */
+function buildErrorEmbed(attachment, matches, logContent, messageUrl = '', showOriginalMessage = true) {
   const embed = new EmbedBuilder()
     .setTitle(`Crash Log Analysis: ${attachment.name}`)
     .setColor(0xff0000)
@@ -138,11 +189,6 @@ function buildErrorEmbed(attachment, matches, logContent, messageUrl) {
       });
     }
 
-    embed.addFields({
-      name: "Original Message",
-      value: `[Jump to message](${messageUrl})`
-    });
-
     // Redscript error - Possible Solutions prompt
     if (matches.some(m => m.tool === 'redscript')) {
       embed.addFields({
@@ -161,11 +207,18 @@ function buildErrorEmbed(attachment, matches, logContent, messageUrl) {
 If you are still experiencing issues:
 - Please post any additional log files mentioned in the pinned comments of this channel.
 - Or, head to <#1285796905640788030> and describe the issue you are having for further assistance.`);
+  }
+
+  // Only show "Original Message" section for non-ephemeral messages with a valid URL
+  if (showOriginalMessage && messageUrl) {
     embed.addFields({
       name: "Original Message",
       value: `[Jump to message](${messageUrl})`
     });
   }
+
+  // Add italicized beta/AI disclaimer footer
+  embed.setFooter({ text: 'This log analysis is AI-generated and currently in beta.', iconURL: null });
 
   return embed;
 }
