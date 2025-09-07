@@ -6,8 +6,8 @@ const COOLDOWN_TIME = 5 * 60 * 1000;
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('issues')
-    .setDescription('Set the status channel to "Issues Detected (Latest)" (Admin only)'),
+    .setName('stable')
+    .setDescription('Set the status channel to "Stable (Latest)" (Admin only)'),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
@@ -26,10 +26,10 @@ module.exports = {
     try {
       const channel = await interaction.guild.channels.fetch(channelId);
       if (!channel) throw new Error('Status channel not found.');
-      await channel.setName('🔴┃Status : Issues Detected (Latest)');
-      await interaction.editReply({ content: `Status channel updated to: Issues Detected (Latest)` });
+      await channel.setName('🟢┃Status : Stable (Latest)');
+      await interaction.editReply({ content: `Status channel updated to: Stable (Latest)` });
     } catch (err) {
-      logger.error(`Failed to update channel in /issues: ${err.stack || err}`);
+      logger.error(`Failed to update channel in /stable: ${err.stack || err}`);
       await interaction.editReply({ content: `Failed to update channel: ${err.message}` });
     }
   }
