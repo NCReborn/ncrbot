@@ -4,6 +4,24 @@ A Discord bot for the NCR/ADR modding communities, providing revision tracking, 
 
 ---
 
+## Quickstart
+
+```sh
+# Clone and install
+git clone https://github.com/mquiny/ncrbot.git
+cd ncrbot
+npm install
+
+# Copy and edit environment config
+cp .env.example .env
+# (edit .env with your secrets)
+
+# Run the bot
+npm start
+```
+
+---
+
 ## Directory Structure
 
 ```
@@ -128,6 +146,25 @@ The bot will log in and begin polling NexusMods for collection status changes, u
 
 ---
 
+## Running Tests
+
+Install dependencies (including dev dependencies):
+
+```sh
+npm install
+```
+
+Run all tests:
+
+```sh
+npm test
+```
+
+Test files are located in the `tests/` directory.  
+Add new tests for utilities and commands as you extend the bot.
+
+---
+
 ## Deployment
 
 - **Deploy Slash Commands:**  
@@ -135,6 +172,22 @@ The bot will log in and begin polling NexusMods for collection status changes, u
 - **Automated Restarts:**  
   The provided GitHub Actions workflow triggers a server restart on push (see `.github/workflows/main.yml`).  
   Requires `PTERODACTYL_API_KEY` and `SERVER_ID` as GitHub secrets/variables.
+
+---
+
+## FAQ / Troubleshooting
+
+**Q: My slash commands don't show up!**  
+A: Make sure you ran `node deploy-commands.js` and that your bot has the `applications.commands` scope and correct permissions.
+
+**Q: I get errors about missing environment variables.**  
+A: Check `.env` and make sure all required values are present.
+
+**Q: The bot doesn't update channels or reply to commands.**  
+A: Verify your bot token, channel IDs, and that your bot user has permission to manage channels and post in the target channels.
+
+**Q: How do I update dependencies?**  
+A: Run `npm install` to update as per `package.json`.
 
 ---
 
@@ -151,7 +204,19 @@ The bot will log in and begin polling NexusMods for collection status changes, u
 ## Contributing
 
 Pull requests and issues are welcome!  
-If you have suggestions, bug reports, or want to help improve the bot, please open an issue or PR on GitHub.
+If you have suggestions, bug reports, or want to help improve the bot:
+
+- Fork and clone the repo
+- Create a feature branch
+- Make changes and add tests in `tests/`
+- Run `npm test` before pushing
+- Submit a pull request!
+
+---
+
+## Support
+
+For questions or support, open a GitHub issue or [join our Discord](https://discord.gg/YOUR_INVITE) (if applicable).
 
 ---
 
