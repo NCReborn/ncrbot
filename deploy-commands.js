@@ -1,7 +1,9 @@
 const { REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const logger = require('./utils/logger'); // <-- Use logger
+const logger = require('./utils/logger');
+require('dotenv').config();
+require('./utils/envCheck').checkEnv();
 
 if (!process.env.DISCORD_TOKEN) {
   logger.error('DISCORD_TOKEN environment variable is not set!');
