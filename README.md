@@ -1,5 +1,7 @@
 # NCRBot
-<img src="https://imgur.com/5FAEzSA.png" alt="NCR Collection Logo" width="128"/>
+<p align="center">
+  <img src="https://imgur.com/kvdRbJq.png" alt="NCR Collection Banner" style="max-width: 100%; height: auto;">
+</p>
 
 A Discord bot for the NCR/ADR modding communities, providing revision tracking, crash log analysis, status channel management, and advanced utilities for Cyberpunk 2077 collection maintainers.
 
