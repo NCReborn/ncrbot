@@ -34,9 +34,10 @@ async function deletePreviousLogScanButtons(channel) {
   for (const msg of botMessages.values()) {
     try {
       await msg.delete();
+      logger.info(`[LOGSCAN] Deleted previous log scan button message (ID: ${msg.id})`);
     } catch (err) {
       // Ignore if already deleted or missing permissions
-      logger.warn(`Failed to delete previous log scan button: ${err.message}`);
+      logger.warn(`[LOGSCAN] Failed to delete previous log scan button: ${err.message}`);
     }
   }
 }
@@ -51,7 +52,7 @@ async function sendLogScanButton(client, channelId) {
   try {
     const channel = await client.channels.fetch(channelId);
     if (!channel || !channel.isTextBased()) {
-      logger.error('Channel not found or not text-based.');
+      logger.error('[LOGSCAN] Channel not found or not text-based.');
       return;
     }
 
@@ -84,9 +85,9 @@ async function sendLogScanButton(client, channelId) {
       embeds: [embed],
       components: [row],
     });
-    logger.info('Log scan ticket embed/button sent.');
+    logger.info('[LOGSCAN] Log scan ticket embed/button sent.');
   } catch (error) {
-    logger.error('Failed to send log scan ticket embed/button:', error);
+    logger.error('[LOGSCAN] Failed to send log scan ticket embed/button:', error);
   }
 }
 
@@ -106,6 +107,7 @@ async function handleLogScanTicketInteraction(interaction) {
       const seconds = Math.ceil(
         (LOG_SCAN_COOLDOWN - (now - lastUsed)) / 1000
       );
+      logger.info(`[LOGSCAN] Cooldown hit by ${interaction.user.tag} (${interaction.user.id}) (${seconds}s left)`);
       await interaction.reply({
         content: `You are on cooldown for log analysis. Please wait ${seconds} more second(s).`,
         ephemeral: true,
@@ -113,6 +115,7 @@ async function handleLogScanTicketInteraction(interaction) {
       return;
     }
     // Show modal
+    logger.info(`[LOGSCAN] Modal shown to ${interaction.user.tag} (${interaction.user.id})`);
     const modal = new ModalBuilder()
       .setCustomId('log_scan_modal')
       .setTitle('Paste your log file here');
@@ -138,6 +141,7 @@ async function handleLogScanTicketInteraction(interaction) {
     const logContent = interaction.fields.getTextInputValue('log_content');
     // If the log is too long, do not analyze, only show error
     if (logContent.length >= 4000) {
+      logger.warn(`[LOGSCAN] Log too long from ${interaction.user.tag} (${interaction.user.id}) via modal`);
       await interaction.reply({
         content:
           '❌ Your log was over 4000 characters and was truncated by discord rate limits. For full analysis, upload the log file as an attachment in <#1287876503811653785> instead, or trim your post down to only include the [errors]. ❌',
@@ -146,6 +150,7 @@ async function handleLogScanTicketInteraction(interaction) {
       return;
     }
     // Analyze as normal
+    logger.info(`[LOGSCAN] Log scan modal analysis by ${interaction.user.tag} (${interaction.user.id})`);
     const analysisResult = await analyzeLogForErrors(logContent);
     const attachmentObj = { name: 'User Submitted Log', url: '' };
     const embed = buildErrorEmbed(
