@@ -6,10 +6,12 @@ const path = require('path');
 // Import log analysis utilities (only ONCE!)
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
 
-const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+// Import the ticket/modal system from utils
+const { sendLogScanButton, handleLogScanTicketInteraction } = require('./utils/logScanTicket');
 
-// Set your crash log channel ID (replace with actual ID or use env)
-const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1411831110417252493';
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
+const LOG_SCAN_CHANNEL_ID = process.env.LOG_SCAN_CHANNEL_ID || '1414027269680267274';
 
 const client = new Client({
   intents: [
@@ -30,29 +32,35 @@ for (const file of commandFiles) {
   }
 }
 
-client.once('clientReady', () => {
+// Send the Scan Log button (ticket-style) when bot is ready
+client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
+  await sendLogScanButton(client, LOG_SCAN_CHANNEL_ID);
 });
 
+// Handle ticket-style log scan (button + modal) in one place
 client.on('interactionCreate', async interaction => {
-  if (interaction.type !== InteractionType.ApplicationCommand) return;
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(error);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
-    } else {
-      await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+  await handleLogScanTicketInteraction(interaction);
+
+  // Slash command handler
+  if (interaction.type === InteractionType.ApplicationCommand) {
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+    try {
+      await command.execute(interaction);
+    } catch (error) {
+      console.error(error);
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
+      } else {
+        await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+      }
     }
   }
 });
 
-// Crash log auto-analysis handler
+// (Optional) If you want to keep file upload log analysis, leave this in. Otherwise, remove!
 client.on('messageCreate', async (message) => {
-  // Only handle new messages in the crash log channel, from users, with attachments
   if (
     message.channelId !== CRASH_LOG_CHANNEL_ID ||
     message.author.bot ||
@@ -60,36 +68,37 @@ client.on('messageCreate', async (message) => {
   ) return;
 
   for (const [, attachment] of message.attachments) {
-    const logContent = await fetchLogAttachment(attachment);
-    if (!logContent) continue;
+  const logContent = await fetchLogAttachment(attachment);
+  if (!logContent) continue;
 
-    const errorMatches = analyzeLogForErrors(logContent);
+  const errorMatches = await analyzeLogForErrors(logContent); // <-- await here!
 
-    // Always reply with the embed (even if no errors)
-    const embed = buildErrorEmbed(attachment, errorMatches, logContent, message.url);
-    await message.reply({ embeds: [embed] });
+  // Always reply with the embed (even if no errors)
+  const embed = buildErrorEmbed(attachment, errorMatches, logContent, message.url);
+  await message.reply({ embeds: [embed] });
 
-    // React for visual clarity
-    if (errorMatches.length > 0) {
-      await message.react('❌');
-    } else {
-      await message.react('✅');
-    }
+  // React for visual clarity
+  if (errorMatches.length > 0) {
+    await message.react('❌');
+  } else {
+    await message.react('✅');
   }
+}
 });
+
+// --- rest of your revision polling code (unchanged) ---
 const { fetchRevision } = require('./utils/nexusApi');
 const { updateCollectionVersionChannel, updateStatusChannel } = require('./utils/voiceChannelUpdater');
-const { setRevision, getRevision, getRevertAt, saveState, loadState } = require('./utils/revisionStore');
+const { setRevision, getRevision, getRevertAt } = require('./utils/revisionStore');
 const voiceConfig = require('./config/voiceChannels');
 
 const POLL_INTERVAL = 10 * 60 * 1000; // 10 min
-const COLLECTION_SLUG = 'rcuccp'; // Use your collection's slug
+const COLLECTION_SLUG = 'rcuccp';
 
 client.once('ready', async () => {
   console.log('Bot ready - starting revision poller');
-  const guild = client.guilds.cache.first(); // or get by ID if needed
+  const guild = client.guilds.cache.first();
 
-  // On startup, check if a revert is scheduled
   const revertAt = getRevertAt();
   if (revertAt && Date.now() < revertAt) {
     const timeLeft = revertAt - Date.now();
@@ -97,7 +106,6 @@ client.once('ready', async () => {
       await updateStatusChannel(guild, voiceConfig.statusStable);
       setRevision(getRevision(), null);
     }, timeLeft);
-    // Optionally log scheduled revert
     console.log(`Scheduled status revert in ${Math.round(timeLeft/1000/60)}min`);
   }
 
@@ -114,11 +122,9 @@ client.once('ready', async () => {
       const lastRevision = getRevision();
 
       if (!lastRevision || currentRevision > lastRevision) {
-        // Detected new revision!
         await updateCollectionVersionChannel(guild, currentRevision);
         await updateStatusChannel(guild, voiceConfig.statusChecking);
 
-        // Schedule the revert to "Stable" in 24h
         const revertAt = Date.now() + 24 * 60 * 60 * 1000;
         setRevision(currentRevision, revertAt);
         setTimeout(async () => {
