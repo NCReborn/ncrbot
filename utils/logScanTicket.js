@@ -132,10 +132,10 @@ async function handleLogScanTicketInteraction(interaction) {
       return;
     }
     // Analyze as normal
-    const errorMatches = analyzeLogForErrors(logContent);
-    const attachmentObj = { name: 'User Submitted Log', url: '' };
-    const embed = buildErrorEmbed(attachmentObj, errorMatches, logContent, '');
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+const errorMatches = await analyzeLogForErrors(logContent);
+const attachmentObj = { name: 'User Submitted Log', url: '' };
+const embed = buildErrorEmbed(attachmentObj, errorMatches, logContent, '');
+await interaction.reply({ embeds: [embed], ephemeral: true });
     return;
   }
 }
