@@ -14,6 +14,7 @@ module.exports = {
     const username = `${interaction.user.tag} (${interaction.user.id})`;
 
     try {
+      // Use consistent key formatting for version cooldowns
       const cooldownKey = interaction.user.id;
       const timeLeft = checkCooldown(cooldownKey, VERSION_COOLDOWN_TIME);
 
