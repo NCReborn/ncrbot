@@ -6,6 +6,17 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
 
+// Auto-sync slash commands on startup if enabled in .env
+if (process.env.AUTO_SYNC_COMMANDS === 'true') {
+  const { syncSlashCommands } = require('./utils/commandSync');
+  syncSlashCommands()
+    .then(() => logger.info('Slash commands auto-synced on startup.'))
+    .catch(e => {
+      logger.error('Slash sync failed:', e);
+      process.exit(1); // Fail fast if you want to prevent running with invalid commands
+    });
+}
+
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
 });
