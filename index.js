@@ -1,28 +1,21 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
+
 const { Client, GatewayIntentBits, Collection, InteractionType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const logger = require('./utils/logger'); // <-- Use logger everywhere
-
-// Import log analysis utilities (only ONCE!)
-const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
-require('dotenv').config();
-require('./utils/envCheck').checkEnv();
+const logger = require('./utils/logger');
 
 process.on('unhandledRejection', (reason, promise) => {
-  const logger = require('./utils/logger');
   logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
 });
 
-// Import the ticket/modal system from utils
+// Import log analysis utilities
+const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
+// Import the ticket/modal system
 const { sendLogScanButton, handleLogScanTicketInteraction } = require('./utils/logScanTicket');
 
 const BOT_TOKEN = process.env.DISCORD_TOKEN;
-if (!BOT_TOKEN) {
-  logger.error('DISCORD_TOKEN environment variable is not set!');
-  process.exit(1);
-}
 const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
 const LOG_SCAN_CHANNEL_ID = process.env.LOG_SCAN_CHANNEL_ID || '1414027269680267274';
 
@@ -45,10 +38,63 @@ for (const file of commandFiles) {
   }
 }
 
-// Send the Scan Log button (ticket-style) when bot is ready
+// Combined ready handler: send log scan button and start revision poller
 client.once('ready', async () => {
   logger.info(`Logged in as ${client.user.tag}`);
   await sendLogScanButton(client, LOG_SCAN_CHANNEL_ID);
+
+  logger.info('Bot ready - starting revision poller');
+  const guild = client.guilds.cache.first();
+
+  // --- Revision polling logic ---
+  const { fetchRevision } = require('./utils/nexusApi');
+  const { updateCollectionVersionChannel, updateStatusChannel } = require('./utils/voiceChannelUpdater');
+  const { setRevision, getRevision, getRevertAt } = require('./utils/revisionStore');
+  const voiceConfig = require('./config/voiceChannels');
+
+  const POLL_INTERVAL = 10 * 60 * 1000; // 10 min
+  const COLLECTION_SLUG = 'rcuccp';
+
+  // If there's a pending revert, schedule it
+  const revertAt = getRevertAt();
+  if (revertAt && Date.now() < revertAt) {
+    const timeLeft = revertAt - Date.now();
+    setTimeout(async () => {
+      await updateStatusChannel(guild, voiceConfig.statusStable);
+      setRevision(getRevision(), null);
+    }, timeLeft);
+    logger.info(`Scheduled status revert in ${Math.round(timeLeft / 1000 / 60)}min`);
+  }
+
+  setInterval(async () => {
+    try {
+      const revisionData = await fetchRevision(
+        COLLECTION_SLUG,
+        null,
+        process.env.NEXUS_API_KEY,
+        process.env.APP_NAME,
+        process.env.APP_VERSION
+      );
+      const currentRevision = revisionData.revisionNumber;
+      const lastRevision = getRevision();
+
+      if (!lastRevision || currentRevision > lastRevision) {
+        await updateCollectionVersionChannel(guild, currentRevision);
+        await updateStatusChannel(guild, voiceConfig.statusChecking);
+
+        const revertAt = Date.now() + 24 * 60 * 60 * 1000;
+        setRevision(currentRevision, revertAt);
+        setTimeout(async () => {
+          await updateStatusChannel(guild, voiceConfig.statusStable);
+          setRevision(currentRevision, null);
+        }, 24 * 60 * 60 * 1000);
+
+        logger.info(`Detected new revision: ${currentRevision}, status set to Checking, will revert to Stable in 24h`);
+      }
+    } catch (err) {
+      logger.error('Revision polling error:', err);
+    }
+  }, POLL_INTERVAL);
 });
 
 // Handle ticket-style log scan (button + modal) in one place
@@ -98,60 +144,6 @@ client.on('messageCreate', async (message) => {
       await message.react('✅');
     }
   }
-});
-
-// --- rest of your revision polling code (unchanged) ---
-const { fetchRevision } = require('./utils/nexusApi');
-const { updateCollectionVersionChannel, updateStatusChannel } = require('./utils/voiceChannelUpdater');
-const { setRevision, getRevision, getRevertAt } = require('./utils/revisionStore');
-const voiceConfig = require('./config/voiceChannels');
-
-const POLL_INTERVAL = 10 * 60 * 1000; // 10 min
-const COLLECTION_SLUG = 'rcuccp';
-
-client.once('ready', async () => {
-  logger.info('Bot ready - starting revision poller');
-  const guild = client.guilds.cache.first();
-
-  const revertAt = getRevertAt();
-  if (revertAt && Date.now() < revertAt) {
-    const timeLeft = revertAt - Date.now();
-    setTimeout(async () => {
-      await updateStatusChannel(guild, voiceConfig.statusStable);
-      setRevision(getRevision(), null);
-    }, timeLeft);
-    logger.info(`Scheduled status revert in ${Math.round(timeLeft/1000/60)}min`);
-  }
-
-  setInterval(async () => {
-    try {
-      const revisionData = await fetchRevision(
-        COLLECTION_SLUG,
-        null,
-        process.env.NEXUS_API_KEY,
-        process.env.APP_NAME,
-        process.env.APP_VERSION
-      );
-      const currentRevision = revisionData.revisionNumber;
-      const lastRevision = getRevision();
-
-      if (!lastRevision || currentRevision > lastRevision) {
-        await updateCollectionVersionChannel(guild, currentRevision);
-        await updateStatusChannel(guild, voiceConfig.statusChecking);
-
-        const revertAt = Date.now() + 24 * 60 * 60 * 1000;
-        setRevision(currentRevision, revertAt);
-        setTimeout(async () => {
-          await updateStatusChannel(guild, voiceConfig.statusStable);
-          setRevision(currentRevision, null);
-        }, 24 * 60 * 60 * 1000);
-
-        logger.info(`Detected new revision: ${currentRevision}, status set to Checking, will revert to Stable in 24h`);
-      }
-    } catch (err) {
-      logger.error('Revision polling error:', err);
-    }
-  }, POLL_INTERVAL);
 });
 
 client.login(BOT_TOKEN);
