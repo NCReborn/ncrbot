@@ -19,8 +19,10 @@ module.exports = {
     .addIntegerOption(option =>
       option.setName('newrev2').setDescription('New revision number for collection 2 (optional)').setRequired(false)),
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      await interaction.reply({ content: 'This command is only available to administrators.', ephemeral: true });
+      await interaction.editReply({ content: 'This command is only available to administrators.' });
       return;
     }
 
@@ -48,7 +50,7 @@ module.exports = {
         const diffs = computeDiff(oldMods, newMods);
 
         await sendSingleChangelogMessages(interaction.channel, diffs, slug, old1, new1, collectionName);
-        await interaction.reply({ content: `Changelog for ${collectionName} ${old1} → ${new1}:`, ephemeral: true });
+        await interaction.editReply({ content: `Changelog for ${collectionName} ${old1} → ${new1}:` });
       } else {
         // Dual collection
         const slug1 = getCollectionSlug(c1);
@@ -71,11 +73,11 @@ module.exports = {
         const exclusiveChanges = findExclusiveChanges(diffs1, diffs2);
 
         await sendCombinedChangelogMessages(interaction.channel, diffs1, diffs2, exclusiveChanges, slug1, old1, new1, slug2, old2, new2);
-        await interaction.reply({ content: `Combined changelog for ${c1} and ${c2}:`, ephemeral: true });
+        await interaction.editReply({ content: `Combined changelog for ${c1} and ${c2}:` });
       }
     } catch (err) {
       console.error('Error:', err);
-      await interaction.reply({ content: `Error: ${err.message}`, ephemeral: true });
+      await interaction.editReply({ content: `Error: ${err.message}` });
     }
   }
 };
