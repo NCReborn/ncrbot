@@ -94,12 +94,13 @@ client.once('ready', async () => {
   const COLLECTION_SLUG = 'rcuccp';
 
   // If there's a pending revert, schedule it
-  const revertAt = getRevertAt();
+  // Performance: Use async revisionStore functions
+  const revertAt = await getRevertAt();
   if (revertAt && Date.now() < revertAt) {
     const timeLeft = revertAt - Date.now();
     setTimeout(async () => {
       await updateStatusChannel(guild, voiceConfig.statusStable);
-      setRevision(getRevision(), null);
+      await setRevision(await getRevision(), null);
     }, timeLeft);
     logger.info(`Scheduled status revert in ${Math.round(timeLeft / 1000 / 60)}min`);
   }
@@ -114,17 +115,17 @@ client.once('ready', async () => {
         process.env.APP_VERSION
       );
       const currentRevision = revisionData.revisionNumber;
-      const lastRevision = getRevision();
+      const lastRevision = await getRevision();
 
       if (!lastRevision || currentRevision > lastRevision) {
         await updateCollectionVersionChannel(guild, currentRevision);
         await updateStatusChannel(guild, voiceConfig.statusChecking);
 
         const revertAt = Date.now() + 24 * 60 * 60 * 1000;
-        setRevision(currentRevision, revertAt);
+        await setRevision(currentRevision, revertAt);
         setTimeout(async () => {
           await updateStatusChannel(guild, voiceConfig.statusStable);
-          setRevision(currentRevision, null);
+          await setRevision(currentRevision, null);
         }, 24 * 60 * 60 * 1000);
 
         logger.info(`Detected new revision: ${currentRevision}, status set to Checking, will revert to Stable in 24h`);
