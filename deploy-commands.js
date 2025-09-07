@@ -1,6 +1,7 @@
 const { REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./utils/logger'); // <-- Use logger
 
 // Replace this with your server ID for instant updates
 const GUILD_ID = '1285796904160202752';
@@ -25,15 +26,15 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
-    console.log('Started refreshing application (/) commands for guild.');
+    logger.info('Started refreshing application (/) commands for guild.');
 
     await rest.put(
       Routes.applicationGuildCommands(process.env.CLIENT_ID, GUILD_ID),
       { body: commands },
     );
 
-    console.log('Successfully reloaded application (/) commands for guild.');
+    logger.info('Successfully reloaded application (/) commands for guild.');
   } catch (error) {
-    console.error(error);
+    logger.error(error);
   }
 })();
