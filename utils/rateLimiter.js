@@ -1,7 +1,13 @@
 const logger = require('./logger');
-
 const cooldowns = new Map();
 
+/**
+ * Checks if a key (user, command, channel, or composite) is rate limited,
+ * and if not, sets the cooldown.
+ * @param {string} key - Unique key for the action (e.g. `${userId}:diff`, `diff:global`)
+ * @param {number} cooldownMs - Cooldown time in ms
+ * @returns {number} - 0 if allowed, or seconds left on cooldown
+ */
 function checkAndSetRateLimit(key, cooldownMs) {
   const now = Date.now();
   const nextAvailable = cooldowns.get(key) || 0;
@@ -19,5 +25,8 @@ function cleanupExpired() {
     if (now > until) cooldowns.delete(key);
   }
 }
+
+// Performance: Clean up expired rate limits every 5 minutes
+setInterval(cleanupExpired, 5 * 60 * 1000);
 
 module.exports = { checkAndSetRateLimit, cleanupExpired };
