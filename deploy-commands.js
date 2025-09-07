@@ -3,6 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger'); // <-- Use logger
 
+if (!process.env.DISCORD_TOKEN) {
+  logger.error('DISCORD_TOKEN environment variable is not set!');
+  process.exit(1);
+}
+
 // Replace this with your server ID for instant updates
 const GUILD_ID = '1285796904160202752';
 
