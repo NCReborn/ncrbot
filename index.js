@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, InteractionType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./utils/logger'); // <-- NEW: require the logger
 
 // Import log analysis utilities (only ONCE!)
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
@@ -9,7 +10,7 @@ const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./
 // Import the ticket/modal system from utils
 const { sendLogScanButton, handleLogScanTicketInteraction } = require('./utils/logScanTicket');
 
-const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const BOT_TOKEN = process.env.DISCORD_TOKEN;
 const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
 const LOG_SCAN_CHANNEL_ID = process.env.LOG_SCAN_CHANNEL_ID || '1414027269680267274';
 
@@ -34,7 +35,7 @@ for (const file of commandFiles) {
 
 // Send the Scan Log button (ticket-style) when bot is ready
 client.once('ready', async () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  logger.info(`Logged in as ${client.user.tag}`);
   await sendLogScanButton(client, LOG_SCAN_CHANNEL_ID);
 });
 
@@ -49,7 +50,7 @@ client.on('interactionCreate', async interaction => {
     try {
       await command.execute(interaction);
     } catch (error) {
-      console.error(error);
+      logger.error(error.stack || error);
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
       } else {
@@ -97,7 +98,7 @@ const POLL_INTERVAL = 10 * 60 * 1000; // 10 min
 const COLLECTION_SLUG = 'rcuccp';
 
 client.once('ready', async () => {
-  console.log('Bot ready - starting revision poller');
+  logger.info('Bot ready - starting revision poller');
   const guild = client.guilds.cache.first();
 
   const revertAt = getRevertAt();
@@ -107,7 +108,7 @@ client.once('ready', async () => {
       await updateStatusChannel(guild, voiceConfig.statusStable);
       setRevision(getRevision(), null);
     }, timeLeft);
-    console.log(`Scheduled status revert in ${Math.round(timeLeft/1000/60)}min`);
+    logger.info(`Scheduled status revert in ${Math.round(timeLeft/1000/60)}min`);
   }
 
   setInterval(async () => {
@@ -133,10 +134,10 @@ client.once('ready', async () => {
           setRevision(currentRevision, null);
         }, 24 * 60 * 60 * 1000);
 
-        console.log(`Detected new revision: ${currentRevision}, status set to Checking, will revert to Stable in 24h`);
+        logger.info(`Detected new revision: ${currentRevision}, status set to Checking, will revert to Stable in 24h`);
       }
     } catch (err) {
-      console.error('Revision polling error:', err);
+      logger.error('Revision polling error:', err);
     }
   }, POLL_INTERVAL);
 });
