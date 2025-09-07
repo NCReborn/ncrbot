@@ -1,9 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const voiceConfig = require('../config/voiceChannels');
-
-// Shared cooldown map (move to a separate file if you want it shared across all commands)
 const statusCooldown = require('../utils/statusCooldown');
-
+const logger = require('../utils/logger');
 const COOLDOWN_TIME = 5 * 60 * 1000; // 5 minutes
 
 module.exports = {
@@ -35,6 +33,7 @@ module.exports = {
       await channel.setName('🔵┃Status : Updating soon (Latest)');
       await interaction.editReply({ content: `Status channel updated to: Updating soon (Latest)` });
     } catch (err) {
+      logger.error(`Failed to update channel in /updating: ${err.stack || err}`);
       await interaction.editReply({ content: `Failed to update channel: ${err.message}` });
     }
   }
