@@ -6,8 +6,8 @@ const ERROR_PATTERNS = [
   {
     tool: 'redscript',
     patterns: [
-      /\[ERROR.*UNRESOLVED_TYPE.*\]/i,
-      /\[ERROR.*UNRESOLVED_METHOD.*\]/i,
+      /\[UNRESOLVED_TYPE\]/i,
+      /\[UNRESOLVED_METHOD\]/i,
       /REDScript compilation has failed/i,
     ],
     solution: `Redscript compilation failed. This is usually caused by outdated mods, missing dependencies, or incompatible mod/game versions. Update all your mods (especially those listed in the error), check for new versions of Redscript and dependencies, and uninstall or disable mods one by one to isolate the problem.`
@@ -15,7 +15,7 @@ const ERROR_PATTERNS = [
   {
     tool: 'ArchiveXL',
     patterns: [
-      /\[ERROR.*ArchiveXL.*\]/i,
+      /\[ArchiveXL\]/i,
       /ArchiveXL.*error/i
     ],
     solution: `ArchiveXL error detected. Make sure you have the latest ArchiveXL, all its requirements, and that all dependent mods are compatible with your game version.`
@@ -23,7 +23,7 @@ const ERROR_PATTERNS = [
   {
     tool: 'TweakXL',
     patterns: [
-      /\[ERROR.*TweakXL.*\]/i,
+      /\[TweakXL\]/i,
       /TweakXL.*error/i
     ],
     solution: `TweakXL error detected. Ensure you have the latest TweakXL and compatible mods.`
@@ -31,7 +31,7 @@ const ERROR_PATTERNS = [
   {
     tool: 'RED4ext',
     patterns: [
-      /\[ERROR.*RED4ext.*\]/i,
+      /\[RED4ext\]/i,
       /red4ext.*error/i
     ],
     solution: `RED4ext error detected. Update RED4ext and all native mods.`
@@ -39,8 +39,8 @@ const ERROR_PATTERNS = [
   {
     tool: 'Cyber Engine Tweaks',
     patterns: [
-      /\[ERROR.*Cyber Engine Tweaks.*\]/i,
-      /\[ERROR.*CET.*\]/i,
+      /\[Cyber Engine Tweaks\]/i,
+      /\[CET\]/i,
       /cyber engine tweaks.*error/i,
       /CET.*error/i
     ],
@@ -49,7 +49,7 @@ const ERROR_PATTERNS = [
   {
     tool: 'REDmod',
     patterns: [
-      /\[ERROR.*REDmod.*\]/i,
+      /\[REDmod\]/i,
       /REDmod.*error/i
     ],
     solution: `REDmod error detected. Make sure REDmod is enabled in your launcher and your mods are in the correct directory.`
@@ -92,22 +92,23 @@ async function fetchLogAttachment(attachment) {
 }
 
 /**
- * Analyze the log for known errors and supplement with AI if needed.
- * Returns an array of matches, each with { tool, lineNumber, line, solution }
+ * Analyze the log for known errors and always supplement with an AI summary.
+ * Returns an object: { matches, aiSummary }
  */
 async function analyzeLogForErrors(logContent) {
-  const lines = logContent.split('\n');
-  // Robust error line detection: matches any line that starts with [ERROR (case-insensitive)
-  const errorLines = lines.filter(line => line.toUpperCase().startsWith('[ERROR'));
-
-  // Optionally, log for debug:
-  // console.log("Detected errorLines:", errorLines.length, errorLines);
+  const lines = logContent.split(/\r?\n/);
+  // Flexible error line detection:
+  const errorLines = lines.filter(line =>
+    line.toUpperCase().includes('[ERROR') ||
+    line.toUpperCase().includes('ERROR')
+  );
 
   let matches = [];
   errorLines.forEach((line, i) => {
     for (const err of ERROR_PATTERNS) {
       for (const pattern of err.patterns) {
-        if (pattern.test(line)) {
+        const result = pattern.test(line);
+        if (result) {
           matches.push({
             tool: err.tool,
             lineNumber: i + 1,
@@ -119,7 +120,10 @@ async function analyzeLogForErrors(logContent) {
     }
   });
 
-  if (logContent.match(/REDScript compilation has failed/i) && !matches.some(m => m.tool === 'redscript')) {
+  if (
+    logContent.match(/REDScript compilation has failed/i) &&
+    !matches.some(m => m.tool === 'redscript')
+  ) {
     matches.push({
       tool: 'redscript',
       lineNumber: null,
@@ -128,19 +132,15 @@ async function analyzeLogForErrors(logContent) {
     });
   }
 
-  // If no known matches, try AI on the first error line
-  if (matches.length === 0 && errorLines.length > 0) {
-    const firstErrorLine = errorLines[0];
-    const aiSolution = await getAIDiagnostic(firstErrorLine);
-    matches.push({
-      tool: 'AI',
-      lineNumber: lines.indexOf(firstErrorLine) + 1,
-      line: firstErrorLine,
-      solution: aiSolution
-    });
-  }
+  // Always get an AI summary of the error lines (or logContent if no error lines)
+let aiSummary = null;
+if (matches.length > 0) {
+  aiSummary = await getAIDiagnostic(
+    matches.map(m => m.line).join('\n').slice(0, 2000)
+  );
+}
 
-  return matches;
+  return { matches, aiSummary };
 }
 
 function extractModList(logContent) {
@@ -154,14 +154,16 @@ function extractModList(logContent) {
 }
 
 /**
- * Builds an error analysis embed for a log file.
+ * Builds an error analysis embed for a log file, including an AI summary field.
  * @param {Object} attachment - {name, url}
- * @param {Array<Object>} matches - Output of analyzeLogForErrors
+ * @param {Object} analysisResult - Output of analyzeLogForErrors: { matches, aiSummary }
  * @param {string} logContent - The log's full content
  * @param {string} messageUrl - The "jump to message" URL, or empty string if ephemeral
  * @param {boolean} showOriginalMessage - If false, don't show "Original Message" block (for ephemeral replies)
  */
-function buildErrorEmbed(attachment, matches, logContent, messageUrl = '', showOriginalMessage = true) {
+function buildErrorEmbed(attachment, analysisResult, logContent, messageUrl = '', showOriginalMessage = true) {
+  const { matches, aiSummary } = analysisResult;
+
   const embed = new EmbedBuilder()
     .setTitle(`Crash Log Analysis: ${attachment.name}`)
     .setColor(0xff0000)
@@ -208,6 +210,14 @@ If you are still experiencing issues:
 - Please post any additional log files mentioned in the pinned comments of this channel.
 - Or, head to <#1285796905640788030> and describe the issue you are having for further assistance.`);
   }
+
+  // Always add the AI summary, if present
+  if (aiSummary && matches.length > 0) {
+  embed.addFields({
+    name: "🤖 AI Summary of Potential Issues/Fixes",
+    value: aiSummary.length > 1024 ? aiSummary.slice(0, 1021) + '...' : aiSummary
+  });
+}
 
   // Only show "Original Message" section for non-ephemeral messages with a valid URL
   if (showOriginalMessage && messageUrl) {
