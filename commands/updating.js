@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const voiceConfig = require('../config/voiceChannels');
 
 // Shared cooldown map (move to a separate file if you want it shared across all commands)
-const statusCooldown = require('./statusCooldown');
+const statusCooldown = require('../utils/statusCooldown');
 
 const COOLDOWN_TIME = 5 * 60 * 1000; // 5 minutes
 
