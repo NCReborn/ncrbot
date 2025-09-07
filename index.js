@@ -7,6 +7,13 @@ const logger = require('./utils/logger'); // <-- Use logger everywhere
 
 // Import log analysis utilities (only ONCE!)
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
+require('dotenv').config();
+require('./utils/envCheck').checkEnv();
+
+process.on('unhandledRejection', (reason, promise) => {
+  const logger = require('./utils/logger');
+  logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
+});
 
 // Import the ticket/modal system from utils
 const { sendLogScanButton, handleLogScanTicketInteraction } = require('./utils/logScanTicket');
