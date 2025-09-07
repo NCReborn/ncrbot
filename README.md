@@ -109,6 +109,16 @@ The bot will log in and begin polling NexusMods for collection status changes, u
 
 ---
 
+## Security Notes
+
+- **Never commit your real `.env` file or any secrets to version control!**
+- Use `.env.example` as a template only.
+- Only grant your bot the minimum Discord permissions required.
+- Keep your dependencies up to date (`npm audit`).
+- Make sure you do not log or echo API keys or secrets in public channels.
+
+---
+
 ## Contributing
 
 Pull requests and issues are welcome!  
