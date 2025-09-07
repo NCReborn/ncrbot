@@ -1,7 +1,14 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
-const { fetchRevision, getCollectionSlug, getCollectionName, computeDiff, findExclusiveChanges, processModFiles } = require('../utils/nexusApi');
+const {
+  fetchRevision, getCollectionSlug, getCollectionName,
+  computeDiff, findExclusiveChanges, processModFiles
+} = require('../utils/nexusApi');
 const { sendCombinedChangelogMessages, sendSingleChangelogMessages } = require('../services/changelogService');
-const logger = require('../utils/logger'); // <-- Use logger
+const logger = require('../utils/logger');
+const { checkAndSetRateLimit } = require('../utils/rateLimiter'); // <-- Add this
+
+const USER_COOLDOWN = 5 * 60 * 1000; // 5 minutes
+const GLOBAL_COOLDOWN = 30 * 1000;   // 30 seconds
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -27,6 +34,23 @@ module.exports = {
       return;
     }
 
+    // Global rate limit
+    const globalKey = 'diff:global';
+    const globalLeft = checkAndSetRateLimit(globalKey, GLOBAL_COOLDOWN);
+    if (globalLeft > 0) {
+      await interaction.editReply({ content: `⏳ Please wait ${globalLeft} more second(s) before anyone can use this command again.` });
+      return;
+    }
+
+    // Per-user rate limit
+    const userKey = `diff:${interaction.user.id}`;
+    const userLeft = checkAndSetRateLimit(userKey, USER_COOLDOWN);
+    if (userLeft > 0) {
+      await interaction.editReply({ content: `⏳ You must wait ${userLeft} more minute(s) before you can use this command again.` });
+      return;
+    }
+
+    // ... rest of your diff logic unchanged ...
     const c1 = interaction.options.getString('collection1');
     const old1 = interaction.options.getInteger('oldrev1');
     const new1 = interaction.options.getInteger('newrev1');
@@ -36,7 +60,6 @@ module.exports = {
 
     try {
       if (!c2 || old2 === null || new2 === null) {
-        // Single collection
         const slug = getCollectionSlug(c1);
         const collectionName = getCollectionName(slug);
 
@@ -47,13 +70,11 @@ module.exports = {
 
         const oldMods = processModFiles(oldData.modFiles);
         const newMods = processModFiles(newData.modFiles);
-
         const diffs = computeDiff(oldMods, newMods);
 
         await sendSingleChangelogMessages(interaction.channel, diffs, slug, old1, new1, collectionName);
         await interaction.editReply({ content: `Changelog for ${collectionName} ${old1} → ${new1}:` });
       } else {
-        // Dual collection
         const slug1 = getCollectionSlug(c1);
         const slug2 = getCollectionSlug(c2);
 
