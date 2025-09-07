@@ -8,6 +8,10 @@ async function updateCollectionVersionChannel(guild, revision) {
       return null;
     });
     if (channel) {
+      if (!channel.isVoiceBased()) {
+        logger.error('Configured collection version channel is not a voice channel.');
+        return;
+      }
       await channel.setName(`${voiceConfig.collectionVersionPrefix} (R${revision})`).catch(e => {
         logger.error(`Failed to set collection channel name: ${e.message}`);
       });
@@ -24,6 +28,10 @@ async function updateStatusChannel(guild, status) {
       return null;
     });
     if (channel) {
+      if (!channel.isVoiceBased()) {
+        logger.error('Configured status channel is not a voice channel.');
+        return;
+      }
       await channel.setName(status).catch(e => {
         logger.error(`Failed to set status channel name: ${e.message}`);
       });
