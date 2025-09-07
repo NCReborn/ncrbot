@@ -7,6 +7,8 @@ module.exports = {
     .setName('version')
     .setDescription('Show the bot version and recent changes.'),
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
     const cooldownKey = interaction.user.id;
     const timeLeft = checkCooldown(cooldownKey, VERSION_COOLDOWN_TIME);
 
@@ -16,7 +18,7 @@ module.exports = {
         .setDescription(`Please wait ${timeLeft} more minutes before using the version command again.`)
         .setColor(15548997);
 
-      await interaction.reply({ embeds: [cooldownEmbed], ephemeral: true });
+      await interaction.editReply({ embeds: [cooldownEmbed] });
       return;
     }
 
@@ -29,6 +31,6 @@ module.exports = {
       .setColor(5814783);
 
     // Always ephemeral to prevent spam
-    await interaction.reply({ embeds: [versionEmbed], ephemeral: true });
+    await interaction.editReply({ embeds: [versionEmbed] });
   }
 };
