@@ -5,7 +5,7 @@ const {
   sortModsAlphabetically, 
   sortUpdatedModsAlphabetically 
 } = require('../utils/discordUtils');
-const { getCollectionName } = require('../utils/nexusAPI');
+const { getCollectionName } = require('../utils/nexusApi');
 
 async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveChanges, slug1, oldRev1, newRev1, slug2, oldRev2, newRev2) {
   const collectionName1 = getCollectionName(slug1);
