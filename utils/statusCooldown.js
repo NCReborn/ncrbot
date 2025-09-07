@@ -1,6 +1,14 @@
 // Map channelId => lastUsed timestamp
 const lastUsedMap = new Map();
 
+function cleanupOldCooldowns(cooldownMs = 10 * 60 * 1000) {
+  // Remove entries older than cooldownMs (default: 10min)
+  const now = Date.now();
+  for (const [key, ts] of lastUsedMap.entries()) {
+    if (now - ts > cooldownMs) lastUsedMap.delete(key);
+  }
+}
+
 /**
  * Checks if the cooldown has expired for the given key.
  * If expired, sets the new timestamp and returns 0.
@@ -18,5 +26,8 @@ function checkAndSetCooldown(key, cooldownMs) {
   lastUsedMap.set(key, now);
   return 0;
 }
+
+// Performance: Periodically clean up old cooldowns
+setInterval(() => cleanupOldCooldowns(), 10 * 60 * 1000); // every 10 minutes
 
 module.exports = { checkAndSetCooldown };
