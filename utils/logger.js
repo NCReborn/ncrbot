@@ -1,19 +1,16 @@
-// If you already have a logger, augment it instead of replacing.
-// Example wrapper adding context capability.
-const base = require('pino')({ level: process.env.LOG_LEVEL || 'info' });
-// Or if you use a custom logger, adapt this pattern.
+const { createLogger, format, transports } = require('winston');
 
-function withContext(ctx = {}) {
-  return {
-    info: (msg, extra) => base.info({ ...ctx, ...extra }, msg),
-    warn: (msg, extra) => base.warn({ ...ctx, ...extra }, msg),
-    error: (msg, extra) => base.error({ ...ctx, ...extra }, msg),
-    debug: (msg, extra) => base.debug({ ...ctx, ...extra }, msg),
-    child: (more) => withContext({ ...ctx, ...more })
-  };
-}
+const logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    format.printf(({ timestamp, level, message }) => `[${timestamp}] [${level.toUpperCase()}] ${message}`)
+  ),
+  transports: [
+    new transports.Console(),
+    // Enable file logging for persistent audit/history:
+    new transports.File({ filename: 'ncrbot.log' })
+  ],
+});
 
-module.exports = {
-  logger: withContext(),
-  withContext
-};
+module.exports = logger;
