@@ -1,6 +1,6 @@
 const VERSION_INFO = {
-  version: "1.0.4",
-  changes: "Split code base into chunks"
+  version: "1.0.5",
+  changes: "Added Crash-Log Scanning and other backend auto-revision scans"
     
 };
 
