@@ -52,9 +52,18 @@ function sortUpdatedModsAlphabetically(updatedMods) {
   return updatedMods.sort((a, b) => a.before.name.localeCompare(b.before.name));
 }
 
+// --- New error embed helper ---
+function errorEmbed(title, description) {
+  return new EmbedBuilder()
+    .setTitle(title || 'Error')
+    .setDescription(description || 'An unknown error occurred.')
+    .setColor(0xFF0000);
+}
+
 module.exports = {
   sanitizeName,
   splitLongDescription,
   sortModsAlphabetically,
-  sortUpdatedModsAlphabetically
+  sortUpdatedModsAlphabetically,
+  errorEmbed // export the new helper
 };
