@@ -17,6 +17,16 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
 });
 
+// Graceful shutdown on SIGINT/SIGTERM
+process.on('SIGINT', () => {
+  logger.info('Bot interrupted (SIGINT). Shutting down...');
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  logger.info('Bot terminated (SIGTERM). Shutting down...');
+  process.exit(0);
+});
+
 // Auto-sync slash commands on startup if enabled in .env
 if (process.env.AUTO_SYNC_COMMANDS === 'true') {
   const { syncSlashCommands } = require('./utils/commandSync');
@@ -89,7 +99,14 @@ client.once('ready', async () => {
   logger.info(`Loaded ${client.commands.size} commands.`);
   logger.info(`Crash log channel: ${CRASH_LOG_CHANNEL_ID}, Log scan channel: ${LOG_SCAN_CHANNEL_ID}`);
   logger.info(`Revision polling enabled: ${!!process.env.NEXUS_API_KEY}`);
-  await sendLogScanButton(client, LOG_SCAN_CHANNEL_ID);
+  // Set bot presence/activity
+  client.user.setActivity('/help for commands', { type: 'LISTENING' });
+
+  try {
+    await sendLogScanButton(client, LOG_SCAN_CHANNEL_ID);
+  } catch (err) {
+    logger.error(`Error sending log scan button: ${err.stack || err}`);
+  }
 
   logger.info('Bot ready - starting revision poller');
   const guild = client.guilds.cache.first();
@@ -148,20 +165,32 @@ client.once('ready', async () => {
 
 // Handle ticket-style log scan (button + modal) in one place
 client.on('interactionCreate', async interaction => {
-  await handleLogScanTicketInteraction(interaction);
+  try {
+    await handleLogScanTicketInteraction(interaction);
 
-  // Slash command handler
-  if (interaction.type === InteractionType.ApplicationCommand) {
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
-    try {
-      await command.execute(interaction);
-    } catch (error) {
-      logger.error(error.stack || error);
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
-      } else {
-        await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+    // Slash command handler
+    if (interaction.type === InteractionType.ApplicationCommand) {
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
+      try {
+        await command.execute(interaction);
+      } catch (error) {
+        logger.error(error.stack || error);
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
+        } else {
+          await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+        }
+      }
+    }
+  } catch (err) {
+    logger.error(`[INTERACTION_CREATE] Uncaught error: ${err.stack || err}`);
+    // Optionally, reply to the interaction if possible
+    if (interaction && interaction.isRepliable && !interaction.replied && !interaction.deferred) {
+      try {
+        await interaction.reply({ content: 'An unexpected error occurred processing your request.', ephemeral: true });
+      } catch(e) {
+        logger.error(`[INTERACTION_CREATE] Failed to reply to interaction: ${e.stack || e}`);
       }
     }
   }
@@ -169,29 +198,33 @@ client.on('interactionCreate', async interaction => {
 
 // (Optional) If you want to keep file upload log analysis, leave this in. Otherwise, remove!
 client.on('messageCreate', async (message) => {
-  if (
-    message.channelId !== CRASH_LOG_CHANNEL_ID ||
-    message.author.bot ||
-    message.attachments.size === 0
-  ) return;
+  try {
+    if (
+      message.channelId !== CRASH_LOG_CHANNEL_ID ||
+      message.author.bot ||
+      message.attachments.size === 0
+    ) return;
 
-  for (const [, attachment] of message.attachments) {
-    const logContent = await fetchLogAttachment(attachment);
-    if (!logContent) continue;
+    for (const [, attachment] of message.attachments) {
+      const logContent = await fetchLogAttachment(attachment);
+      if (!logContent) continue;
 
-    // Use new analyzeLogForErrors return: { matches, aiSummary }
-    const analysisResult = await analyzeLogForErrors(logContent);
+      // Use new analyzeLogForErrors return: { matches, aiSummary }
+      const analysisResult = await analyzeLogForErrors(logContent);
 
-    // Always reply with the embed (even if no errors)
-    const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
-    await message.reply({ embeds: [embed] });
+      // Always reply with the embed (even if no errors)
+      const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
+      await message.reply({ embeds: [embed] });
 
-    // React for visual clarity
-    if (analysisResult.matches.length > 0) {
-      await message.react('❌');
-    } else {
-      await message.react('✅');
+      // React for visual clarity
+      if (analysisResult.matches.length > 0) {
+        await message.react('❌');
+      } else {
+        await message.react('✅');
+      }
     }
+  } catch (err) {
+    logger.error(`[MESSAGE_CREATE] Uncaught error: ${err.stack || err}`);
   }
 });
 
