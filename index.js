@@ -27,15 +27,42 @@ const client = new Client({
   ],
 });
 
-// Load slash commands
+// Load slash commands with validation and logging
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+let runtimeRegistrationFailed = false;
+
 for (const file of commandFiles) {
-  const command = require(`./commands/${file}`);
-  if (command.data && command.execute) {
-    client.commands.set(command.data.name, command);
+  try {
+    const command = require(`./commands/${file}`);
+    if (Array.isArray(command)) {
+      for (const subcommand of command) {
+        if (subcommand.data && typeof subcommand.execute === 'function') {
+          client.commands.set(subcommand.data.name, subcommand);
+          logger.info(`Loaded subcommand: ${subcommand.data.name}`);
+        } else {
+          logger.error(`Subcommand in ${file} is missing .data or .execute`);
+          runtimeRegistrationFailed = true;
+        }
+      }
+    } else if (command.data && typeof command.execute === 'function') {
+      client.commands.set(command.data.name, command);
+      logger.info(`Loaded command: ${command.data.name}`);
+    } else {
+      logger.error(`Command file ${file} does not export a valid command with .data and .execute`);
+      runtimeRegistrationFailed = true;
+    }
+  } catch (err) {
+    logger.error(`Failed to load command ${file}: ${err.message}`);
+    runtimeRegistrationFailed = true;
   }
+}
+
+if (runtimeRegistrationFailed) {
+  logger.error('Aborting bot startup due to invalid/malformed commands.');
+  process.exit(1);
 }
 
 // Combined ready handler: send log scan button and start revision poller
