@@ -68,22 +68,23 @@ client.on('messageCreate', async (message) => {
   ) return;
 
   for (const [, attachment] of message.attachments) {
-  const logContent = await fetchLogAttachment(attachment);
-  if (!logContent) continue;
+    const logContent = await fetchLogAttachment(attachment);
+    if (!logContent) continue;
 
-  const errorMatches = await analyzeLogForErrors(logContent); // <-- await here!
+    // Use new analyzeLogForErrors return: { matches, aiSummary }
+    const analysisResult = await analyzeLogForErrors(logContent);
 
-  // Always reply with the embed (even if no errors)
-  const embed = buildErrorEmbed(attachment, errorMatches, logContent, message.url);
-  await message.reply({ embeds: [embed] });
+    // Always reply with the embed (even if no errors)
+    const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
+    await message.reply({ embeds: [embed] });
 
-  // React for visual clarity
-  if (errorMatches.length > 0) {
-    await message.react('❌');
-  } else {
-    await message.react('✅');
+    // React for visual clarity
+    if (analysisResult.matches.length > 0) {
+      await message.react('❌');
+    } else {
+      await message.react('✅');
+    }
   }
-}
 });
 
 // --- rest of your revision polling code (unchanged) ---
