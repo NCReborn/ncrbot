@@ -26,6 +26,9 @@ function cleanupOldCooldowns() {
   }
 }
 
+// Performance: Periodically clean up expired cooldowns to avoid unbounded memory growth
+setInterval(cleanupOldCooldowns, 10 * 60 * 1000); // every 10 minutes
+
 module.exports = {
   checkCooldown,
   setCooldown,
