@@ -172,6 +172,16 @@ function extractModList(logContent) {
   return [];
 }
 
+// Helper to ensure all embed fields are valid and within size limits
+function safeField(name, value, inline = false) {
+  if (!name || !value) return null;
+  return {
+    name: String(name).slice(0, 256),
+    value: String(value).slice(0, 1024),
+    inline
+  };
+}
+
 /**
  * Builds an error analysis embed for a log file, including an AI summary field.
  * @param {Object} attachment - {name, url}
@@ -192,34 +202,37 @@ function buildErrorEmbed(attachment, analysisResult, logContent, messageUrl = ''
     embed.setDescription(`Detected **${matches.length} critical error(s)** that may prevent the game from launching.\n\n**Summary:**`);
 
     matches.slice(0, 5).forEach(error => {
-      embed.addFields({
-        name: `❌ ${error.tool} (Line ${error.lineNumber || '?'})`,
-        value: `\`\`\`${error.line.trim().slice(0, 200)}\`\`\`\n**Solution:** ${error.solution}`
-      });
+      const field = safeField(
+        `❌ ${error.tool} (Line ${error.lineNumber || '?'})`,
+        `\`\`\`${(error.line || '').toString().trim().slice(0, 200)}\`\`\`\n**Solution:** ${error.solution || 'No solution provided.'}`
+      );
+      if (field) embed.addFields(field);
     });
 
     if (matches.length > 5) {
-      embed.addFields({ name: "Note", value: `Showing only the first 5 errors. There may be more in your log.` });
+      const moreField = safeField("Note", `Showing only the first 5 errors. There may be more in your log.`);
+      if (moreField) embed.addFields(moreField);
     }
 
     const modList = extractModList(logContent);
     if (modList.length) {
-      embed.addFields({
-        name: "Mods Possibly Causing the Crash",
-        value: modList.map(m => `• ${m}`).join('\n')
-      });
+      const modsField = safeField(
+        "Mods Possibly Causing the Crash",
+        modList.map(m => `• ${m}`).join('\n')
+      );
+      if (modsField) embed.addFields(modsField);
     }
 
-    // Redscript error - Possible Solutions prompt
     if (matches.some(m => m.tool === 'redscript')) {
-      embed.addFields({
-        name: "Possible Solutions",
-        value: [
+      const solutionsField = safeField(
+        "Possible Solutions",
+        [
           ":warning: **If you are seeing a Redscript compilation failed error, please attempt a clean install as described in <#1399435694472040509>. This resolves most persistent script errors!**",
           "",
           "It may also be worth looking in <#1379124580051845130> for a list of common issues that can cause errors."
         ].join('\n')
-      });
+      );
+      if (solutionsField) embed.addFields(solutionsField);
     }
   } else {
     embed
@@ -230,23 +243,24 @@ If you are still experiencing issues:
 - Or, head to <#1285796905640788030> and describe the issue you are having for further assistance.`);
   }
 
-  // Always add the AI summary, if present
+  // Always add the AI summary, if present and not empty
   if (aiSummary && matches.length > 0) {
-    embed.addFields({
-      name: "🤖 AI Summary of Potential Issues/Fixes",
-      value: aiSummary.length > 1024 ? aiSummary.slice(0, 1021) + '...' : aiSummary
-    });
+    const aiField = safeField(
+      "🤖 AI Summary of Potential Issues/Fixes",
+      aiSummary.length > 1024 ? aiSummary.slice(0, 1021) + '...' : aiSummary
+    );
+    if (aiField) embed.addFields(aiField);
   }
 
   // Only show "Original Message" section for non-ephemeral messages with a valid URL
   if (showOriginalMessage && messageUrl) {
-    embed.addFields({
-      name: "Original Message",
-      value: `[Jump to message](${messageUrl})`
-    });
+    const origField = safeField(
+      "Original Message",
+      `[Jump to message](${messageUrl})`
+    );
+    if (origField) embed.addFields(origField);
   }
 
-  // Add italicized beta/AI disclaimer footer
   embed.setFooter({ text: 'This log analysis is AI-generated and currently in beta.', iconURL: null });
 
   return embed;
