@@ -206,7 +206,7 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev, collectionName) {
   try {
     const embed1 = new EmbedBuilder()
-      .setTitle(`Revision ${collectionName}-${newRev} - Game Version 2.3`)
+      .setTitle(`Revision ${collectionName}-${newRev} - Game Version 2.31`)
       .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1346957358244433950>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1332486336040403075> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1285796905640788030> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
       .setColor(5814783);
 
