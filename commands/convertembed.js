@@ -1,5 +1,8 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { convertChangelogToNexusMarkdownFromEmbeds } = require('../utils/changelogConverter');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -61,26 +64,43 @@ module.exports = {
 
       // Discord message split logic
       const CHUNK_SIZE = 1950;
-      let i = 0;
-      let sent = false;
-      while (i < converted.length) {
-        const chunk = converted.slice(i, i + CHUNK_SIZE);
-        const content = `\`\`\`markdown\n${chunk}\n\`\`\``;
-        if (!sent) {
-          await interaction.editReply(content);
-          sent = true;
-        } else {
-          await interaction.followUp({ content, ephemeral: true });
-        }
-        i += CHUNK_SIZE;
-      }
 
-      // Optionally, mention missing messages
-      if (failedIds.length) {
-        await interaction.followUp({
-          content: `Warning: Could not fetch messages with IDs: ${failedIds.join(', ')}`,
+      if (converted.length > CHUNK_SIZE) {
+        // Output is too large for 1 message, send as .txt file
+        const tmpDir = os.tmpdir();
+        const filename = `nexus_changelog_${Date.now()}.txt`;
+        const filepath = path.join(tmpDir, filename);
+
+        fs.writeFileSync(filepath, converted, 'utf-8');
+        const attachment = new AttachmentBuilder(filepath, { name: 'nexus_changelog.txt' });
+
+        let replyContent = 'Output was too large to send as a message, so here is your Nexus-ready changelog as a .txt file.';
+        if (failedIds.length) {
+          replyContent += `\n\nWarning: Could not fetch messages with IDs: ${failedIds.join(', ')}`;
+        }
+
+        await interaction.editReply({
+          content: replyContent,
+          files: [attachment],
           ephemeral: true
         });
+
+        // Clean up: remove the temp file after sending
+        setTimeout(() => {
+          fs.unlink(filepath, () => {});
+        }, 30000);
+      } else {
+        // Fits in one message, post as normal
+        const content = `\`\`\`markdown\n${converted}\n\`\`\``;
+        await interaction.editReply(content);
+
+        // Optionally, mention missing messages
+        if (failedIds.length) {
+          await interaction.followUp({
+            content: `Warning: Could not fetch messages with IDs: ${failedIds.join(', ')}`,
+            ephemeral: true
+          });
+        }
       }
     } catch (err) {
       await interaction.editReply('Could not fetch the channel. Make sure the bot has access and the IDs are correct.');
