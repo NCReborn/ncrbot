@@ -59,20 +59,24 @@ module.exports = {
 
       const converted = convertChangelogToNexusMarkdownFromEmbeds(allEmbeds);
 
-      // Discord message split logic
-      const CHUNK_SIZE = 1950;
-      let i = 0;
-      let sent = false;
-      while (i < converted.length) {
-        const chunk = converted.slice(i, i + CHUNK_SIZE);
-        const content = `\`\`\`markdown\n${chunk}\n\`\`\``;
-        if (!sent) {
-          await interaction.editReply(content);
-          sent = true;
-        } else {
-          await interaction.followUp({ content, ephemeral: true });
-        }
-        i += CHUNK_SIZE;
+      // Check if output exceeds Discord's single-message limit
+      const DISCORD_LIMIT = 1950;
+      if (converted.length > DISCORD_LIMIT) {
+        // Create file attachment with markdown code block format
+        const fileContent = `\`\`\`markdown\n${converted}\n\`\`\``;
+        const buffer = Buffer.from(fileContent, 'utf8');
+        
+        await interaction.editReply({
+          content: 'The converted output is too large for a single message. Here it is as a file:',
+          files: [{
+            attachment: buffer,
+            name: 'converted_markdown.txt'
+          }]
+        });
+      } else {
+        // Small output, send as message like before
+        const content = `\`\`\`markdown\n${converted}\n\`\`\``;
+        await interaction.editReply(content);
       }
 
       // Optionally, mention missing messages
