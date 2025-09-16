@@ -1,17 +1,18 @@
 # NCRBot
+
 <p align="center">
   <img src="https://imgur.com/kvdRbJq.png" alt="NCR Collection Banner" style="max-width: 100%; height: auto;">
 </p>
 
-A Discord bot for the NCR/ADR modding community, providing revision tracking, crash log analysis, status channel management, and advanced utilities.
+A Discord bot for the NCR/ADR modding community, providing revision tracking, crash log analysis, status channel management, advanced changelog and diff utilities, and interactive user log scanning.
 
 ---
 
-## Quickstart
+## 🚀 Quickstart
 
 ```sh
 # Clone and install
-git clone https://github.com/mquiny/ncrbot.git
+git clone https://github.com/NCReborn/ncrbot.git
 cd ncrbot
 npm install
 
@@ -25,15 +26,15 @@ npm start
 
 ---
 
-## Directory Structure
+## 📁 Directory Structure
 
 ```
 ncrbot/
   commands/         # Slash command handlers (one per command)
-  config/           # Static config (constants, mappings, etc)
-  data/             # Persistent data files (e.g. collection_state.json)
+  config/           # Static config (constants, mappings, etc.)
+  data/             # Persistent data files (e.g., collection_state.json)
   services/         # High-level logic/services (e.g. changelogService.js)
-  utils/            # Helpers and low-level utilities (logger, cooldowns, etc)
+  utils/            # Helpers and low-level utilities (logger, cooldowns, etc.)
   .github/workflows/ # CI/CD workflows (GitHub Actions)
   index.js          # Bot entry point
   deploy-commands.js # Slash command registration
@@ -44,22 +45,30 @@ ncrbot/
 
 ---
 
-## Features
+## ✨ Features
 
 - **Revision Tracking:**  
-  Polls NexusMods for collection updates and updates Discord voice channels with the latest revision numbers and statuses.
+  Polls NexusMods for collection updates and updates Discord voice channels with the latest revision numbers and statuses. Automatically schedules status reverts.
 - **Crash Log Analysis:**  
-  Automated error pattern detection and optional AI-powered summaries for uploaded `.log` or `.txt` files.
+  Automated detection of error patterns and optional AI-powered summaries for uploaded `.log` or `.txt` files, either via channel upload or interactive scan modal.
 - **Status Channel Management:**  
   Admin-only slash commands to set the status channel to "Stable", "Updating soon", "Issues Reported", etc.
 - **Mod Diff Changelogs:**  
-  Generate changelogs between collection revisions, optionally comparing two collections at once.
+  Generate detailed changelogs between collection revisions, optionally comparing two collections at once. Outputs mod additions, removals, and updates, and supports conversion to NexusMods markdown.
 - **User Log Scan Ticket:**  
-  Interactive button and modal for users to submit logs for automated scanning and advice.
+  Interactive button and modal for users to submit logs for automated scanning and advice, with results posted directly to the channel.
+- **Slash Commands:**  
+  Rich suite of slash commands for version info, status updates, diffing collections, help, and more.
+- **Persistent State:**  
+  Remembers last revision and status change via persistent state files.
+- **Automated Deployment Support:**  
+  GitHub Actions workflow for auto-restarts on push (requires Pterodactyl API key).
+- **Extensible Command System:**  
+  Easily add new slash commands via the `commands/` folder.
 
 ---
 
-## Getting Started
+## 🛠 Getting Started
 
 ### Prerequisites
 
@@ -72,28 +81,22 @@ ncrbot/
 
 1. **Clone the repo:**
    ```sh
-   git clone https://github.com/mquiny/ncrbot.git
+   git clone https://github.com/NCReborn/ncrbot.git
    cd ncrbot
    ```
-
 2. **Install dependencies:**
    ```sh
    npm install
    ```
-
 3. **Configure environment variables:**
-
-   Copy the example file and fill in your secrets:
    ```sh
    cp .env.example .env
    ```
-
-   Edit `.env` in your favorite editor.  
-   See below for the required variables.
+   Edit `.env` with your secrets and config.
 
 ---
 
-## Environment Variables
+## ⚙️ Environment Variables
 
 All configuration is managed through `.env`.  
 **Never commit your real `.env` file—use `.env.example` as a template!**
@@ -113,7 +116,7 @@ See `.env.example` for a complete template.
 
 ---
 
-## Usage
+## 💻 Usage
 
 ### Running the Bot
 
@@ -121,7 +124,7 @@ See `.env.example` for a complete template.
 npm start
 ```
 
-The bot will log in and begin polling NexusMods for collection status changes, updating voice channels, and listening for commands.
+The bot will log in, poll NexusMods for collection status changes, update voice channels, and listen for commands.
 
 ### Slash Commands
 
@@ -141,7 +144,7 @@ The bot will log in and begin polling NexusMods for collection status changes, u
 
 ---
 
-## Admin & Maintenance Tips
+## 🧑‍💼 Admin & Maintenance Tips
 
 - Use `/reload` to reload slash commands after adding or updating commands.
 - Use `/help` to list all available commands.
@@ -149,14 +152,13 @@ The bot will log in and begin polling NexusMods for collection status changes, u
 
 ---
 
-## Running Tests
+## 🧪 Running Tests
 
-Install dependencies (including dev dependencies):
+Install all dependencies (including dev dependencies):
 
 ```sh
 npm install
 ```
-
 Run all tests:
 
 ```sh
@@ -168,7 +170,7 @@ Add new tests for utilities and commands as you extend the bot.
 
 ---
 
-## Deployment
+## 🚀 Deployment
 
 - **Deploy Slash Commands:**  
   Run `node deploy-commands.js` to register or update slash commands for your guild.
@@ -178,7 +180,7 @@ Add new tests for utilities and commands as you extend the bot.
 
 ---
 
-## FAQ / Troubleshooting
+## ❓ FAQ / Troubleshooting
 
 **Q: My slash commands don't show up!**  
 A: Make sure you ran `node deploy-commands.js` and that your bot has the `applications.commands` scope and correct permissions.
@@ -194,7 +196,7 @@ A: Run `npm install` to update as per `package.json`.
 
 ---
 
-## Security Notes
+## 🔒 Security Notes
 
 - **Never commit your real `.env` file or any secrets to version control!**
 - Use `.env.example` as a template only.
@@ -204,7 +206,7 @@ A: Run `npm install` to update as per `package.json`.
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 Pull requests and issues are welcome!  
 If you have suggestions, bug reports, or want to help improve the bot:
@@ -217,19 +219,19 @@ If you have suggestions, bug reports, or want to help improve the bot:
 
 ---
 
-## Support
+## 💬 Support
 
 For questions or support, open a GitHub issue or [join our Discord](https://discord.gg/YOUR_INVITE) (if applicable).
 
 ---
 
-## License
+## 📝 License
 
 MIT
 
 ---
 
-## Credits
+## 🙌 Credits
 
 - [discord.js](https://discord.js.org/)
 - [NexusMods API](https://www.nexusmods.com/)
