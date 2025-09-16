@@ -8,7 +8,7 @@ const logger = require('../utils/logger');
 const { checkAndSetRateLimit } = require('../utils/rateLimiter');
 const { errorEmbed } = require('../utils/discordUtils');
 
-const USER_COOLDOWN = 5 * 60 * 1000; // 5 minutes
+const USER_COOLDOWN = 30 * 1000;   // 30 seconds
 const GLOBAL_COOLDOWN = 30 * 1000;   // 30 seconds
 
 module.exports = {
