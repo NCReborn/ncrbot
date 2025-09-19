@@ -162,7 +162,7 @@ client.once('ready', async () => {
       logger.error('Revision polling error:', err);
     }
   }, POLL_INTERVAL);
-
+});
 // Handle ticket-style log scan (button + modal) in one place
 client.on('interactionCreate', async interaction => {
   try {
