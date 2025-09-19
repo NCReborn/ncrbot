@@ -3,7 +3,7 @@
 
 module.exports = {
   // Collection slugs to exclude from comment monitoring
-  blacklistedCollections: [
+  blacklistedCollections: [4198,12001,107,7780,20956,3725,15265,11350,4571,3518,5570,13524,2380,14139,13378,18588,1511,15963,10437,13077,4197,19679,4673,
     // Add collection slugs here to exclude them from monitoring
     // Example: 'problematic-collection-slug'
   ],
