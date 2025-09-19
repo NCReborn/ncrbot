@@ -7,9 +7,9 @@ const { getFAQs, setFAQs, loadFAQs } = require('../faq/store');
 const { findFAQMatch, refreshMatcher } = require('../faq/matcher');
 
 // CONFIGURE THESE
-const FAQ_CHANNEL_ID = 'YOUR_FAQ_CHANNEL_ID';         // Replace with your FAQ channel ID
-const SUPPORT_CHANNEL_IDS = ['SUPPORT_CHANNEL_ID_1', 'SUPPORT_CHANNEL_ID_2']; // Add all your support channels here
-const MOD_LOG_CHANNEL_ID = 'YOUR_MOD_LOG_CHANNEL_ID'; // Replace with your mod-log channel ID
+const FAQ_CHANNEL_ID = '1418730986598043659';         // Replace with your FAQ channel ID
+const SUPPORT_CHANNEL_IDS = ['1285796905640788030', '1304172034737180764']; // Add all your support channels here
+const MOD_LOG_CHANNEL_ID = '1406048032457359481'; // Replace with your mod-log channel ID
 
 // Called in your main bot setup: client.on('messageCreate', onMessageCreate);
 async function onMessageCreate(message) {
