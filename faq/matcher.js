@@ -6,7 +6,7 @@ const { getFAQs } = require('./store');
 // Fuse.js options for fuzzy matching
 const fuseOptions = {
     includeScore: true,
-    threshold: 0.4, // Adjust for stricter/looser matches
+    threshold: 0.6, // Adjust for stricter/looser matches
     keys: ['triggers'] // Each FAQ entry contains a triggers array
 };
 
