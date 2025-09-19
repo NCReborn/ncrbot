@@ -7,10 +7,16 @@ const path = require('path');
 const cron = require('node-cron');
 const logger = require('./utils/logger');
 
+// FAQ system: load store on boot
+const { loadFAQs } = require('./faq/store');
+loadFAQs();
+
+// FAQ system: register event handler
+const { onMessageCreate: faqOnMessageCreate } = require('./events/messageCreate');
+
 // Handle uncaught exceptions (fail fast, log for diagnostics)
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err.stack || err);
-  // Optionally, flush logs/cleanup here before exit
   process.exit(1);
 });
 
@@ -35,13 +41,12 @@ if (process.env.AUTO_SYNC_COMMANDS === 'true') {
     .then(() => logger.info('Slash commands auto-synced on startup.'))
     .catch(e => {
       logger.error('Slash sync failed:', e);
-      process.exit(1); // Fail fast if you want to prevent running with invalid commands
+      process.exit(1);
     });
 }
 
 // Import log analysis utilities
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
-// Import the ticket/modal system
 const { sendLogScanButton, handleLogScanTicketInteraction } = require('./utils/logScanTicket');
 
 const BOT_TOKEN = process.env.DISCORD_TOKEN;
@@ -100,7 +105,6 @@ client.once('ready', async () => {
   logger.info(`Loaded ${client.commands.size} commands.`);
   logger.info(`Crash log channel: ${CRASH_LOG_CHANNEL_ID}, Log scan channel: ${LOG_SCAN_CHANNEL_ID}`);
   logger.info(`Revision polling enabled: ${!!process.env.NEXUS_API_KEY}`);
-  // Set bot presence/activity
   client.user.setActivity('/help for commands', { type: 'LISTENING' });
 
   try {
@@ -118,11 +122,9 @@ client.once('ready', async () => {
   const { setRevision, getRevision, getRevertAt } = require('./utils/revisionStore');
   const voiceConfig = require('./config/voiceChannels');
 
-  const POLL_INTERVAL = 60 * 1000; // 1 min
+  const POLL_INTERVAL = 60 * 1000;
   const COLLECTION_SLUG = 'rcuccp';
 
-  // If there's a pending revert, schedule it
-  // Performance: Use async revisionStore functions
   const revertAt = await getRevertAt();
   if (revertAt && Date.now() < revertAt) {
     const timeLeft = revertAt - Date.now();
@@ -163,7 +165,11 @@ client.once('ready', async () => {
     }
   }, POLL_INTERVAL);
 });
-// Handle ticket-style log scan (button + modal) in one place
+
+// --- FAQ SYSTEM: register message handler ---
+client.on('messageCreate', faqOnMessageCreate);
+
+// Handle ticket-style log scan (button + modal)
 client.on('interactionCreate', async interaction => {
   try {
     await handleLogScanTicketInteraction(interaction);
@@ -185,7 +191,6 @@ client.on('interactionCreate', async interaction => {
     }
   } catch (err) {
     logger.error(`[INTERACTION_CREATE] Uncaught error: ${err.stack || err}`);
-    // Optionally, reply to the interaction if possible
     if (interaction && interaction.isRepliable && !interaction.replied && !interaction.deferred) {
       try {
         await interaction.reply({ content: 'An unexpected error occurred processing your request.', ephemeral: true });
@@ -209,14 +214,11 @@ client.on('messageCreate', async (message) => {
       const logContent = await fetchLogAttachment(attachment);
       if (!logContent) continue;
 
-      // Use new analyzeLogForErrors return: { matches, aiSummary }
       const analysisResult = await analyzeLogForErrors(logContent);
 
-      // Always reply with the embed (even if no errors)
       const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
       await message.reply({ embeds: [embed] });
 
-      // React for visual clarity
       if (analysisResult.matches.length > 0) {
         await message.react('❌');
       } else {
