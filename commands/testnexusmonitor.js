@@ -1,130 +1,99 @@
-const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const logger = require('../utils/logger');
-const { checkAndSetRateLimit } = require('../utils/rateLimiter');
-const { errorEmbed } = require('../utils/discordUtils');
 const NexusCommentMonitor = require('../services/nexusCommentMonitor');
+const { collections } = require('../config/collections');
 
-const USER_COOLDOWN = 60 * 1000;   // 1 minute
-const GLOBAL_COOLDOWN = 60 * 1000; // 1 minute
-
+/**
+ * /testnexusmonitor command
+ * Allows manual testing of the Nexus Mods comment monitor for a specific collection or all
+ */
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('testnexusmonitor')
-    .setDescription('Test Nexus Mods comment monitoring (Admin only)')
+    .setDescription('Manually test Nexus Mods comment monitoring (admin only)')
     .addStringOption(option =>
-      option.setName('collection')
-        .setDescription('Collection slug to test (optional, defaults to all collections)')
-        .setRequired(false)),
+      option
+        .setName('collection')
+        .setDescription('Collection slug or "all"')
+        .setRequired(false)
+    ),
 
   async execute(interaction) {
-    // Check if user has admin permissions
-    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return interaction.reply({ content: 'You need Administrator permissions to use this command.', ephemeral: true });
+    if (!interaction.member.permissions.has('Administrator')) {
+      await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+      return;
     }
 
-    const username = interaction.user.username;
-    const userId = interaction.user.id;
+    const collectionInput = interaction.options.getString('collection') || 'all';
+    const monitor = new NexusCommentMonitor();
+    monitor.initialize(interaction.client);
 
-    // Rate limiting
-    const limitResult = checkAndSetRateLimit('testnexusmonitor', userId, USER_COOLDOWN, GLOBAL_COOLDOWN);
-    if (limitResult.limited) {
-      const timeLeft = Math.ceil(limitResult.timeLeft / 1000);
-      return interaction.reply({ content: `You are being rate limited. Please wait ${timeLeft} seconds.`, ephemeral: true });
-    }
-
-    const collectionSlug = interaction.options.getString('collection');
+    await interaction.deferReply();
 
     try {
-      await interaction.deferReply();
+      logger.info(`[TEST_NEXUS_MONITOR] Manual test triggered by ${interaction.user.username} for collection: ${collectionInput}`);
 
-      logger.info(`[TEST_NEXUS_MONITOR] Manual test triggered by ${username} for collection: ${collectionSlug || 'all'}`);
-
-      const commentMonitor = new NexusCommentMonitor();
-      commentMonitor.initialize(interaction.client);
-
-      if (collectionSlug) {
-        // Test specific collection
-        logger.info(`[TEST_NEXUS_MONITOR] Testing collection: ${collectionSlug}`);
-        
-        // Create a minimal collection object for testing
-        const testCollection = { slug: collectionSlug, display: collectionSlug };
-        
-        try {
-          const mods = await commentMonitor.getModsFromCollection(collectionSlug);
-          
-          if (mods.length === 0) {
-            await interaction.editReply(`❌ No mods found in collection: ${collectionSlug}`);
-            return;
-          }
-
-          await interaction.editReply(`🔍 Testing comment monitoring for collection: ${collectionSlug} (${mods.length} mods)\nThis may take a few minutes...`);
-
-          // Test first few mods to avoid hitting rate limits
-          const testMods = mods.slice(0, 3);
-          const alerts = await commentMonitor.processModsForComments(testMods, testCollection.display);
-
-          if (alerts.length > 0) {
-            // Send test alerts to current channel instead of configured alert channel
-            await commentMonitor.sendDiscordAlerts(alerts, interaction.channelId);
-
-            await interaction.followUp(`✅ Test completed! Found ${alerts.length} flagged comments from ${testMods.length} tested mods.`);
-          } else {
-            await interaction.followUp(`✅ Test completed! No flagged comments found in ${testMods.length} tested mods.`);
-          }
-
-        } catch (error) {
-          logger.error(`[TEST_NEXUS_MONITOR] Error testing collection ${collectionSlug}: ${error.message}`);
-          await interaction.editReply(`❌ Error testing collection: ${error.message}`);
-        }
-
+      // Determine which collections to test
+      let collectionsToTest;
+      if (collectionInput.toLowerCase() === 'all') {
+        collectionsToTest = collections;
       } else {
-        // Test all collections (limited to avoid rate limits)
-        await interaction.editReply('🔍 Testing comment monitoring for all collections...\nThis may take several minutes...');
+        const found = collections.find(c => c.slug === collectionInput);
+        if (!found) {
+          await interaction.editReply({ content: `Collection not found: ${collectionInput}` });
+          return;
+        }
+        collectionsToTest = [found];
+      }
+
+      let totalAlerts = 0;
+      for (const collection of collectionsToTest) {
+        logger.info(`[TEST_NEXUS_MONITOR] Testing collection: ${collection.display}`);
+        await interaction.editReply({ content: `Testing collection: ${collection.display}` });
 
         try {
-          const startTime = Date.now();
-          
-          const modCollections = await commentMonitor.getModCollections();
-          const testCollections = modCollections.slice(0, 2); // Limit to first 2 collections for testing
+          const mods = await monitor.getModsFromCollection(collection.slug);
+          logger.info(`[NEXUS_MONITOR] Processing ${mods.length} mods for comments`);
 
-          let totalAlerts = 0;
-          for (const collection of testCollections) {
-            logger.info(`[TEST_NEXUS_MONITOR] Testing collection: ${collection.display}`);
-            
-            const mods = await commentMonitor.getModsFromCollection(collection.slug);
-            const testMods = mods.slice(0, 2); // Test only first 2 mods per collection
-            
-            const collectionAlerts = await commentMonitor.processModsForComments(testMods, collection.display);
-            
-            if (collectionAlerts.length > 0) {
-              await commentMonitor.sendDiscordAlerts(collectionAlerts, interaction.channelId);
-              totalAlerts += collectionAlerts.length;
+          for (const mod of mods) {
+            try {
+              // Scrape comments, and check for session expiry or 403
+              const comments = await monitor.scrapeModComments(mod);
+              logger.info(`[NEXUS_MONITOR] Scraped ${comments.length} comments for mod: ${mod.name}`);
+            } catch (error) {
+              // Detect expired session cookie
+              if (
+                error.response &&
+                (error.response.status === 401 || error.response.status === 403)
+              ) {
+                const body = error.response.data || "";
+                if (
+                  typeof body === "string" &&
+                  (body.toLowerCase().includes("age verification") ||
+                   body.toLowerCase().includes("login") ||
+                   body.toLowerCase().includes("verify your age"))
+                ) {
+                  logger.error(`[TEST_NEXUS_MONITOR] Nexus session cookie expired or invalid. Please update your NEXUS_SESSION_COOKIE in your .env file.`);
+                  await interaction.editReply({
+                    content: '❌ **Nexus session cookie expired or invalid.**\nPlease update your `NEXUS_SESSION_COOKIE` in your `.env` file (log in, verify age, copy new cookie).'
+                  });
+                  throw new Error("Nexus session cookie expired or invalid.");
+                }
+              }
+              // Fallback: report error for this mod
+              logger.error(`[NEXUS_MONITOR] Failed to process comments for mod ${mod.name}: ${error.message}`);
             }
           }
-
-          const duration = Math.round((Date.now() - startTime) / 1000);
-          await interaction.followUp(`✅ Test completed in ${duration}s! Tested ${testCollections.length} collections. Found ${totalAlerts} flagged comments.`);
-
         } catch (error) {
-          logger.error(`[TEST_NEXUS_MONITOR] Error during full test: ${error.message}`);
-          await interaction.editReply(`❌ Error during test: ${error.message}`);
+          logger.error(`[TEST_NEXUS_MONITOR] Error processing collection ${collection.display}: ${error.message}`);
         }
       }
 
-    } catch (error) {
-      logger.error(`[TEST_NEXUS_MONITOR] Command failed: ${error.message}`);
-      
-      const embed = errorEmbed(
-        'Test Nexus Monitor Error',
-        `Failed to test Nexus comment monitoring: ${error.message}`,
-        interaction.user
-      );
+      await interaction.editReply({ content: `Test complete for collection(s): ${collectionsToTest.map(c => c.display).join(', ')}` });
 
-      if (interaction.deferred) {
-        await interaction.editReply({ embeds: [embed] });
-      } else {
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-      }
+    } catch (error) {
+      logger.error(`[TEST_NEXUS_MONITOR] Test failed: ${error.message}`);
+      await interaction.editReply({ content: `❌ Test failed: ${error.message}` });
     }
   }
 };
