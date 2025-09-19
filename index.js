@@ -7,11 +7,18 @@ const path = require('path');
 const cron = require('node-cron');
 const logger = require('./utils/logger');
 
-// FAQ system: load store on boot
+// === OPENAI FAQ EMBEDDING INIT ===
 const { loadFAQs } = require('./faq/store');
-loadFAQs();
+const { setFAQsWithEmbeddings } = require('./faq/matcher');
+const faqList = loadFAQs();
+setFAQsWithEmbeddings(faqList)
+  .then(() => logger.info('FAQ embeddings initialized.'))
+  .catch(err => {
+    logger.error('Failed to initialize FAQ embeddings:', err);
+    process.exit(1);
+  });
+// === END OPENAI FAQ EMBEDDING INIT ===
 
-// FAQ system: register event handler
 const { onMessageCreate: faqOnMessageCreate } = require('./events/messageCreate');
 
 // Handle uncaught exceptions (fail fast, log for diagnostics)
@@ -19,7 +26,6 @@ process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err.stack || err);
   process.exit(1);
 });
-
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
 });
