@@ -1,15 +1,15 @@
 // Listens for messages in the FAQ management channel and in support channels.
 // - Parses FAQ entries when new/edited messages appear in FAQ channel
-// - Matches user questions in support channels, DMs answers, and logs to mod channel
+// - Matches user questions in support channels, posts public FAQ replies, and logs to mod channel
 
 const { parseFAQMessage } = require('../faq/parser');
 const { getFAQs, setFAQs, loadFAQs } = require('../faq/store');
 const { findFAQMatch, refreshMatcher } = require('../faq/matcher');
 
 // CONFIGURE THESE
-const FAQ_CHANNEL_ID = '1418730986598043659';         // Replace with your FAQ channel ID
-const SUPPORT_CHANNEL_IDS = ['1285796905640788030', '1304172034737180764']; // Add all your support channels here
-const MOD_LOG_CHANNEL_ID = '1406048032457359481'; // Replace with your mod-log channel ID
+const FAQ_CHANNEL_ID = 'YOUR_FAQ_CHANNEL_ID';         // Replace with your FAQ channel ID
+const SUPPORT_CHANNEL_IDS = ['SUPPORT_CHANNEL_ID_1', 'SUPPORT_CHANNEL_ID_2']; // Replace with your support channel IDs
+const MOD_LOG_CHANNEL_ID = 'YOUR_MOD_LOG_CHANNEL_ID'; // Replace with your mod-log channel ID
 
 // Called in your main bot setup: client.on('messageCreate', onMessageCreate);
 async function onMessageCreate(message) {
@@ -29,22 +29,23 @@ async function onMessageCreate(message) {
         return;
     }
 
-// 2. Handle support channel questions
-if (SUPPORT_CHANNEL_IDS.includes(message.channel.id)) {
-    const match = findFAQMatch(message.content);
-    if (match) {
-        try {
-            // PUBLIC REPLY INSTEAD OF DM
-            await message.reply(`**FAQ Match:**\n${match.answer}`);
+    // 2. Handle support channel questions
+    if (SUPPORT_CHANNEL_IDS.includes(message.channel.id)) {
+        const match = findFAQMatch(message.content);
+        if (match) {
+            try {
+                // PUBLIC REPLY INSTEAD OF DM
+                await message.reply(`**FAQ Match:**\n${match.answer}`);
 
-            // Log to mod log channel
-            const logChannel = await message.client.channels.fetch(MOD_LOG_CHANNEL_ID);
-            await logChannel.send(
-                `📚 FAQ matched for <@${message.author.id}> in <#${message.channel.id}>:\n` +
-                `**Q:** ${message.content}\n**A:** ${match.answer}`
-            );
-        } catch (err) {
-            console.error('Failed to reply in channel or log FAQ match:', err);
+                // Log to mod log channel
+                const logChannel = await message.client.channels.fetch(MOD_LOG_CHANNEL_ID);
+                await logChannel.send(
+                    `📚 FAQ matched for <@${message.author.id}> in <#${message.channel.id}>:\n` +
+                    `**Q:** ${message.content}\n**A:** ${match.answer}`
+                );
+            } catch (err) {
+                console.error('Failed to reply in channel or log FAQ match:', err);
+            }
         }
     }
 }
