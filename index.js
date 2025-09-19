@@ -163,34 +163,6 @@ client.once('ready', async () => {
     }
   }, POLL_INTERVAL);
 
-  // --- Nexus Comment Monitor setup ---
-  const NexusCommentMonitor = require('./services/nexusCommentMonitor');
-  const nexusMonitorConfig = require('./config/nexusCommentBlacklist');
-  
-  const commentMonitor = new NexusCommentMonitor();
-  commentMonitor.initialize(client);
-
-  // Schedule comment monitoring
-  if (process.env.NEXUS_API_KEY && nexusMonitorConfig.alertChannelId) {
-    logger.info(`Setting up Nexus comment monitor with schedule: ${nexusMonitorConfig.schedule}`);
-    
-    cron.schedule(nexusMonitorConfig.schedule, async () => {
-      logger.info('Running scheduled Nexus comment monitoring');
-      try {
-        await commentMonitor.runMonitoring();
-      } catch (error) {
-        logger.error(`Nexus comment monitoring failed: ${error.message}`);
-      }
-    }, {
-      timezone: 'UTC'
-    });
-
-    logger.info('Nexus comment monitor scheduled successfully');
-  } else {
-    logger.warn('Nexus comment monitoring disabled - missing API key or alert channel ID');
-  }
-});
-
 // Handle ticket-style log scan (button + modal) in one place
 client.on('interactionCreate', async interaction => {
   try {
