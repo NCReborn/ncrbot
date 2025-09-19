@@ -7,7 +7,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
 const path = require('path');
-const pLimit = require('p-limit');
+const pLimit = require('p-limit').default;
 const { EmbedBuilder } = require('discord.js');
 
 const logger = require('../utils/logger');
@@ -42,6 +42,10 @@ class NexusCommentMonitor {
    */
   async loadReportedComments() {
     try {
+      // Ensure data directory exists
+      const dataDir = path.dirname(DATA_FILE);
+      await fs.mkdir(dataDir, { recursive: true });
+
       const data = await fs.readFile(DATA_FILE, 'utf-8');
       const parsed = JSON.parse(data);
       this.reportedComments = new Set(parsed.reportedComments || []);
@@ -241,34 +245,109 @@ class NexusCommentMonitor {
       const $ = cheerio.load(response.data);
       const comments = [];
 
-      // Nexus Mods comment structure - adjust selector based on actual HTML structure
-      $('.comment-item, .post-item, .discussion-post').each((index, element) => {
-        if (index >= config.commentSettings.maxCommentsPerMod) {
-          return false; // Break the loop
-        }
+      // Nexus Mods comment structure - try multiple possible selectors
+      const commentSelectors = [
+        '.comment-item',
+        '.post-item', 
+        '.discussion-post',
+        '.comment',
+        '.forum-post',
+        '.comment-block',
+        '.user-comment',
+        '[class*="comment"]',
+        '[class*="post"]'
+      ];
 
-        const $comment = $(element);
-        const text = $comment.find('.comment-text, .post-content, .content').text().trim();
-        const dateStr = $comment.find('.comment-date, .post-date, .date').text().trim();
-        const author = $comment.find('.comment-author, .post-author, .author').text().trim();
-        
-        if (text && dateStr) {
-          const date = parseNexusDate(dateStr);
+      let foundComments = false;
+      for (const selector of commentSelectors) {
+        const elements = $(selector);
+        if (elements.length > 0) {
+          logger.debug(`[NEXUS_MONITOR] Found ${elements.length} elements with selector: ${selector}`);
           
-          // Only include comments from the last 30 days
-          if (date && isWithinDays(date, config.commentSettings.daysSince)) {
-            const commentId = this.generateCommentId(mod, text, dateStr, author);
+          elements.each((index, element) => {
+            if (index >= config.commentSettings.maxCommentsPerMod) {
+              return false; // Break the loop
+            }
+
+            const $comment = $(element);
             
-            comments.push({
-              id: commentId,
-              text,
-              date,
-              dateStr,
-              author: author || 'Unknown'
-            });
-          }
+            // Try multiple selectors for comment content
+            const textSelectors = [
+              '.comment-text', '.post-content', '.content', '.message', '.body', 
+              '.comment-body', '.post-body', '.text', '.description',
+              '[class*="content"]', '[class*="text"]', '[class*="body"]'
+            ];
+            
+            const dateSelectors = [
+              '.comment-date', '.post-date', '.date', '.timestamp', '.time',
+              '.created-at', '.posted', '.datetime', 
+              '[class*="date"]', '[class*="time"]', '[datetime]'
+            ];
+            
+            const authorSelectors = [
+              '.comment-author', '.post-author', '.author', '.username', '.user',
+              '.posted-by', '.by', '.name',
+              '[class*="author"]', '[class*="user"]'
+            ];
+
+            let text = '';
+            let dateStr = '';
+            let author = '';
+
+            // Find comment text
+            for (const textSel of textSelectors) {
+              const textEl = $comment.find(textSel);
+              if (textEl.length > 0) {
+                text = textEl.first().text().trim();
+                if (text) break;
+              }
+            }
+
+            // Find date
+            for (const dateSel of dateSelectors) {
+              const dateEl = $comment.find(dateSel);
+              if (dateEl.length > 0) {
+                // Try datetime attribute first, then text
+                dateStr = dateEl.first().attr('datetime') || dateEl.first().attr('title') || dateEl.first().text().trim();
+                if (dateStr) break;
+              }
+            }
+
+            // Find author
+            for (const authorSel of authorSelectors) {
+              const authorEl = $comment.find(authorSel);
+              if (authorEl.length > 0) {
+                author = authorEl.first().text().trim();
+                if (author) break;
+              }
+            }
+            
+            if (text && dateStr) {
+              const date = parseNexusDate(dateStr);
+              
+              // Only include comments from the last 30 days
+              if (date && isWithinDays(date, config.commentSettings.daysSince)) {
+                const commentId = this.generateCommentId(mod, text, dateStr, author);
+                
+                comments.push({
+                  id: commentId,
+                  text,
+                  date,
+                  dateStr,
+                  author: author || 'Unknown'
+                });
+              }
+            }
+          });
+          
+          foundComments = true;
+          break; // Found comments with this selector, no need to try others
         }
-      });
+      }
+
+      if (!foundComments) {
+        logger.debug(`[NEXUS_MONITOR] No comment elements found for mod: ${mod.name}`);
+      }
 
       logger.debug(`[NEXUS_MONITOR] Scraped ${comments.length} recent comments from ${mod.name}`);
       return comments;
@@ -319,16 +398,23 @@ class NexusCommentMonitor {
   /**
    * Send Discord alerts for flagged comments
    * @param {Array} alerts - Array of alert objects
+   * @param {string} overrideChannelId - Optional channel ID to override configured channel
    */
-  async sendDiscordAlerts(alerts) {
+  async sendDiscordAlerts(alerts, overrideChannelId = null) {
     if (!this.client || alerts.length === 0) {
       return;
     }
 
     try {
-      const channel = await this.client.channels.fetch(config.alertChannelId);
+      const channelId = overrideChannelId || config.alertChannelId;
+      if (!channelId) {
+        logger.warn('[NEXUS_MONITOR] No alert channel configured');
+        return;
+      }
+
+      const channel = await this.client.channels.fetch(channelId);
       if (!channel) {
-        logger.error(`[NEXUS_MONITOR] Could not find alert channel: ${config.alertChannelId}`);
+        logger.error(`[NEXUS_MONITOR] Could not find alert channel: ${channelId}`);
         return;
       }
 
