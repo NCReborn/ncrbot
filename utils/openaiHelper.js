@@ -6,7 +6,7 @@ const openai = new OpenAI({
 
 async function getOpenAIAnswer(prompt) {
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1-nano', // or 'gpt-5-nano' if available
+    model: 'gpt-5-nano', // or 'gpt-5-nano' if available
     messages: [
       { role: "system", content: "You are a helpful Discord support assistant." },
       { role: "user", content: prompt }
