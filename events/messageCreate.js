@@ -29,23 +29,22 @@ async function onMessageCreate(message) {
         return;
     }
 
-    // 2. Handle support channel questions
-    if (SUPPORT_CHANNEL_IDS.includes(message.channel.id)) {
-        const match = findFAQMatch(message.content);
-        if (match) {
-            try {
-                // DM the user with the FAQ answer
-                await message.author.send(`**FAQ Match:**\n${match.answer}`);
+// 2. Handle support channel questions
+if (SUPPORT_CHANNEL_IDS.includes(message.channel.id)) {
+    const match = findFAQMatch(message.content);
+    if (match) {
+        try {
+            // PUBLIC REPLY INSTEAD OF DM
+            await message.reply(`**FAQ Match:**\n${match.answer}`);
 
-                // Log to mod log channel
-                const logChannel = await message.client.channels.fetch(MOD_LOG_CHANNEL_ID);
-                await logChannel.send(
-                    `📚 FAQ matched for <@${message.author.id}> in <#${message.channel.id}>:\n` +
-                    `**Q:** ${message.content}\n**A:** ${match.answer}`
-                );
-            } catch (err) {
-                console.error('Failed to DM user or log FAQ match:', err);
-            }
+            // Log to mod log channel
+            const logChannel = await message.client.channels.fetch(MOD_LOG_CHANNEL_ID);
+            await logChannel.send(
+                `📚 FAQ matched for <@${message.author.id}> in <#${message.channel.id}>:\n` +
+                `**Q:** ${message.content}\n**A:** ${match.answer}`
+            );
+        } catch (err) {
+            console.error('Failed to reply in channel or log FAQ match:', err);
         }
     }
 }
