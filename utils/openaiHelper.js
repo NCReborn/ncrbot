@@ -1,0 +1,20 @@
+const { OpenAI } = require('openai');
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Store your key in an environment variable!
+});
+
+async function getOpenAIAnswer(prompt) {
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4.1-nano', // or 'gpt-5-nano' if available
+    messages: [
+      { role: "system", content: "You are a helpful Discord support assistant." },
+      { role: "user", content: prompt }
+    ],
+    max_tokens: 300 // Adjust as needed
+  });
+
+  return response.choices[0]?.message?.content?.trim() || "Sorry, I couldn't generate an answer.";
+}
+
+module.exports = { getOpenAIAnswer };
