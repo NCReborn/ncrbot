@@ -26,6 +26,21 @@ class NexusCommentMonitor {
     this.reportedComments = new Set();
     this.limit = pLimit(config.commentSettings.concurrencyLimit);
     this.client = null;
+    this.sessionCookieWarningEmitted = false;
+    this.checkSessionCookie();
+  }
+
+  /**
+   * Startup check: ensure session cookie is loaded
+   */
+  checkSessionCookie() {
+    const cookie = process.env.NEXUS_SESSION_COOKIE;
+    if (!cookie || cookie.length < 20) {
+      logger.error('[NEXUS_MONITOR] NEXUS_SESSION_COOKIE is missing or too short. Please ensure it is set in your .env file.');
+      this.sessionCookieWarningEmitted = true;
+    } else {
+      logger.debug(`[NEXUS_MONITOR] NEXUS_SESSION_COOKIE loaded (${cookie.length} chars, starts: "${cookie.slice(0, 24)}...")`);
+    }
   }
 
   /**
