@@ -1,6 +1,15 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { findFAQMatchWithEmbeddings } = require('../faq/matcher'); // UPDATED
+const { findFAQMatchWithEmbeddings } = require('../faq/matcher');
 const { getOpenAIAnswer } = require('../utils/openaiHelper');
+
+// Import the askEnabled state from asktoggle.js for mod toggling
+let askEnabled;
+try {
+  // Optional: Only require if asktoggle is present to avoid breaking in dev
+  ({ askEnabled } = require('./asktoggle'));
+} catch {
+  askEnabled = () => true; // fallback: always enabled if asktoggle.js missing
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -11,8 +20,16 @@ module.exports = {
         .setDescription('Your question')
         .setRequired(true)),
   async execute(interaction) {
+    // Check if ask is enabled (if toggling system is present)
+    if (typeof askEnabled === 'function' && !askEnabled()) {
+      return await interaction.reply({
+        content: "The bot is temporarily unavailable.",
+        ephemeral: true
+      });
+    }
+
     const question = interaction.options.getString('question');
-    const faqMatch = await findFAQMatchWithEmbeddings(question); // UPDATED (async!)
+    const faqMatch = await findFAQMatchWithEmbeddings(question);
 
     if (faqMatch) {
       await interaction.reply({
