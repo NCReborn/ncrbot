@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { findFAQMatch } = require('../faq/matcher');
+const { findFAQMatchWithEmbeddings } = require('../faq/matcher'); // UPDATED
 const { getOpenAIAnswer } = require('../utils/openaiHelper');
 
 module.exports = {
@@ -12,7 +12,7 @@ module.exports = {
         .setRequired(true)),
   async execute(interaction) {
     const question = interaction.options.getString('question');
-    const faqMatch = findFAQMatch(question);
+    const faqMatch = await findFAQMatchWithEmbeddings(question); // UPDATED (async!)
 
     if (faqMatch) {
       await interaction.reply({
