@@ -4,7 +4,7 @@ const { OpenAI } = require('openai');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMBEDDING_MODEL = 'text-embedding-ada-002';
-const QNA_FILE = 'support_qna_embedded.json';
+const QNA_FILE = 'data/support_qna_embedded.json';
 const COSINE_THRESHOLD = 0.80; // Adjust as needed
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
