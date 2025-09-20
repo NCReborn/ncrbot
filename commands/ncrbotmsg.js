@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 
 const ADMIN_ROLE_ID = '1324783261439889439'; // <-- Replace with your actual admin role ID
 
@@ -6,15 +6,6 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('ncrbotmsg')
     .setDescription('Post a message as NCRBot (admin only)')
-    .addStringOption(opt =>
-      opt.setName('format')
-        .setDescription('Message format')
-        .addChoices(
-          { name: 'Plain', value: 'plain' },
-          { name: 'Embed', value: 'embed' }
-        )
-        .setRequired(true) // <-- Make this required
-    )
     .addStringOption(opt =>
       opt.setName('message')
         .setDescription('The message for the bot to post')
@@ -27,16 +18,7 @@ module.exports = {
       return;
     }
     const msg = interaction.options.getString('message');
-    const format = interaction.options.getString('format');
-
-    if (format === 'embed') {
-      const embed = new EmbedBuilder()
-        .setDescription(msg)
-        .setColor(0x0099ff);
-      await interaction.channel.send({ embeds: [embed] });
-    } else {
-      await interaction.channel.send({ content: msg });
-    }
+    await interaction.channel.send({ content: msg });
     await interaction.reply({ content: 'Message sent!', ephemeral: true });
   }
 };
