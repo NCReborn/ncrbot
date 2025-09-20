@@ -13,10 +13,10 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
   const collectionName2 = getCollectionName(slug2);
 
   // --- DEBUG LOGS ---
-  logger.info(`[CHANGELOG] sendCombinedChangelogMessages called for ${collectionName1} (${oldRev1}→${newRev1}) & ${collectionName2} (${oldRev2}→${newRev2})`);
-  logger.debug(`[CHANGELOG] diffs1: ${JSON.stringify(diffs1)}`);
-  logger.debug(`[CHANGELOG] diffs2: ${JSON.stringify(diffs2)}`);
-  logger.debug(`[CHANGELOG] exclusiveChanges: ${JSON.stringify(exclusiveChanges)}`);
+  //logger.info(`[CHANGELOG] sendCombinedChangelogMessages called for ${collectionName1} (${oldRev1}→${newRev1}) & ${collectionName2} (${oldRev2}→${newRev2})`);
+  //logger.debug(`[CHANGELOG] diffs1: ${JSON.stringify(diffs1)}`);
+  //logger.debug(`[CHANGELOG] diffs2: ${JSON.stringify(diffs2)}`);
+  //logger.debug(`[CHANGELOG] exclusiveChanges: ${JSON.stringify(exclusiveChanges)}`);
 
   try {
     // Embed preamble (was missing in your last version!)
@@ -56,18 +56,18 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
     const exRemoved2 = Array.isArray(exclusiveChanges.removed2) ? exclusiveChanges.removed2 : [];
 
     // --- DEBUG LOGS FOR DIFF ARRAYS ---
-    logger.debug(`[CHANGELOG] Added1: ${JSON.stringify(added1)}`);
-    logger.debug(`[CHANGELOG] Added2: ${JSON.stringify(added2)}`);
-    logger.debug(`[CHANGELOG] Updated1: ${JSON.stringify(updated1)}`);
-    logger.debug(`[CHANGELOG] Updated2: ${JSON.stringify(updated2)}`);
-    logger.debug(`[CHANGELOG] Removed1: ${JSON.stringify(removed1)}`);
-    logger.debug(`[CHANGELOG] Removed2: ${JSON.stringify(removed2)}`);
-    logger.debug(`[CHANGELOG] exAdded1: ${JSON.stringify(exAdded1)}`);
-    logger.debug(`[CHANGELOG] exAdded2: ${JSON.stringify(exAdded2)}`);
-    logger.debug(`[CHANGELOG] exUpdated1: ${JSON.stringify(exUpdated1)}`);
-    logger.debug(`[CHANGELOG] exUpdated2: ${JSON.stringify(exUpdated2)}`);
-    logger.debug(`[CHANGELOG] exRemoved1: ${JSON.stringify(exRemoved1)}`);
-    logger.debug(`[CHANGELOG] exRemoved2: ${JSON.stringify(exRemoved2)}`);
+    //logger.debug(`[CHANGELOG] Added1: ${JSON.stringify(added1)}`);
+    //logger.debug(`[CHANGELOG] Added2: ${JSON.stringify(added2)}`);
+    //logger.debug(`[CHANGELOG] Updated1: ${JSON.stringify(updated1)}`);
+    //logger.debug(`[CHANGELOG] Updated2: ${JSON.stringify(updated2)}`);
+    //logger.debug(`[CHANGELOG] Removed1: ${JSON.stringify(removed1)}`);
+    //logger.debug(`[CHANGELOG] Removed2: ${JSON.stringify(removed2)}`);
+    //logger.debug(`[CHANGELOG] exAdded1: ${JSON.stringify(exAdded1)}`);
+    //logger.debug(`[CHANGELOG] exAdded2: ${JSON.stringify(exAdded2)}`);
+    //logger.debug(`[CHANGELOG] exUpdated1: ${JSON.stringify(exUpdated1)}`);
+    //logger.debug(`[CHANGELOG] exUpdated2: ${JSON.stringify(exUpdated2)}`);
+    //logger.debug(`[CHANGELOG] exRemoved1: ${JSON.stringify(exRemoved1)}`);
+    //logger.debug(`[CHANGELOG] exRemoved2: ${JSON.stringify(exRemoved2)}`);
 
     // Added Mods
     const allAdded = [...added1, ...added2];
@@ -253,9 +253,9 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     const updated = Array.isArray(diffs.updated) ? diffs.updated : [];
     const removed = Array.isArray(diffs.removed) ? diffs.removed : [];
 
-    logger.debug(`[CHANGELOG] Added: ${JSON.stringify(added)}`);
-    logger.debug(`[CHANGELOG] Updated: ${JSON.stringify(updated)}`);
-    logger.debug(`[CHANGELOG] Removed: ${JSON.stringify(removed)}`);
+    //logger.debug(`[CHANGELOG] Added: ${JSON.stringify(added)}`);
+  //  logger.debug(`[CHANGELOG] Updated: ${JSON.stringify(updated)}`);
+    //logger.debug(`[CHANGELOG] Removed: ${JSON.stringify(removed)}`);
 
     const embed1 = new EmbedBuilder()
       .setTitle(`Revision ${collectionName}-${newRev} - Game Version 2.3`)
