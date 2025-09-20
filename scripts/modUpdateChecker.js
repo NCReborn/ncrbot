@@ -1,62 +1,100 @@
-require('dotenv').config();
-const fs = require("fs");
-const path = require("path");
-const { collections } = require("../config/collections");
-const { fetchCollectionMods } = require("../utils/collectionMods");
-const { sendDiscordNotification } = require("../utils/discordNotify"); // <-- UNCOMMENTED
+const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
+const fetch = require('node-fetch');
+const { Client, GatewayIntentBits } = require('discord.js');
 
-const MODS_STATE_FILE = path.resolve(__dirname, "../data/trackedMods.json");
-const BATCH_SIZE = 75; // mods to check per run
+// Load your collections config and fetchCollectionMods utility
+const { collections } = require('./config/collections');
+const { fetchCollectionMods } = require('./utils/collectionMods');
 
-// Get NCR collection slug from config
-const NCR_COLLECTION = collections.find((c) => c.slug === "rcuccp");
+const DATA_FILE = path.resolve(__dirname, './data/trackedMods.json');
+const REVISION_FILE = path.resolve(__dirname, './data/collectionRevision.json');
+const CURSOR_FILE = path.resolve(__dirname, './data/modCursor.json');
+const BATCH_SIZE = Math.ceil(900 / 24); // 900 mods, 24 runs (every 30min for 12h)
+const CHANNEL_ID = '1419103241701949540'; // Replace with your channel ID
 
-// ... (loadTrackedMods, saveTrackedMods, loadCursor, saveCursor as before) ...
+function loadTrackedMods() {
+  if (!fs.existsSync(DATA_FILE)) return {};
+  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+}
+function saveTrackedMods(obj) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2));
+}
 
-async function main() {
-  if (!NCR_COLLECTION) {
-    console.error("NCR collection not found in config.");
-    process.exit(1);
-  }
-  // 1. Fetch current mods from collection
-  const currentMods = await fetchCollectionMods(NCR_COLLECTION.slug);
-  if (!currentMods || !currentMods.length) {
-    console.error("No mods fetched for collection.");
-    process.exit(1);
-  }
-  // 2. Load tracked mods state
+function loadCollectionRevision() {
+  if (!fs.existsSync(REVISION_FILE)) return null;
+  return JSON.parse(fs.readFileSync(REVISION_FILE, 'utf8'));
+}
+function saveCollectionRevision(revision) {
+  fs.writeFileSync(REVISION_FILE, JSON.stringify(revision, null, 2));
+}
+
+function loadCursor() {
+  if (!fs.existsSync(CURSOR_FILE)) return 0;
+  return parseInt(fs.readFileSync(CURSOR_FILE, 'utf8'), 10) || 0;
+}
+function saveCursor(idx) {
+  fs.writeFileSync(CURSOR_FILE, String(idx));
+}
+
+async function checkModsAndNotify(client) {
+  const NCR_COLLECTION = collections.find((c) => c.slug === "rcuccp");
+  if (!NCR_COLLECTION) return;
+
+  // fetchCollectionMods should return { mods: [...], revision: <number> }
+  const { mods: currentMods, revision: currentRevision } = await fetchCollectionMods(NCR_COLLECTION.slug);
+  if (!currentMods || !currentMods.length) return;
+
   let tracked = loadTrackedMods();
+  let savedRevision = loadCollectionRevision();
 
-  // 3. Sync: add new mods, remove old mods
-  const currentIds = new Set(currentMods.map((m) => String(m.id)));
-  for (const id in tracked) {
-    if (!currentIds.has(id)) delete tracked[id];
-  }
-  currentMods.forEach((mod) => {
-    if (!tracked[mod.id]) {
-      tracked[mod.id] = {
-        name: mod.name,
-        lastKnownUpdate: null,
-      };
+  // Revision change: reset tracked mods, notify, reset cursor
+  if (savedRevision !== currentRevision) {
+    const oldIds = new Set(Object.keys(tracked));
+    const newIds = new Set(currentMods.map(m => String(m.id)));
+    const removedMods = [...oldIds].filter(id => !newIds.has(id)).map(id => tracked[id]);
+    const addedMods = currentMods.filter(m => !oldIds.has(String(m.id)));
+
+    // Reset tracked mod state
+    tracked = {};
+    currentMods.forEach((mod) => {
+      tracked[mod.id] = { name: mod.name, lastKnownUpdate: null };
+    });
+    saveTrackedMods(tracked);
+    saveCollectionRevision(currentRevision);
+    saveCursor(0);
+
+    // Notify about revision update and mod adds/removes
+    const channel = await client.channels.fetch(CHANNEL_ID);
+    let msg = `:bookmark_tabs: **Collection updated to revision ${currentRevision}.**\n`;
+    if (removedMods.length > 0) {
+      msg += `:no_entry: **Removed mods:**\n${removedMods.map(m => `- ${m.name} (ID: ${m.id})`).join('\n')}\n`;
     }
-  });
-  saveTrackedMods(tracked);
+    if (addedMods.length > 0) {
+      msg += `:white_check_mark: **Added mods:**\n${addedMods.map(m => `- ${m.name} (ID: ${m.id})`).join('\n')}\n`;
+    }
+    if (removedMods.length === 0 && addedMods.length === 0) {
+      msg += `_No mods added or removed._`;
+    }
+    channel.send(msg);
+    return; // Skip update check this run
+  }
 
-  // 4. Hourly batching
+  // Batching
+  let batchIdx = loadCursor();
   const allIds = Object.keys(tracked);
   const batchCount = Math.ceil(allIds.length / BATCH_SIZE);
-  let batchIdx = loadCursor();
   if (batchIdx >= batchCount) batchIdx = 0;
 
   const thisBatch = allIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-  console.log(`Batch ${batchIdx + 1}/${batchCount}: Checking ${thisBatch.length} mods...`);
+  saveCursor(batchIdx + 1);
 
-  // 5. Check for updates in this batch
   let updatedMods = [];
   for (const id of thisBatch) {
-    // TODO: Replace with your actual Nexus API call to fetch mod info:
+    // Replace with your actual Nexus API call for mod details:
     // const modInfo = await fetchModDetails(id);
-    const modInfo = { updatedAt: new Date().toISOString() }; // stub, replace
+    const modInfo = { updatedAt: new Date().toISOString() }; // stub
 
     if (tracked[id].lastKnownUpdate !== modInfo.updatedAt) {
       updatedMods.push({ id, ...tracked[id], newUpdate: modInfo.updatedAt });
@@ -64,21 +102,24 @@ async function main() {
     }
   }
   saveTrackedMods(tracked);
-  saveCursor(batchIdx + 1);
 
-  // 6. Notify if any mods updated
+  // Notify if any mods updated
   if (updatedMods.length) {
     const msg = updatedMods.map(
       m => `**${m.name}** (ID: ${m.id}) updated at ${m.newUpdate}`
     ).join("\n");
-    await sendDiscordNotification(`:rotating_light: **Mod Updates Detected:**\n${msg}`);
-    console.log("Updated mods:", updatedMods);
-  } else {
-    console.log("No updates found in this batch.");
+    const channel = await client.channels.fetch(CHANNEL_ID);
+    channel.send(`:rotating_light: **Mod Updates Detected:**\n${msg}`);
   }
 }
 
-main().catch((err) => {
-  console.error("Mod update checker error:", err);
-  process.exit(1);
+// Example Discord bot integration
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+client.once('ready', () => {
+  // Every 30min (24 runs = 12h, adjust as needed)
+  cron.schedule('*/30 * * * *', () => checkModsAndNotify(client));
+  console.log('Mod update cron started.');
 });
+
+client.login('YOUR_DISCORD_BOT_TOKEN');
