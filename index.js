@@ -97,4 +97,26 @@ for (const file of eventFiles) {
   }
 }
 
+// --- Bot Control Panel: Repost control panel on startup if saved ---
+const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
+const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
+
+client.once('ready', async () => {
+  logger.info(`Ready! Logged in as ${client.user.tag}`);
+
+  // Attempt to repost the control panel in the previous channel (if any)
+  const msgInfo = loadMessageInfo();
+  if (msgInfo && msgInfo.channelId) {
+    try {
+      const channel = await client.channels.fetch(msgInfo.channelId);
+      if (channel) {
+        await postOrUpdateControlPanel(channel, client);
+      }
+    } catch (e) {
+      clearMessageInfo();
+      logger.warn('Failed to restore bot control panel on startup; previous message/channel not found.');
+    }
+  }
+});
+
 client.login(BOT_TOKEN);
