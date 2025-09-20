@@ -51,10 +51,26 @@ module.exports = {
       if (responses.length === 0) {
         await interaction.reply({ content: 'No auto-responses are configured.', ephemeral: true });
       } else {
-        const out = responses.map(r =>
+        const entries = responses.map(r =>
           `**Trigger:** \`${r.trigger}\` ${r.wildcard ? '*(wildcard)*' : ''}\n**Response:** ${r.response}`
-        ).join('\n\n');
-        await interaction.reply({ content: out, ephemeral: true });
+        );
+        // Split entries into chunks under 2000 characters
+        let chunk = '';
+        let chunks = [];
+        for (const entry of entries) {
+          if ((chunk + '\n\n' + entry).length > 1990) { // leave a little buffer
+            chunks.push(chunk);
+            chunk = entry;
+          } else {
+            chunk += (chunk ? '\n\n' : '') + entry;
+          }
+        }
+        if (chunk) chunks.push(chunk);
+        // Send the first chunk as reply, rest as followups
+        await interaction.reply({ content: chunks[0], ephemeral: true });
+        for (let i = 1; i < chunks.length; ++i) {
+          await interaction.followUp({ content: chunks[i], ephemeral: true });
+        }
       }
       return;
     }
