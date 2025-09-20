@@ -1,12 +1,35 @@
 const logger = require('../utils/logger');
 const { handleLogScanTicketInteraction } = require('../utils/logScanTicket');
 const { InteractionType } = require('discord.js');
+const { upsertResponse } = require('../utils/autoResponder');
 
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction, client) {
     try {
       await handleLogScanTicketInteraction(interaction);
+
+      // Handle modal submit for autoresponder add/edit
+      if (interaction.isModalSubmit() && (interaction.customId === 'autoresponder_add' || interaction.customId.startsWith('autoresponder_edit'))) {
+        const trigger = interaction.fields.getTextInputValue('trigger').trim();
+        const response = interaction.fields.getTextInputValue('response').trim();
+        const wildcardRaw = interaction.fields.getTextInputValue('wildcard').trim().toLowerCase();
+        const wildcard = wildcardRaw === 'yes' || wildcardRaw === 'true' || wildcardRaw === '1';
+
+        if (!trigger || !response) {
+          await interaction.reply({ content: 'Trigger and response are required.', ephemeral: true });
+          return;
+        }
+
+        upsertResponse(trigger, response, wildcard);
+
+        if (interaction.customId === 'autoresponder_add') {
+          await interaction.reply({ content: `Added new auto-response for trigger: \`${trigger}\``, ephemeral: true });
+        } else {
+          await interaction.reply({ content: `Updated auto-response for trigger: \`${trigger}\``, ephemeral: true });
+        }
+        return; // Do not fall through to slash command handler
+      }
 
       // Slash command handler
       if (interaction.type === InteractionType.ApplicationCommand) {
