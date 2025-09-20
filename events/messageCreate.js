@@ -31,7 +31,8 @@ async function onMessageCreate(message) {
 
     // 2. Handle support channel questions
     if (SUPPORT_CHANNEL_IDS.includes(message.channel.id)) {
-        const match = findFAQMatch(message.content);
+        const faqs = getFAQs();
+        const match = findFAQMatch(message.content, faqs);
         if (match) {
             try {
                 // PUBLIC REPLY INSTEAD OF DM
