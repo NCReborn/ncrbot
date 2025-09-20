@@ -161,8 +161,17 @@ module.exports = {
                 );
 
               await interaction.update({ embeds: [updatedEmbed] });
-              // Optionally, to also update the channel topic, uncomment:
-              // try { await interaction.channel.setTopic(`${config.emoji} | Status: ${config.label}`); } catch {}
+
+              // --- Update the #bot-controls channel topic as well ---
+              const statusChannelId = '1395501617523986644';
+              try {
+                const statusChannel = await interaction.client.channels.fetch(statusChannelId);
+                if (statusChannel && statusChannel.isTextBased()) {
+                  await statusChannel.setTopic(`${config.emoji} | Status: ${config.label}`);
+                }
+              } catch (e) {
+                logger.warn('Failed to update status channel topic:', e);
+              }
               return;
             }
             resultMsg = 'Unknown control!';
@@ -196,6 +205,47 @@ module.exports = {
         if (!command) return;
         try {
           await command.execute(interaction);
+
+          // --- Update the #bot-controls channel topic after a status command ---
+          // (You may want to only do this for specific commands, e.g. /stable, /investigating, etc.)
+          const statusCommands = ['stable', 'investigating', 'issues', 'updating', 'pending'];
+          if (statusCommands.includes(interaction.commandName)) {
+            // You need to determine the right emoji/label for each command
+            const statusConfig = {
+              investigating: {
+                emoji: '🟡',
+                label: 'Issues Reported (Latest)'
+              },
+              issues: {
+                emoji: '🔴',
+                label: 'Issues Detected (Latest)'
+              },
+              updating: {
+                emoji: '🔵',
+                label: 'Updating soon (Latest)'
+              },
+              stable: {
+                emoji: '🟢',
+                label: 'Stable (Latest)'
+              },
+              pending: {
+                emoji: '⏳',
+                label: 'Pending (Core Mods)'
+              }
+            };
+            const config = statusConfig[interaction.commandName];
+            if (config) {
+              const statusChannelId = '1395501617523986644';
+              try {
+                const statusChannel = await interaction.client.channels.fetch(statusChannelId);
+                if (statusChannel && statusChannel.isTextBased()) {
+                  await statusChannel.setTopic(`${config.emoji} | Status: ${config.label}`);
+                }
+              } catch (e) {
+                logger.warn('Failed to update status channel topic:', e);
+              }
+            }
+          }
         } catch {
           if (interaction.replied || interaction.deferred) {
             await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
