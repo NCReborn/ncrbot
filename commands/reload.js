@@ -3,7 +3,6 @@ const path = require('path');
 const { REST, Routes } = require('discord.js');
 
 async function reloadCommands(client, logger) {
-  // Clear current commands
   client.commands.clear();
 
   const commandsPath = path.join(__dirname, '.');
@@ -14,7 +13,7 @@ async function reloadCommands(client, logger) {
   const commandsForDiscord = [];
 
   for (const file of commandFiles) {
-    if (file === 'reload.js') continue; // Don't reload self
+    if (file === 'reload.js') continue;
     try {
       delete require.cache[require.resolve(`./${file}`)];
       const command = require(`./${file}`);
@@ -22,13 +21,15 @@ async function reloadCommands(client, logger) {
         for (const subcommand of command) {
           if (subcommand.data && typeof subcommand.execute === 'function') {
             client.commands.set(subcommand.data.name, subcommand);
-            // For Discord registration
             if (typeof subcommand.data.toJSON === 'function') {
               commandsForDiscord.push(subcommand.data.toJSON());
             } else if (typeof subcommand.data === 'object') {
               commandsForDiscord.push(subcommand.data);
             }
             loaded++;
+          } else {
+            logger.error(`[RELOAD] Subcommand in ${file} is missing .data or .execute`);
+            failed++;
           }
         }
       } else if (command.data && typeof command.execute === 'function') {
@@ -39,9 +40,12 @@ async function reloadCommands(client, logger) {
           commandsForDiscord.push(command.data);
         }
         loaded++;
+      } else {
+        logger.error(`[RELOAD] Command file ${file} is missing .data or .execute`);
+        failed++;
       }
     } catch (err) {
-      logger.error(`Failed to reload command ${file}: ${err.message}`);
+      logger.error(`[RELOAD] Failed to reload command ${file}: ${err.message}`);
       failed++;
     }
   }
