@@ -7,6 +7,11 @@ module.exports = {
     .setName('ncrbot')
     .setDescription('Post a message as NCRBot (admin only)')
     .addStringOption(opt =>
+      opt.setName('message')
+        .setDescription('The message for the bot to post')
+        .setRequired(true)
+    )
+    .addStringOption(opt =>
       opt.setName('format')
         .setDescription('Message format')
         .addChoices(
@@ -14,11 +19,6 @@ module.exports = {
           { name: 'Embed', value: 'embed' }
         )
         .setRequired(false)
-    )
-    .addStringOption(opt =>
-      opt.setName('message')
-        .setDescription('The message for the bot to post')
-        .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), // Only admins by default
   async execute(interaction) {
