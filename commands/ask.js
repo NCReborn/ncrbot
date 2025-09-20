@@ -1,20 +1,16 @@
+const { SlashCommandBuilder } = require('discord.js');
 const { findFAQMatchWithEmbeddings } = require('../faq/matcher');
 const { getOpenAIAnswer } = require('../utils/openaiHelper');
 
 module.exports = {
-  data: {
-    name: 'ask',
-    description: 'Ask a question and get an answer from the FAQ or AI.',
-    type: 1, // <--- Required for slash command
-    options: [
-      {
-        name: 'question',
-        type: 3, // STRING
-        description: 'Your question',
-        required: true,
-      },
-    ],
-  },
+  data: new SlashCommandBuilder()
+    .setName('ask')
+    .setDescription('Ask a question and get an answer from the FAQ or AI.')
+    .addStringOption(option =>
+      option.setName('question')
+        .setDescription('Your question')
+        .setRequired(true)
+    ),
   async execute(interaction) {
     // Optional: If you have a toggle system for enabling/disabling the bot
     if (typeof askEnabled === 'function' && !askEnabled()) {
@@ -24,7 +20,6 @@ module.exports = {
       });
     }
 
-    // Defer reply immediately to avoid Discord interaction timeouts
     await interaction.deferReply({ ephemeral: true });
 
     try {
@@ -50,7 +45,6 @@ module.exports = {
       }
     } catch (err) {
       console.error('Error in /ask command:', err);
-      // Always use editReply here because we've already deferred
       try {
         await interaction.editReply({
           content: "There was an error executing this command!",
