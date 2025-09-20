@@ -12,7 +12,7 @@ const STAFF_USER_IDS = [
   // ...
 ];
 
-const OUTPUT_FILE = 'support_qna.json';
+const OUTPUT_FILE = './data/support_qna.json';
 const MAX_MESSAGES = 10000;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
