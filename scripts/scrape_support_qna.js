@@ -13,7 +13,7 @@ const STAFF_USER_IDS = [
 ];
 
 const OUTPUT_FILE = 'support_qna.json';
-const MAX_MESSAGES = 10000; // Set a limit to avoid huge scrapes on first run!
+const MAX_MESSAGES = 10000;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
@@ -41,29 +41,39 @@ async function scrapeQnA() {
   // Sort by timestamp oldest -> newest
   allMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
-  // Find Q&A pairs: a non-staff message followed by a staff reply (simple heuristic)
+  // Build a mapping from message ID to message object for fast lookup
+  const msgIdMap = {};
+  allMessages.forEach(msg => {
+    msgIdMap[msg.id] = msg;
+  });
+
+  // Find Q&A pairs: staff reply (using Discord reply) to a non-staff message
   let qnaPairs = [];
-  for (let i = 0; i < allMessages.length - 1; i++) {
-    const qMsg = allMessages[i];
-    const aMsg = allMessages[i + 1];
-    if (!STAFF_USER_IDS.includes(qMsg.author.id) && STAFF_USER_IDS.includes(aMsg.author.id)) {
-      // Optionally, check if the answer directly replies to the question
-      // if (aMsg.reference && aMsg.reference.messageId === qMsg.id) { ... }
-      qnaPairs.push({
-        question: qMsg.content,
-        question_user: qMsg.author.username,
-        question_id: qMsg.id,
-        question_time: qMsg.createdAt,
-        answer: aMsg.content,
-        answer_user: aMsg.author.username,
-        answer_id: aMsg.id,
-        answer_time: aMsg.createdAt,
-      });
+  for (const msg of allMessages) {
+    if (
+      STAFF_USER_IDS.includes(msg.author.id) &&
+      msg.reference &&
+      msg.reference.messageId &&
+      msgIdMap[msg.reference.messageId]
+    ) {
+      const refMsg = msgIdMap[msg.reference.messageId];
+      if (!STAFF_USER_IDS.includes(refMsg.author.id)) {
+        qnaPairs.push({
+          question: refMsg.content,
+          question_user: refMsg.author.username,
+          question_id: refMsg.id,
+          question_time: refMsg.createdAt,
+          answer: msg.content,
+          answer_user: msg.author.username,
+          answer_id: msg.id,
+          answer_time: msg.createdAt,
+        });
+      }
     }
   }
 
   await fs.writeFile(OUTPUT_FILE, JSON.stringify(qnaPairs, null, 2), 'utf-8');
-  console.log(`Scraped ${qnaPairs.length} Q&A pairs.`);
+  console.log(`Scraped ${qnaPairs.length} Q&A pairs (only reply-based).`);
   process.exit(0);
 }
 
