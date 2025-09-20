@@ -19,36 +19,6 @@ const path = require('path');
 const cron = require('node-cron');
 const logger = require('./utils/logger');
 
-// === OPENAI FAQ EMBEDDING INIT ===
-const { loadFAQs } = require('./faq/store');
-const { setFAQsWithEmbeddings } = require('./faq/matcher');
-const faqList = loadFAQs();
-setFAQsWithEmbeddings(faqList)
-  .then(() => logger.info('FAQ embeddings initialized.'))
-  .catch(err => {
-    logger.error('Failed to initialize FAQ embeddings:', err);
-    process.exit(1);
-  });
-// === END OPENAI FAQ EMBEDDING INIT ===
-
-const { onMessageCreate: faqOnMessageCreate } = require('./events/messageCreate');
-
-// --- Welcome message state helpers ---
-const WELCOME_STATE_PATH = path.join(__dirname, 'data', 'ask_welcome.json');
-const ASK_CHANNEL_ID = '1418742976871399456';
-
-function loadWelcomeState() {
-  try {
-    return JSON.parse(fs.readFileSync(WELCOME_STATE_PATH, 'utf8'));
-  } catch {
-    return {};
-  }
-}
-function saveWelcomeState(obj) {
-  fs.mkdirSync(path.dirname(WELCOME_STATE_PATH), { recursive: true });
-  fs.writeFileSync(WELCOME_STATE_PATH, JSON.stringify(obj));
-}
-
 // Graceful shutdown on SIGINT/SIGTERM
 process.on('SIGINT', () => {
   logger.info('Bot interrupted (SIGINT). Shutting down...');
