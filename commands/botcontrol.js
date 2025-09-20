@@ -10,7 +10,7 @@ const {
 let botStatus = loadStatus();
 
 function getStatusText() {
-  return `**Status:**\nMuted: \`${botStatus.muted ? 'Yes' : 'No'}\`\nRunning: \`${botStatus.running ? 'Yes' : 'No'}\``;
+return `**Status:**\nMuted: \`${botStatus.muted ? 'Yes' : 'No'}\``;
 }
 
 async function postOrUpdateControlPanel(channel, client) {
