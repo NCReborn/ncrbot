@@ -31,11 +31,10 @@ async function postOrUpdateControlPanel(channel, client) {
   const embed = new EmbedBuilder()
     .setTitle('🤖 Bot Control Panel')
     .setDescription([
-      `**Reload** – Reloads bot commands. _Anyone in this channel can use._`,
-      `**Mute** – Prevents the bot from responding. _Anyone in this channel can use._`,
-      `**Unmute** – Unmutes the bot. _Anyone in this channel can use._`,
-      `**Restart** – Restarts the bot process (for code/repo changes). _Admin only._`,
-      `**Stop** – Stops the bot (emergency use). _Admin only._`
+      `**Reload** – Reloads bot commands. (_Anyone in this channel can use._)`,
+      `**Mute** – Prevents the bot from responding. (_Anyone in this channel can use._)`,
+      `**Unmute** – Unmutes the bot. (_Anyone in this channel can use._)`,
+      `**Restart** – Restarts the bot process (for code/repo changes). (_Admin only._)`,
     ].join('\n'))
     .addFields({ name: 'Bot Status', value: getStatusText() })
     .setFooter({ text: 'Use buttons below to control the bot.' })
@@ -46,7 +45,6 @@ async function postOrUpdateControlPanel(channel, client) {
     new ButtonBuilder().setCustomId('mute').setLabel('Mute').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('unmute').setLabel('Unmute').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('restart').setLabel('Restart').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('stop').setLabel('Stop').setStyle(ButtonStyle.Danger),
   );
 
   const msg = await channel.send({ embeds: [embed], components: [row] });
