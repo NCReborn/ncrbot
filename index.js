@@ -102,19 +102,14 @@ for (const file of eventFiles) {
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
 
-// --- Status Button Panel: Repost status panel on startup if saved ---
-const { postOrUpdateStatusPanel } = require('./panels/statuspanel.js');
-const { loadStatusPanelInfo, clearStatusPanelInfo } = require('./utils/statusPanelMessage');
-
 client.once('ready', async () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
 
   // Load saved message info
   const controlMsgInfo = loadMessageInfo();
-  const statusMsgInfo = loadStatusPanelInfo();
 
-  // Determine channel to use (prioritize Bot Control Panel's last channel, fallback to Status Panel's last channel)
-  const channelId = controlMsgInfo?.channelId || statusMsgInfo?.channelId;
+  // Determine channel to use (only cares about the Bot Control Panel's last channel)
+  const channelId = controlMsgInfo?.channelId;
   if (!channelId) return; // No known channel to restore to
 
   try {
@@ -128,23 +123,13 @@ client.once('ready', async () => {
       } catch (e) {/* Already deleted or missing */}
       clearMessageInfo();
     }
-    // Delete old Status Panel message if it exists
-    if (statusMsgInfo?.messageId) {
-      try {
-        const oldMsg = await channel.messages.fetch(statusMsgInfo.messageId);
-        if (oldMsg) await oldMsg.delete();
-      } catch (e) {/* Already deleted or missing */}
-      clearStatusPanelInfo();
-    }
 
-    // Always post in order: Bot Control Panel, THEN Status Control Panel
+    // Only post the Bot Control Panel
     await postOrUpdateControlPanel(channel, client);
-    await postOrUpdateStatusPanel(channel);
 
   } catch (e) {
     clearMessageInfo();
-    clearStatusPanelInfo();
-    logger.warn('Failed to restore bot control or status panel on startup; previous message/channel not found.');
+    logger.warn('Failed to restore bot control panel on startup; previous message/channel not found.');
   }
 });
 
