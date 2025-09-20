@@ -103,28 +103,48 @@ const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
 
 // --- Status Button Panel: Repost status panel on startup if saved ---
-const { postOrUpdateStatusPanel } = require('./panels/statuspanel.js'); // <-- path updated if you moved the file!
+const { postOrUpdateStatusPanel } = require('./panels/statuspanel.js');
 const { loadStatusPanelInfo, clearStatusPanelInfo } = require('./utils/statusPanelMessage');
 
 client.once('ready', async () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
 
-  // Attempt to repost the control panel in the previous channel (if any)
-  const msgInfo = loadMessageInfo();
-  if (msgInfo && msgInfo.channelId) {
-    try {
-      const channel = await client.channels.fetch(msgInfo.channelId);
-      if (channel) {
-        // FIRST: Bot Control Panel
-        await postOrUpdateControlPanel(channel, client);
-        // THEN: Status Control Panel
-        await postOrUpdateStatusPanel(channel);
-      }
-    } catch (e) {
+  // Load saved message info
+  const controlMsgInfo = loadMessageInfo();
+  const statusMsgInfo = loadStatusPanelInfo();
+
+  // Determine channel to use (prioritize Bot Control Panel's last channel, fallback to Status Panel's last channel)
+  const channelId = controlMsgInfo?.channelId || statusMsgInfo?.channelId;
+  if (!channelId) return; // No known channel to restore to
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+
+    // Delete old Bot Control Panel message if it exists
+    if (controlMsgInfo?.messageId) {
+      try {
+        const oldMsg = await channel.messages.fetch(controlMsgInfo.messageId);
+        if (oldMsg) await oldMsg.delete();
+      } catch (e) {/* Already deleted or missing */}
       clearMessageInfo();
-      clearStatusPanelInfo();
-      logger.warn('Failed to restore bot control or status panel on startup; previous message/channel not found.');
     }
+    // Delete old Status Panel message if it exists
+    if (statusMsgInfo?.messageId) {
+      try {
+        const oldMsg = await channel.messages.fetch(statusMsgInfo.messageId);
+        if (oldMsg) await oldMsg.delete();
+      } catch (e) {/* Already deleted or missing */}
+      clearStatusPanelInfo();
+    }
+
+    // Always post in order: Bot Control Panel, THEN Status Control Panel
+    await postOrUpdateControlPanel(channel, client);
+    await postOrUpdateStatusPanel(channel);
+
+  } catch (e) {
+    clearMessageInfo();
+    clearStatusPanelInfo();
+    logger.warn('Failed to restore bot control or status panel on startup; previous message/channel not found.');
   }
 });
 
