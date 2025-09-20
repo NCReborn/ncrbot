@@ -192,7 +192,7 @@ client.once('ready', async () => {
 });
 
 // --- FAQ SYSTEM: register message handler ---
-client.on('messageCreate', faqOnMessageCreate);
+// FAQ REMOVED: No faqOnMessageCreate registration here
 
 // Handle ticket-style log scan (button + modal)
 client.on('interactionCreate', async interaction => {
