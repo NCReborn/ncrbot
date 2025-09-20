@@ -1,7 +1,11 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { loadResponses, upsertResponse, deleteResponse } = require('../utils/autoResponder');
 
-const MOD_ROLE_ID = '1288633895910375464'; // <-- Set your mod role ID here
+// Add all roles that should be able to manage autoresponders here:
+const MOD_ROLE_IDS = [
+  '1370874936456908931', // existing mod role
+  '1288633895910375464' // add your ripperdoc role ID here
+];
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -33,8 +37,8 @@ module.exports = {
             .setRequired(true))
     ),
   async execute(interaction) {
-    // Only mods can use this command
-    if (!interaction.member.roles.cache.has(MOD_ROLE_ID)) {
+    // Allow any user with one of the allowed roles
+    if (!MOD_ROLE_IDS.some(id => interaction.member.roles.cache.has(id))) {
       await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
       return;
     }
