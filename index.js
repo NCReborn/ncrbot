@@ -1,6 +1,18 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
 
+// --- IMPROVED GLOBAL ERROR HANDLING: log to both console and file ---
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err && err.stack ? err.stack : err);
+  // If logger fails, at least we see it in the console
+  try { logger.error('Uncaught Exception:', err && err.stack ? err.stack : err); } catch(e) {}
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason);
+  try { logger.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason); } catch(e) {}
+});
+
 const { Client, GatewayIntentBits, Collection, InteractionType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -36,15 +48,6 @@ function saveWelcomeState(obj) {
   fs.mkdirSync(path.dirname(WELCOME_STATE_PATH), { recursive: true });
   fs.writeFileSync(WELCOME_STATE_PATH, JSON.stringify(obj));
 }
-
-// Handle uncaught exceptions (fail fast, log for diagnostics)
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception:', err.stack || err);
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
-});
 
 // Graceful shutdown on SIGINT/SIGTERM
 process.on('SIGINT', () => {
