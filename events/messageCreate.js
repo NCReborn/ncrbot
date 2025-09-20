@@ -2,7 +2,11 @@ const logger = require('../utils/logger');
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 const { loadResponses } = require('../utils/autoResponder');
 
-const MOD_ROLE_ID = '1288633895910375464'; // <-- Replace with your actual mod role ID
+// Add all roles that should be able to use mod autoresponder here:
+const MOD_ROLE_IDS = [
+  '1370874936456908931', // existing mod role
+  '1288633895910375464' // add your ripperdoc role ID here
+];
 
 module.exports = {
   name: 'messageCreate',
@@ -38,7 +42,7 @@ module.exports = {
     // --- Mod-Only Auto-Responder Logic (runs in all channels) ---
     try {
       if (message.author.bot) return;
-      if (!message.member?.roles.cache.has(MOD_ROLE_ID)) return;
+      if (!MOD_ROLE_IDS.some(id => message.member?.roles.cache.has(id))) return;
 
       const responses = loadResponses();
       for (const entry of responses) {
