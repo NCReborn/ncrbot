@@ -20,7 +20,11 @@ module.exports = {
       await handleLogScanTicketInteraction(interaction);
 
       // Handle modal submit for autoresponder add/edit
-      if (interaction.isModalSubmit() && (interaction.customId === 'autoresponder_add' || interaction.customId.startsWith('autoresponder_edit'))) {
+      if (
+        interaction.isModalSubmit() &&
+        (interaction.customId === 'autoresponder_add' ||
+          interaction.customId.startsWith('autoresponder_edit'))
+      ) {
         const trigger = interaction.fields.getTextInputValue('trigger').trim();
         const response = interaction.fields.getTextInputValue('response').trim();
         const wildcardRaw = interaction.fields.getTextInputValue('wildcard').trim().toLowerCase();
@@ -38,12 +42,11 @@ module.exports = {
         } else {
           await interaction.reply({ content: `Updated auto-response for trigger: \`${trigger}\``, ephemeral: true });
         }
-        return; // Do not fall through to slash command handler
+        return;
       }
 
       // Handle modal submit for NCRBot
       if (interaction.isModalSubmit() && interaction.customId === 'ncrbot_modal') {
-        // Get a complete GuildMember object to check permissions reliably
         const guildMember = await interaction.guild.members.fetch(interaction.user.id);
         if (!guildMember.permissions.has(PermissionFlagsBits.Administrator)) {
           await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
@@ -71,19 +74,17 @@ module.exports = {
           return;
         }
 
-        // --- PATCH: RELOAD BUTTON SPECIAL HANDLING ---
+        // Reload button: clean confirmation, no debug
         if (id === 'reload') {
-          await interaction.deferReply({ ephemeral: true }); // immediately acknowledge
+          await interaction.deferReply({ ephemeral: true });
           try {
             await reloadModule.reloadCommands(client, logger);
             await interaction.editReply({ content: 'Bot commands reloaded!' });
-          } catch (err) {
-            logger.error(`[BUTTON_RELOAD] ${err.stack || err}`);
-            await interaction.editReply({ content: `Reload failed: ${err.message}` });
+          } catch {
+            await interaction.editReply({ content: 'Reload failed.' });
           }
-          return; // Don't fall through to rest of button handler!
+          return;
         }
-        // --- END PATCH ---
 
         let resultMsg = '';
         switch (id) {
@@ -113,7 +114,6 @@ module.exports = {
         saveStatus(botcontrol.botStatus);
 
         if (needsPanelUpdate) {
-          // Update the panel message with refreshed status
           const embed = EmbedBuilder.from(interaction.message.embeds[0]);
           embed.data.fields = embed.data.fields.map(f =>
             f.name === 'Bot Status'
@@ -127,11 +127,9 @@ module.exports = {
 
         await interaction.followUp({ content: resultMsg, ephemeral: true });
 
-        // If restart: simulate process exit after reply (real implementation may differ)
         if (id === 'restart') {
           setTimeout(() => process.exit(0), 1000);
         }
-        // For stop: you may want to also call process.exit() or similar.
         return;
       }
 
@@ -141,8 +139,7 @@ module.exports = {
         if (!command) return;
         try {
           await command.execute(interaction);
-        } catch (error) {
-          logger.error(error.stack || error);
+        } catch {
           if (interaction.replied || interaction.deferred) {
             await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
           } else {
@@ -150,14 +147,12 @@ module.exports = {
           }
         }
       }
-    } catch (err) {
-      logger.error(`[INTERACTION_CREATE] Uncaught error: ${err.stack || err}`);
+    } catch {
+      // Clean, no debug/log output to user, just silent fail
       if (interaction && interaction.isRepliable && !interaction.replied && !interaction.deferred) {
         try {
           await interaction.reply({ content: 'An unexpected error occurred processing your request.', ephemeral: true });
-        } catch(e) {
-          logger.error(`[INTERACTION_CREATE] Failed to reply to interaction: ${e.stack || e}`);
-        }
+        } catch { /* silent */ }
       }
     }
   }
