@@ -71,17 +71,22 @@ module.exports = {
           return;
         }
 
+        // --- PATCH: RELOAD BUTTON SPECIAL HANDLING ---
+        if (id === 'reload') {
+          await interaction.deferReply({ ephemeral: true }); // immediately acknowledge
+          try {
+            await reloadModule.reloadCommands(client, logger);
+            await interaction.editReply({ content: 'Bot commands reloaded!' });
+          } catch (err) {
+            logger.error(`[BUTTON_RELOAD] ${err.stack || err}`);
+            await interaction.editReply({ content: `Reload failed: ${err.message}` });
+          }
+          return; // Don't fall through to rest of button handler!
+        }
+        // --- END PATCH ---
+
         let resultMsg = '';
         switch (id) {
-          case 'reload':
-            try {
-              await reloadModule.reloadCommands(client, logger);
-              resultMsg = 'Bot commands reloaded!';
-            } catch (err) {
-              logger.error(`[BUTTON_RELOAD] ${err.stack || err}`);
-              resultMsg = `Reload failed: ${err.message}`;
-            }
-            break;
           case 'mute':
             botcontrol.botStatus.muted = true;
             needsPanelUpdate = true;
