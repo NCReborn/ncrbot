@@ -21,6 +21,22 @@ setFAQsWithEmbeddings(faqList)
 
 const { onMessageCreate: faqOnMessageCreate } = require('./events/messageCreate');
 
+// --- Welcome message state helpers ---
+const WELCOME_STATE_PATH = path.join(__dirname, 'data', 'ask_welcome.json');
+const ASK_CHANNEL_ID = '1418742976871399456';
+
+function loadWelcomeState() {
+  try {
+    return JSON.parse(fs.readFileSync(WELCOME_STATE_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+function saveWelcomeState(obj) {
+  fs.mkdirSync(path.dirname(WELCOME_STATE_PATH), { recursive: true });
+  fs.writeFileSync(WELCOME_STATE_PATH, JSON.stringify(obj));
+}
+
 // Handle uncaught exceptions (fail fast, log for diagnostics)
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err.stack || err);
@@ -170,6 +186,36 @@ client.once('ready', async () => {
       logger.error('Revision polling error:', err);
     }
   }, POLL_INTERVAL);
+
+  // --- Welcome message logic for ask-a-bot channel ---
+  const askChannel = await client.channels.fetch(ASK_CHANNEL_ID).catch(() => null);
+  if (askChannel && askChannel.isTextBased()) {
+    // 1. Delete previous welcome message if exists
+    const state = loadWelcomeState();
+    if (state.lastMessageId) {
+      try {
+        const prevMsg = await askChannel.messages.fetch(state.lastMessageId);
+        await prevMsg.delete();
+      } catch (err) {
+        // Ignore if message not found (deleted manually, etc)
+      }
+    }
+
+    // 2. Post new welcome message
+    const botIntro = [
+      `👋 **Welcome to Ask-a-Bot!**`,
+      "",
+      "- Use the `/ask` command to get instant answers from the mod-approved FAQ or AI.",
+      "- Mods can toggle the bot on/off and lock this channel with `/asktoggle`.",
+      "- If the FAQ doesn't cover your question, AI will try to help (but verify AI answers!).",
+      "",
+      "_This message updates on every bot restart to keep things tidy!_"
+    ].join('\n');
+    const newMsg = await askChannel.send(botIntro);
+
+    // 3. Save new message ID
+    saveWelcomeState({ lastMessageId: newMsg.id });
+  }
 });
 
 // --- FAQ SYSTEM: register message handler ---
