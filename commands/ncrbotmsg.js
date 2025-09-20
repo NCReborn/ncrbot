@@ -6,8 +6,10 @@ module.exports = {
     .setDescription('Post a multi-line message as NCRBot (admin only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   async execute(interaction) {
-    // Check for Administrator permission
-    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    // Get a complete GuildMember object to check permissions reliably
+    const guildMember = await interaction.guild.members.fetch(interaction.user.id);
+
+    if (!guildMember.permissions.has(PermissionFlagsBits.Administrator)) {
       await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
       return;
     }
