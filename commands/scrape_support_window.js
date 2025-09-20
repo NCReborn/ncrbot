@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const fs = require('fs').promises;
 
 const SUPPORT_CHANNEL_ID = '1285796905640788030';
-const STAFF_USER_IDS = [
+const STAFF_ROLE_IDS = [
   '1285798792842575882', // V
   '1324783261439889439', // Techie
   '1370874936456908931', // Fixer
