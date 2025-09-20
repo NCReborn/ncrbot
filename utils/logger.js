@@ -10,7 +10,7 @@ const logger = createLogger({
     new transports.Console(),
     // Enable file logging for persistent audit/history:
     new transports.File({ filename: 'ncrbot.log' })
-  ],Q
+  ],
 });
 
 module.exports = logger;
