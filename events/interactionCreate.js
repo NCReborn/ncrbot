@@ -1,6 +1,6 @@
 const logger = require('../utils/logger');
 const { handleLogScanTicketInteraction } = require('../utils/logScanTicket');
-const { InteractionType, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { InteractionType, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
 const { upsertResponse } = require('../utils/autoResponder');
 
 // Import bot control logic and persistent status helpers
@@ -166,7 +166,7 @@ module.exports = {
               const statusChannelId = '1395501617523986644';
               try {
                 const statusChannel = await interaction.client.channels.fetch(statusChannelId);
-                if (statusChannel && statusChannel.isTextBased()) {
+                if (statusChannel && statusChannel.type === ChannelType.GuildText) {
                   await statusChannel.setTopic(`${config.emoji} | Status: ${config.label}`);
                 }
               } catch (e) {
@@ -238,7 +238,7 @@ module.exports = {
               const statusChannelId = '1395501617523986644';
               try {
                 const statusChannel = await interaction.client.channels.fetch(statusChannelId);
-                if (statusChannel && statusChannel.isTextBased()) {
+                if (statusChannel && statusChannel.type === ChannelType.GuildText) {
                   await statusChannel.setTopic(`${config.emoji} | Status: ${config.label}`);
                 }
               } catch (e) {
