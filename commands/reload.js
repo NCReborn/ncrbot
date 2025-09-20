@@ -3,14 +3,10 @@ const path = require('path');
 const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 
 async function reloadCommands(client, logger) {
-  // DEBUG: Show where reloadCommands was called from
-  console.log('[DEBUG] reloadCommands called from', new Error().stack.split('\n')[2]);
-  logger.info('Starting reloadCommands...');
   client.commands.clear();
 
   const commandsPath = path.join(__dirname, '.');
   const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-  logger.info(`[DEBUG] Found command files: ${commandFiles.join(', ')}`);
 
   let loaded = 0;
   let failed = 0;
@@ -52,13 +48,12 @@ async function reloadCommands(client, logger) {
 
   // Register slash commands with Discord
   try {
-    logger.info('[DEBUG] Registering slash commands with Discord...');
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     const CLIENT_ID = process.env.CLIENT_ID;
     const GUILD_ID = process.env.GUILD_ID;
 
     if (!CLIENT_ID || !GUILD_ID) {
-      logger.warn('[DEBUG] CLIENT_ID or GUILD_ID is not set, skipping Discord application command registration.');
+      logger.warn('CLIENT_ID or GUILD_ID is not set, skipping Discord application command registration.');
     } else {
       await rest.put(
         Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
@@ -70,7 +65,7 @@ async function reloadCommands(client, logger) {
     logger.error(`[RELOAD] Failed to register application commands with Discord: ${err.message}`);
   }
 
-  logger.info(`[RELOAD] Slash commands reloaded by button press. Loaded: ${loaded} Failed: ${failed}`);
+  logger.info(`[RELOAD] Slash commands reloaded. Loaded: ${loaded} Failed: ${failed}`);
 }
 
 module.exports = {
