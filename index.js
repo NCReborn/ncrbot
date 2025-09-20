@@ -80,7 +80,8 @@ for (const file of commandFiles) {
   }
 }
 if (runtimeRegistrationFailed) {
-  logger.error('Aborting bot startup due to invalid/malformed commands.');
+  logger.error('Aborting bot startup due to invalid/malformed commands. Check above logs for details.');
+  logger.error('Command files found: ' + commandFiles.join(', '));
   process.exit(1);
 }
 
@@ -102,7 +103,7 @@ const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
 
 // --- Status Button Panel: Repost status panel on startup if saved ---
-const { postOrUpdateStatusPanel } = require('./panels/statuspanel.js');
+const { postOrUpdateStatusPanel } = require('./panels/statuspanel.js'); // <-- path updated if you moved the file!
 const { loadStatusPanelInfo, clearStatusPanelInfo } = require('./utils/statusPanelMessage');
 
 client.once('ready', async () => {
@@ -114,8 +115,9 @@ client.once('ready', async () => {
     try {
       const channel = await client.channels.fetch(msgInfo.channelId);
       if (channel) {
+        // FIRST: Bot Control Panel
         await postOrUpdateControlPanel(channel, client);
-        // Now, also restore (or send) the status button panel just below
+        // THEN: Status Control Panel
         await postOrUpdateStatusPanel(channel);
       }
     } catch (e) {
