@@ -18,27 +18,31 @@ const statusButtons = new ActionRowBuilder().addComponents(
     .setCustomId('status_investigating')
     .setLabel('Investigating')
     .setStyle(ButtonStyle.Secondary)
-    .setEmoji('🟡'),
+    .setEmoji('🕵️'), // Detective emoji
+
   new ButtonBuilder()
     .setCustomId('status_issues')
     .setLabel('Issues')
-    .setStyle(ButtonStyle.Danger)
-    .setEmoji('🔴'),
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji('⚠️'), // Warning emoji
+
   new ButtonBuilder()
     .setCustomId('status_updating')
     .setLabel('Updating')
-    .setStyle(ButtonStyle.Primary)
-    .setEmoji('🔵'),
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji('🔄'), // Update emoji
+
   new ButtonBuilder()
     .setCustomId('status_stable')
     .setLabel('Stable')
-    .setStyle(ButtonStyle.Success)
-    .setEmoji('🟢'),
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji('✅'), // Check mark
+
   new ButtonBuilder()
     .setCustomId('status_pending')
     .setLabel('Pending')
-    .setStyle(ButtonStyle.Danger)
-    .setEmoji('🔴')
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji('⏳') // Hourglass
 );
 
 async function postOrUpdateStatusPanel(channel) {
