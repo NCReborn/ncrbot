@@ -159,40 +159,10 @@ client.once('ready', async () => {
       logger.error('Revision polling error:', err);
     }
   }, POLL_INTERVAL);
-
-  // --- Welcome message logic for ask-a-bot channel ---
-  const askChannel = await client.channels.fetch(ASK_CHANNEL_ID).catch(() => null);
-  if (askChannel && askChannel.isTextBased()) {
-    // 1. Delete previous welcome message if exists
-    const state = loadWelcomeState();
-    if (state.lastMessageId) {
-      try {
-        const prevMsg = await askChannel.messages.fetch(state.lastMessageId);
-        await prevMsg.delete();
-      } catch (err) {
-        // Ignore if message not found (deleted manually, etc)
-      }
-    }
-
-    // 2. Post new welcome message
-    const botIntro = [
-      `👋 **Welcome to Ask-a-Bot!**`,
-      "",
-      "- Use the `/ask` command to get instant answers from the mod-approved FAQ or AI.",
-      "- Mods can toggle the bot on/off and lock this channel with `/asktoggle`.",
-      "- If the FAQ doesn't cover your question, AI will try to help (but verify AI answers!).",
-      "",
-      "_This message updates on every bot restart to keep things tidy!_"
-    ].join('\n');
-    const newMsg = await askChannel.send(botIntro);
-
-    // 3. Save new message ID
-    saveWelcomeState({ lastMessageId: newMsg.id });
-  }
 });
 
 // --- FAQ SYSTEM: register message handler ---
-// FAQ REMOVED: No faqOnMessageCreate registration here
+// FAQ and ask-a-bot features removed
 
 // Handle ticket-style log scan (button + modal)
 client.on('interactionCreate', async interaction => {
