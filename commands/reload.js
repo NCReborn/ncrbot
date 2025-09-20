@@ -13,18 +13,17 @@ async function reloadCommands(client, logger) {
   const commandsForDiscord = [];
 
   for (const file of commandFiles) {
-    if (file === 'reload.js') continue;
+    // Always register the command with Discord, but only load into client.commands if not reload.js
+    const isSelf = file === 'reload.js';
     try {
       delete require.cache[require.resolve(`./${file}`)];
       const command = require(`./${file}`);
       if (Array.isArray(command)) {
         for (const subcommand of command) {
           if (subcommand.data && typeof subcommand.execute === 'function') {
-            client.commands.set(subcommand.data.name, subcommand);
+            if (!isSelf) client.commands.set(subcommand.data.name, subcommand);
             if (typeof subcommand.data.toJSON === 'function') {
               commandsForDiscord.push(subcommand.data.toJSON());
-            } else if (typeof subcommand.data === 'object') {
-              commandsForDiscord.push(subcommand.data);
             }
             loaded++;
           } else {
@@ -33,11 +32,9 @@ async function reloadCommands(client, logger) {
           }
         }
       } else if (command.data && typeof command.execute === 'function') {
-        client.commands.set(command.data.name, command);
+        if (!isSelf) client.commands.set(command.data.name, command);
         if (typeof command.data.toJSON === 'function') {
           commandsForDiscord.push(command.data.toJSON());
-        } else if (typeof command.data === 'object') {
-          commandsForDiscord.push(command.data);
         }
         loaded++;
       } else {
