@@ -67,7 +67,10 @@ module.exports = {
           try {
             memberCache[msg.author.id] = await guild.members.fetch(msg.author.id);
           } catch (e) {
-            console.error(`Failed to fetch member for ${msg.author.id}:`, e && e.stack ? e.stack : e);
+            // Only warn if it's not the "Unknown Member" error (code 10007)
+            if (e.code !== 10007) {
+              console.error(`Failed to fetch member for ${msg.author.id}:`, e && e.stack ? e.stack : e);
+            }
             memberCache[msg.author.id] = null;
           }
         }
