@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 
-const ADMIN_ROLE_ID = 'YOUR_ADMIN_ROLE_ID'; // <-- Replace with your actual admin role ID
+const ADMIN_ROLE_ID = '1324783261439889439'; // <-- Replace with your actual admin role ID
 
 module.exports = {
   data: new SlashCommandBuilder()
