@@ -2,16 +2,15 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { saveStatusPanelInfo, loadStatusPanelInfo, clearStatusPanelInfo } = require('../utils/statusPanelMessage');
 
 const statusEmbed = new EmbedBuilder()
-  .setColor(0x2b2d31)
-  .setTitle('Status Control Panel')
+  .setColor(0xf1c40f)
+  .setTitle('🔔 Status Control Panel')
   .setDescription(
-`-------------------- THESE COMMANDS ARE RATE LIMITED 2 CHANGES PER 10 MINS --------------------
-/investigating - Change the status channel to "🟡 | Status: Issues Reported (Latest)"
-/issues        - Change the status channel to "🔴 | Status: Issues Detected (Latest)"
-/updating      - Change the status channel to "🔵 | Status: Updating soon (Latest)"
-/stable        - Change the status channel to "🟢 | Status: Stable (Latest)"
-/pending       - Change the status channel to "🔴 | Status: Pending (Core Mods)"
--------------------- THESE COMMANDS ARE RATE LIMITED 2 CHANGES PER 10 MINS --------------------`
+    "**Note:** Status changes are *rate limited* to **2 per 10 minutes**.\n\n" +
+    "🟡 `/investigating` — Set status: **Issues Reported (Latest)**\n" +
+    "🔴 `/issues` — Set status: **Issues Detected (Latest)**\n" +
+    "🔵 `/updating` — Set status: **Updating soon (Latest)**\n" +
+    "🟢 `/stable` — Set status: **Stable (Latest)**\n" +
+    "🔴 `/pending` — Set status: **Pending (Core Mods)**"
   );
 
 const statusButtons = new ActionRowBuilder().addComponents(
