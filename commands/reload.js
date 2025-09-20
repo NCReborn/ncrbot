@@ -77,8 +77,9 @@ module.exports = {
     .setName('reload')
     .setDescription('Reload all bot commands'),
   async execute(interaction) {
+    await interaction.deferReply({ ephemeral: true }); // Defer instantly, only ONCE
     await reloadCommands(interaction.client, require('../utils/logger'));
-    await interaction.reply({ content: 'Slash commands reloaded!', ephemeral: true });
+    await interaction.editReply({ content: 'Slash commands reloaded!' }); // Edit, don't reply again
   },
   reloadCommands,
 };
