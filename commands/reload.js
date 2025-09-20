@@ -3,17 +3,18 @@ const path = require('path');
 const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 
 async function reloadCommands(client, logger) {
+  logger.info('Starting reloadCommands...');
   client.commands.clear();
 
   const commandsPath = path.join(__dirname, '.');
   const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+  logger.info(`Found command files: ${commandFiles.join(', ')}`);
 
   let loaded = 0;
   let failed = 0;
   const commandsForDiscord = [];
 
   for (const file of commandFiles) {
-    // Always register the command with Discord, but only load into client.commands if not reload.js
     const isSelf = file === 'reload.js';
     try {
       delete require.cache[require.resolve(`./${file}`)];
@@ -49,6 +50,7 @@ async function reloadCommands(client, logger) {
 
   // Register slash commands with Discord
   try {
+    logger.info('Registering slash commands with Discord...');
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     const CLIENT_ID = process.env.CLIENT_ID;
     const GUILD_ID = process.env.GUILD_ID;
@@ -74,9 +76,17 @@ module.exports = {
     .setName('reload')
     .setDescription('Reload all bot commands'),
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true }); // Defer instantly, only ONCE
-    await reloadCommands(interaction.client, require('../utils/logger'));
-    await interaction.editReply({ content: 'Slash commands reloaded!' }); // Edit, don't reply again
+    try {
+      await interaction.deferReply({ ephemeral: true });
+      await reloadCommands(interaction.client, require('../utils/logger'));
+      await interaction.editReply({ content: 'Slash commands reloaded!' });
+    } catch (err) {
+      try {
+        await interaction.editReply({ content: `Reload failed: ${err.message}` });
+      } catch {
+        await interaction.followUp({ content: `Reload failed: ${err.message}`, ephemeral: true });
+      }
+    }
   },
   reloadCommands,
 };
