@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { REST, Routes } = require('discord.js');
+const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 
 async function reloadCommands(client, logger) {
   client.commands.clear();
@@ -73,10 +73,9 @@ async function reloadCommands(client, logger) {
 }
 
 module.exports = {
-  data: {
-    name: 'reload',
-    description: 'Reload all bot commands',
-  },
+  data: new SlashCommandBuilder()
+    .setName('reload')
+    .setDescription('Reload all bot commands'),
   async execute(interaction) {
     await reloadCommands(interaction.client, require('../utils/logger'));
     await interaction.reply({ content: 'Slash commands reloaded!', ephemeral: true });
