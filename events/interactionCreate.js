@@ -163,7 +163,7 @@ module.exports = {
               await interaction.update({ embeds: [updatedEmbed] });
 
               // --- Update the #bot-controls channel topic as well ---
-              const statusChannelId = '1395501617523986644';
+              const statusChannelId = '1418991273670479962';
               try {
                 const statusChannel = await interaction.client.channels.fetch(statusChannelId);
                 if (statusChannel && statusChannel.type === ChannelType.GuildText) {
