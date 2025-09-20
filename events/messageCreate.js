@@ -2,7 +2,7 @@ const logger = require('../utils/logger');
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 const { loadResponses } = require('../utils/autoResponder');
 
-const MOD_ROLE_ID = 'YOUR_MOD_ROLE_ID'; // <-- Replace with your actual mod role ID
+const MOD_ROLE_ID = '1288633895910375464'; // <-- Replace with your actual mod role ID
 
 module.exports = {
   name: 'messageCreate',
@@ -41,14 +41,24 @@ module.exports = {
       if (message.author.bot) return;
 
       // Only respond to mods
-      if (!message.member?.roles.cache.has(MOD_ROLE_ID)) return;
+      if (!message.member?.roles.cache.has(MOD_ROLE_ID)) {
+        console.log(`[AutoResponder] User ${message.author.tag} does NOT have mod role.`);
+        return;
+      }
+      // Debug: Confirm mod message is being processed
+      console.log(`[AutoResponder] Matched mod: ${message.author.tag}, message: '${message.content}'`);
 
       const responses = loadResponses();
+      console.log("[AutoResponder] Loaded responses:", responses);
+
       for (const entry of responses) {
+        // Debug: Log matching attempts
+        console.log(`[AutoResponder] Checking trigger '${entry.trigger}' (wildcard: ${entry.wildcard}) against message '${message.content}'`);
         if (
           (entry.wildcard && message.content.toLowerCase().includes(entry.trigger.toLowerCase())) ||
           (!entry.wildcard && message.content.toLowerCase() === entry.trigger.toLowerCase())
         ) {
+          console.log(`[AutoResponder] Trigger matched: '${entry.trigger}' -> Responding with: '${entry.response}'`);
           await message.reply(entry.response);
           break;
         }
