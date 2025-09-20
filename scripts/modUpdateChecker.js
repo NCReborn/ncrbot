@@ -117,6 +117,9 @@ async function checkModsAndNotify(client) {
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once('ready', () => {
+  // Run the check immediately on startup for testing
+  checkModsAndNotify(client);
+
   // Every 30min (24 runs = 12h, adjust as needed)
   cron.schedule('*/30 * * * *', () => checkModsAndNotify(client));
   console.log('Mod update cron started.');
