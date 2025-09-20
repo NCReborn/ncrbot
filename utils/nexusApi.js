@@ -54,7 +54,7 @@ async function fetchRevision(slug, revision, apiKey, appName, appVersion) {
 
     // DEBUG: Log revision and modFiles count
     const modFiles = response.data.data.collectionRevision.modFiles || [];
-    logger.debug(`[fetchRevision] ${slug} rev ${revision}: found ${modFiles.length} modFiles`);
+  //  logger.debug(`[fetchRevision] ${slug} rev ${revision}: found ${modFiles.length} modFiles`);
     // Optionally uncomment this for full raw modFiles:
     // logger.debug(`[fetchRevision] ${slug} rev ${revision} modFiles: ${JSON.stringify(modFiles)}`);
     
@@ -83,8 +83,8 @@ function getCollectionName(slug) {
 }
 
 function computeDiff(oldMods, newMods) {
-  logger.debug(`[computeDiff] oldMods (${oldMods.length}): ${JSON.stringify(oldMods)}`);
-  logger.debug(`[computeDiff] newMods (${newMods.length}): ${JSON.stringify(newMods)}`);
+ // logger.debug(`[computeDiff] oldMods (${oldMods.length}): ${JSON.stringify(oldMods)}`);
+ // logger.debug(`[computeDiff] newMods (${newMods.length}): ${JSON.stringify(newMods)}`);
 
   const oldMap = new Map(oldMods.map((m) => [String(m.id), m]));
   const newMap = new Map(newMods.map((m) => [String(m.id), m]));
@@ -110,9 +110,9 @@ function computeDiff(oldMods, newMods) {
     }
   }
 
-  logger.debug(`[computeDiff] added (${added.length}): ${JSON.stringify(added)}`);
-  logger.debug(`[computeDiff] removed (${removed.length}): ${JSON.stringify(removed)}`);
-  logger.debug(`[computeDiff] updated (${updated.length}): ${JSON.stringify(updated)}`);
+ // logger.debug(`[computeDiff] added (${added.length}): ${JSON.stringify(added)}`);
+//  logger.debug(`[computeDiff] removed (${removed.length}): ${JSON.stringify(removed)}`);
+ // logger.debug(`[computeDiff] updated (${updated.length}): ${JSON.stringify(updated)}`);
 
   return { added, removed, updated };
 }
