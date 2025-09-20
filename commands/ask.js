@@ -41,8 +41,38 @@ module.exports = {
       const userEmbedding = embedResult.data[0].embedding;
 
       // Load staff Q&A embeddings
-      const qnaRaw = await fs.readFile(QNA_FILE, 'utf-8');
-      const qnaPairs = JSON.parse(qnaRaw);
+      let qnaRaw;
+      try {
+        qnaRaw = await fs.readFile(QNA_FILE, 'utf-8');
+      } catch (fileErr) {
+        await interaction.editReply({
+          content: "Sorry, there are no Q&A records available yet."
+        });
+        return;
+      }
+      if (!qnaRaw || qnaRaw.trim().length === 0) {
+        await interaction.editReply({
+          content: "Sorry, there are no Q&A records available yet."
+        });
+        return;
+      }
+
+      let qnaPairs;
+      try {
+        qnaPairs = JSON.parse(qnaRaw);
+      } catch (jsonErr) {
+        await interaction.editReply({
+          content: "Sorry, the Q&A data is corrupted or empty. Please notify an admin."
+        });
+        return;
+      }
+
+      if (!Array.isArray(qnaPairs) || qnaPairs.length === 0) {
+        await interaction.editReply({
+          content: "Sorry, there are no Q&A records available yet."
+        });
+        return;
+      }
 
       // Find best match by cosine similarity
       let best = null;
