@@ -1,6 +1,6 @@
 const logger = require('../utils/logger');
 const { handleLogScanTicketInteraction } = require('../utils/logScanTicket');
-const { InteractionType } = require('discord.js');
+const { InteractionType, PermissionFlagsBits } = require('discord.js');
 const { upsertResponse } = require('../utils/autoResponder');
 
 module.exports = {
@@ -33,8 +33,9 @@ module.exports = {
 
       // Handle modal submit for NCRBot
       if (interaction.isModalSubmit() && interaction.customId === 'ncrbot_modal') {
-        const ADMIN_ROLE_ID = 'YOUR_ADMIN_ROLE_ID'; // <-- Use your actual admin role ID
-        if (!interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
+        // Get a complete GuildMember object to check permissions reliably
+        const guildMember = await interaction.guild.members.fetch(interaction.user.id);
+        if (!guildMember.permissions.has(PermissionFlagsBits.Administrator)) {
           await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
           return;
         }
