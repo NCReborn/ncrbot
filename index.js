@@ -48,7 +48,7 @@ const client = new Client({
   ],
 });
 
-// Load commands (unchanged)
+// Load commands
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -101,6 +101,10 @@ for (const file of eventFiles) {
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
 
+// --- Status Button Panel: Repost status panel on startup if saved ---
+const { postOrUpdateStatusPanel } = require('./commands/statuspanel.js');
+const { loadStatusPanelInfo, clearStatusPanelInfo } = require('./utils/statusPanelMessage');
+
 client.once('ready', async () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
 
@@ -111,10 +115,13 @@ client.once('ready', async () => {
       const channel = await client.channels.fetch(msgInfo.channelId);
       if (channel) {
         await postOrUpdateControlPanel(channel, client);
+        // Now, also restore (or send) the status button panel just below
+        await postOrUpdateStatusPanel(channel);
       }
     } catch (e) {
       clearMessageInfo();
-      logger.warn('Failed to restore bot control panel on startup; previous message/channel not found.');
+      clearStatusPanelInfo();
+      logger.warn('Failed to restore bot control or status panel on startup; previous message/channel not found.');
     }
   }
 });
