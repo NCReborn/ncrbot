@@ -31,6 +31,23 @@ module.exports = {
         return; // Do not fall through to slash command handler
       }
 
+      // Handle modal submit for NCRBot
+      if (interaction.isModalSubmit() && interaction.customId === 'ncrbot_modal') {
+        const ADMIN_ROLE_ID = 'YOUR_ADMIN_ROLE_ID'; // <-- Use your actual admin role ID
+        if (!interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
+          await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+          return;
+        }
+        const msg = interaction.fields.getTextInputValue('ncrbot_message');
+        if (msg.length > 2000) {
+          await interaction.reply({ content: `Message too long (${msg.length}/2000).`, ephemeral: true });
+          return;
+        }
+        await interaction.channel.send({ content: msg });
+        await interaction.reply({ content: 'Message sent!', ephemeral: true });
+        return;
+      }
+
       // Slash command handler
       if (interaction.type === InteractionType.ApplicationCommand) {
         const command = client.commands.get(interaction.commandName);
