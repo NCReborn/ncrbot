@@ -5,6 +5,7 @@ module.exports = {
   data: {
     name: 'ask',
     description: 'Ask a question and get an answer from the FAQ or AI.',
+    type: 1, // <--- Required for slash command
     options: [
       {
         name: 'question',
