@@ -11,7 +11,7 @@ async function getOpenAIAnswer(prompt) {
       { role: "system", content: "You are a helpful Discord support assistant." },
       { role: "user", content: prompt }
     ],
-    max_tokens: 300 // Adjust as needed
+ max_completion_tokens: 500, 
   });
 
   return response.choices[0]?.message?.content?.trim() || "Sorry, I couldn't generate an answer.";
