@@ -31,15 +31,32 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 
     await channel.send({ embeds: [collectionHeader] });
 
+    // Defensive: Provide empty arrays if missing/invalid
+    diffs1 = diffs1 ?? {};
+    diffs2 = diffs2 ?? {};
+    exclusiveChanges = exclusiveChanges ?? {};
+    const added1 = Array.isArray(diffs1.added) ? diffs1.added : [];
+    const added2 = Array.isArray(diffs2.added) ? diffs2.added : [];
+    const updated1 = Array.isArray(diffs1.updated) ? diffs1.updated : [];
+    const updated2 = Array.isArray(diffs2.updated) ? diffs2.updated : [];
+    const removed1 = Array.isArray(diffs1.removed) ? diffs1.removed : [];
+    const removed2 = Array.isArray(diffs2.removed) ? diffs2.removed : [];
+    const exAdded1 = Array.isArray(exclusiveChanges.added1) ? exclusiveChanges.added1 : [];
+    const exAdded2 = Array.isArray(exclusiveChanges.added2) ? exclusiveChanges.added2 : [];
+    const exUpdated1 = Array.isArray(exclusiveChanges.updated1) ? exclusiveChanges.updated1 : [];
+    const exUpdated2 = Array.isArray(exclusiveChanges.updated2) ? exclusiveChanges.updated2 : [];
+    const exRemoved1 = Array.isArray(exclusiveChanges.removed1) ? exclusiveChanges.removed1 : [];
+    const exRemoved2 = Array.isArray(exclusiveChanges.removed2) ? exclusiveChanges.removed2 : [];
+
     // Added Mods
-    const allAdded = [...diffs1.added, ...diffs2.added];
+    const allAdded = [...added1, ...added2];
     const uniqueAdded = allAdded.filter((mod, index, self) => index === self.findIndex(m => m.id === mod.id));
     const sortedAdded = sortModsAlphabetically([...uniqueAdded]);
 
     if (sortedAdded.length > 0) {
-      const sharedAdded = sortedAdded.filter(mod => !exclusiveChanges.added1.some(m => m.id === mod.id) && !exclusiveChanges.added2.some(m => m.id === mod.id));
-      const exclusiveAdded1 = sortModsAlphabetically([...exclusiveChanges.added1]);
-      const exclusiveAdded2 = sortModsAlphabetically([...exclusiveChanges.added2]);
+      const sharedAdded = sortedAdded.filter(mod => !exAdded1.some(m => m.id === mod.id) && !exAdded2.some(m => m.id === mod.id));
+      const exclusiveAdded1 = sortModsAlphabetically([...exAdded1]);
+      const exclusiveAdded2 = sortModsAlphabetically([...exAdded2]);
 
       let addedList = '';
       if (sharedAdded.length > 0) {
@@ -88,14 +105,14 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
     }
 
     // Updated Mods
-    const allUpdated = [...diffs1.updated, ...diffs2.updated];
+    const allUpdated = [...updated1, ...updated2];
     const uniqueUpdated = allUpdated.filter((update, index, self) => index === self.findIndex(u => u.before.id === update.before.id));
     const sortedUpdated = sortUpdatedModsAlphabetically([...uniqueUpdated]);
 
     if (sortedUpdated.length > 0) {
-      const sharedUpdated = sortedUpdated.filter(update => !exclusiveChanges.updated1.some(u => u.before.id === update.before.id) && !exclusiveChanges.updated2.some(u => u.before.id === update.before.id));
-      const exclusiveUpdated1 = sortUpdatedModsAlphabetically([...exclusiveChanges.updated1]);
-      const exclusiveUpdated2 = sortUpdatedModsAlphabetically([...exclusiveChanges.updated2]);
+      const sharedUpdated = sortedUpdated.filter(update => !exUpdated1.some(u => u.before.id === update.before.id) && !exUpdated2.some(u => u.before.id === update.before.id));
+      const exclusiveUpdated1 = sortUpdatedModsAlphabetically([...exUpdated1]);
+      const exclusiveUpdated2 = sortUpdatedModsAlphabetically([...exUpdated2]);
 
       let updatedList = '';
       if (sharedUpdated.length > 0) {
@@ -144,14 +161,14 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
     }
 
     // Removed Mods
-    const allRemoved = [...diffs1.removed, ...diffs2.removed];
+    const allRemoved = [...removed1, ...removed2];
     const uniqueRemoved = allRemoved.filter((mod, index, self) => index === self.findIndex(m => m.id === mod.id));
     const sortedRemoved = sortModsAlphabetically([...uniqueRemoved]);
 
     if (sortedRemoved.length > 0) {
-      const sharedRemoved = sortedRemoved.filter(mod => !exclusiveChanges.removed1.some(m => m.id === mod.id) && !exclusiveChanges.removed2.some(m => m.id === mod.id));
-      const exclusiveRemoved1 = sortModsAlphabetically([...exclusiveChanges.removed1]);
-      const exclusiveRemoved2 = sortModsAlphabetically([...exclusiveChanges.removed2]);
+      const sharedRemoved = sortedRemoved.filter(mod => !exRemoved1.some(m => m.id === mod.id) && !exRemoved2.some(m => m.id === mod.id));
+      const exclusiveRemoved1 = sortModsAlphabetically([...exRemoved1]);
+      const exclusiveRemoved2 = sortModsAlphabetically([...exRemoved2]);
 
       let removedList = '';
       if (sharedRemoved.length > 0) {
@@ -205,6 +222,18 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 
 async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev, collectionName) {
   try {
+    // Defensive: Provide empty arrays if missing/invalid
+    diffs = diffs ?? {};
+    const added = Array.isArray(diffs.added) ? diffs.added : [];
+    const updated = Array.isArray(diffs.updated) ? diffs.updated : [];
+    const removed = Array.isArray(diffs.removed) ? diffs.removed : [];
+
+    if (!added.length && !updated.length && !removed.length) {
+      logger.warn(`[sendSingleChangelogMessages] Diff object is null or empty for ${collectionName} (${slug} ${oldRev} → ${newRev})`);
+      await channel.send(`No changelog diff available for ${collectionName} (maybe no changes detected or diff computation failed).`);
+      return;
+    }
+
     const embed1 = new EmbedBuilder()
       .setTitle(`Revision ${collectionName}-${newRev} - Game Version 2.3`)
       .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1346957358244433950>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1332486336040403075> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1285796905640788030> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
@@ -224,8 +253,8 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     await channel.send({ embeds: [collectionHeader] });
 
     // Added Mods
-    if (diffs.added.length > 0) {
-      const sortedAdded = sortModsAlphabetically([...diffs.added]);
+    if (added.length > 0) {
+      const sortedAdded = sortModsAlphabetically([...added]);
       let addedList = sortedAdded.map(mod => {
         const modName = sanitizeName(mod.name);
         const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
@@ -252,8 +281,8 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     }
 
     // Updated Mods
-    if (diffs.updated.length > 0) {
-      const sortedUpdated = sortUpdatedModsAlphabetically([...diffs.updated]);
+    if (updated.length > 0) {
+      const sortedUpdated = sortUpdatedModsAlphabetically([...updated]);
       let updatedList = sortedUpdated.map(update => {
         const modName = sanitizeName(update.before.name);
         const modUrl = `https://www.nexusmods.com/${update.before.domainName}/mods/${update.before.modId}`;
@@ -280,8 +309,8 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     }
 
     // Removed Mods
-    if (diffs.removed.length > 0) {
-      const sortedRemoved = sortModsAlphabetically([...diffs.removed]);
+    if (removed.length > 0) {
+      const sortedRemoved = sortModsAlphabetically([...removed]);
       let removedList = sortedRemoved.map(mod => {
         const modName = sanitizeName(mod.name);
         const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
