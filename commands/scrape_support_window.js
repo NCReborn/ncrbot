@@ -1,3 +1,11 @@
+// ---- Global error handlers ----
+process.on('uncaughtException', function (err) {
+  console.error('Uncaught Exception:', err && err.stack ? err.stack : err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason);
+});
+
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const fs = require('fs').promises;
 
@@ -58,7 +66,8 @@ module.exports = {
         if (!memberCache[msg.author.id]) {
           try {
             memberCache[msg.author.id] = await guild.members.fetch(msg.author.id);
-          } catch {
+          } catch (e) {
+            console.error(`Failed to fetch member for ${msg.author.id}:`, e && e.stack ? e.stack : e);
             memberCache[msg.author.id] = null;
           }
         }
@@ -98,11 +107,20 @@ module.exports = {
         }
       }
 
-      await fs.writeFile(OUTPUT_FILE, JSON.stringify(qnaPairs, null, 2), 'utf-8');
+      try {
+        await fs.writeFile(OUTPUT_FILE, JSON.stringify(qnaPairs, null, 2), 'utf-8');
+      } catch (e) {
+        console.error('Failed to write Q&A output file:', e && e.stack ? e.stack : e);
+        await interaction.editReply('Error: Could not write Q&A output file!');
+        return;
+      }
+
       await interaction.editReply(`Done! Window-paired ${qnaPairs.length} Q&A pairs. (Saved to ${OUTPUT_FILE})`);
     } catch (err) {
-      console.error(err);
-      await interaction.editReply('There was an error running the windowed scrape!');
+      console.error('[scrape_support_window] Top-level error:', err && err.stack ? err.stack : err);
+      try {
+        await interaction.editReply('There was an error running the windowed scrape!');
+      } catch (_) {}
     }
   }
 };
