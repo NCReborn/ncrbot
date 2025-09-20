@@ -3,7 +3,7 @@ const fs = require('fs').promises;
 
 const SUPPORT_CHANNEL_ID = '1285796905640788030';
 const STAFF_ROLE_IDS = [
-  '1285798792842575882', // V
+  '1285798792842575882', // V (Role ID, not user ID)
   '1324783261439889439', // Techie
   '1370874936456908931', // Fixer
   '1288633895910375464', // Ripperdoc
@@ -30,6 +30,7 @@ module.exports = {
 
     try {
       const channel = await interaction.client.channels.fetch(SUPPORT_CHANNEL_ID);
+      const guild = interaction.guild;
 
       let allMessages = [];
       let lastId = undefined;
@@ -51,17 +52,33 @@ module.exports = {
       // Sort by timestamp oldest -> newest
       allMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
-      // Windowed pairing logic
+      // Pre-fetch all unique members for the messages
+      const memberCache = {};
+      for (const msg of allMessages) {
+        if (!memberCache[msg.author.id]) {
+          try {
+            memberCache[msg.author.id] = await guild.members.fetch(msg.author.id);
+          } catch {
+            memberCache[msg.author.id] = null;
+          }
+        }
+      }
+
+      // Windowed pairing logic (by staff role)
       let qnaPairs = [];
       let answeredQuestionIds = new Set();
       for (let i = 0; i < allMessages.length; i++) {
         const msg = allMessages[i];
-        if (!STAFF_USER_IDS.includes(msg.author.id) && msg.content.length > 0 && !answeredQuestionIds.has(msg.id)) {
+        const member = memberCache[msg.author.id];
+        const isStaff = member && member.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
+        if (!isStaff && msg.content.length > 0 && !answeredQuestionIds.has(msg.id)) {
           // Look ahead for a staff answer within WINDOW_SIZE
           for (let j = 1; j <= WINDOW_SIZE && (i + j) < allMessages.length; j++) {
             const candidate = allMessages[i + j];
+            const candidateMember = memberCache[candidate.author.id];
+            const candidateIsStaff = candidateMember && candidateMember.roles.cache.some(role => STAFF_ROLE_IDS.includes(role.id));
             if (
-              STAFF_USER_IDS.includes(candidate.author.id) &&
+              candidateIsStaff &&
               candidate.content.length > 0
             ) {
               qnaPairs.push({
