@@ -1,6 +1,6 @@
 const logger = require('./logger');
 const { getCollectionRevision, setCollectionRevision, loadState } = require('./revisionState');
-const { getCollectionSlug } = require('./nexusApi');
+const { getCollectionSlug, fetchRevision, processModFiles, computeDiff, findExclusiveChanges } = require('./nexusApi');
 const { sendCombinedChangelogMessages, sendSingleChangelogMessages } = require('../services/changelogService');
 
 const COLLECTIONS = [
@@ -10,7 +10,6 @@ const COLLECTIONS = [
 
 module.exports = {
   async start(client) {
-    const { fetchRevision } = require('./nexusApi');
     const { updateCollectionVersionChannel, updateStatusChannel } = require('./voiceChannelUpdater');
     const { setRevision, getRevision, getRevertAt } = require('./revisionStore');
     const voiceConfig = require('../config/voiceChannels');
@@ -101,9 +100,26 @@ module.exports = {
               // Both collections updated
               if ((prevRev1 && newRev1 > prevRev1) && (prevRev2 && newRev2 > prevRev2)) {
                 logger.info(`[POST] [${name}/${compare}] Both collections updated, calling sendCombinedChangelogMessages`);
+
+                // --- BEGIN DIFF LOGIC ---
+                const oldData1 = await fetchRevision(slug1, prevRev1, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+                const newData1 = await fetchRevision(slug1, newRev1, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+                const oldData2 = await fetchRevision(slug2, prevRev2, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+                const newData2 = await fetchRevision(slug2, newRev2, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+
+                const oldMods1 = processModFiles(oldData1.modFiles);
+                const newMods1 = processModFiles(newData1.modFiles);
+                const oldMods2 = processModFiles(oldData2.modFiles);
+                const newMods2 = processModFiles(newData2.modFiles);
+
+                const diffs1 = computeDiff(oldMods1, newMods1);
+                const diffs2 = computeDiff(oldMods2, newMods2);
+                const exclusiveChanges = findExclusiveChanges(diffs1, diffs2);
+                // --- END DIFF LOGIC ---
+
                 await sendCombinedChangelogMessages(
                   channel,
-                  null, null, null,
+                  diffs1, diffs2, exclusiveChanges,
                   slug1, prevRev1, newRev1,
                   slug2, prevRev2, newRev2
                 );
@@ -112,9 +128,18 @@ module.exports = {
               // Only collection 1 updated
               else if (prevRev1 && newRev1 > prevRev1) {
                 logger.info(`[POST] [${name}/${compare}] Only ${name} updated, calling sendSingleChangelogMessages`);
+
+                // --- BEGIN DIFF LOGIC (SINGLE) ---
+                const oldData1 = await fetchRevision(slug1, prevRev1, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+                const newData1 = await fetchRevision(slug1, newRev1, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+                const oldMods1 = processModFiles(oldData1.modFiles);
+                const newMods1 = processModFiles(newData1.modFiles);
+                const diffs1 = computeDiff(oldMods1, newMods1);
+                // --- END DIFF LOGIC (SINGLE) ---
+
                 await sendSingleChangelogMessages(
                   channel,
-                  null, // diffs calculated internally
+                  diffs1,
                   slug1, prevRev1, newRev1, name.toUpperCase()
                 );
                 logger.info(`[DIFF-AUTO] Posted single changelog for ${name} in #${channelId}`);
@@ -122,9 +147,18 @@ module.exports = {
               // Only collection 2 updated
               else if (prevRev2 && newRev2 > prevRev2) {
                 logger.info(`[POST] [${name}/${compare}] Only ${compare} updated, calling sendSingleChangelogMessages`);
+
+                // --- BEGIN DIFF LOGIC (SINGLE) ---
+                const oldData2 = await fetchRevision(slug2, prevRev2, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+                const newData2 = await fetchRevision(slug2, newRev2, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+                const oldMods2 = processModFiles(oldData2.modFiles);
+                const newMods2 = processModFiles(newData2.modFiles);
+                const diffs2 = computeDiff(oldMods2, newMods2);
+                // --- END DIFF LOGIC (SINGLE) ---
+
                 await sendSingleChangelogMessages(
                   channel,
-                  null, // diffs calculated internally
+                  diffs2,
                   slug2, prevRev2, newRev2, compare.toUpperCase()
                 );
                 logger.info(`[DIFF-AUTO] Posted single changelog for ${compare} in #${channelId}`);
