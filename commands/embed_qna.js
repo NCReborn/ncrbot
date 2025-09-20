@@ -9,15 +9,26 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMBEDDING_MODEL = 'text-embedding-ada-002';
 const BATCH_SIZE = 10; // Adjust as needed
 const SLEEP_MS = 200; // Adjust as needed
+const DECIMALS = 4;   // Number of decimal places for each float in the embedding
 
 function sleep(ms) {
   return new Promise(res => setTimeout(res, ms));
 }
 
+function minimizePair(pair) {
+  return {
+    question: pair.question,
+    answer: pair.answer,
+    question_embedding: pair.question_embedding
+      ? pair.question_embedding.map(f => Number(f.toFixed(DECIMALS)))
+      : undefined,
+  };
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('embed_qna')
-    .setDescription('Embed support Q&A pairs for semantic search (admin only)'),
+    .setDescription('Embed support Q&A pairs for semantic search (admin only, optimized)'),
   async execute(interaction) {
     // Admin check
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -51,12 +62,15 @@ module.exports = {
     } catch {
       outputPairs = [];
     }
-    // Map for fast lookup
-    const outputMap = new Map(outputPairs.map(pair => [pair.question_id, pair]));
+    // Use question+answer as the unique key (robust if IDs not present)
+    const outputMap = new Map(
+      outputPairs.map(pair => [pair.question + '|' + pair.answer, pair])
+    );
 
     let toEmbed = [];
     for (const pair of qnaPairs) {
-      if (outputMap.has(pair.question_id) && outputMap.get(pair.question_id).question_embedding) {
+      const key = pair.question + '|' + pair.answer;
+      if (outputMap.has(key) && outputMap.get(key).question_embedding) {
         continue; // Already embedded
       }
       toEmbed.push(pair);
@@ -77,8 +91,9 @@ module.exports = {
           input: questions
         });
         for (let j = 0; j < batch.length; j++) {
-          batch[j].question_embedding = resp.data[j].embedding;
-          outputMap.set(batch[j].question_id, batch[j]);
+          // Save minimized, rounded embedding
+          batch[j].question_embedding = resp.data[j].embedding.map(f => Number(f.toFixed(DECIMALS)));
+          outputMap.set(batch[j].question + '|' + batch[j].answer, batch[j]);
         }
         await interaction.followUp({
           content: `Embedded batch ${i + 1} to ${i + batch.length} / ${toEmbed.length}`,
@@ -90,10 +105,16 @@ module.exports = {
           ephemeral: true
         });
       }
-      await fs.writeFile(QNA_OUTPUT_FILE, JSON.stringify(Array.from(outputMap.values()), null, 2), 'utf-8');
+      // Save minimized output after each batch
+      const minimalQna = Array.from(outputMap.values()).map(minimizePair);
+      await fs.writeFile(QNA_OUTPUT_FILE, JSON.stringify(minimalQna, null, 2), 'utf-8');
       await sleep(SLEEP_MS);
     }
 
-    await interaction.followUp({ content: "Embedding complete.", ephemeral: true });
+    // Final save and done message
+    const minimalQna = Array.from(outputMap.values()).map(minimizePair);
+    await fs.writeFile(QNA_OUTPUT_FILE, JSON.stringify(minimalQna, null, 2), 'utf-8');
+
+    await interaction.followUp({ content: "Embedding and minimization complete.", ephemeral: true });
   }
 };
