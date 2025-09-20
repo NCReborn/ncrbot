@@ -51,6 +51,10 @@ async function fetchRevision(slug, revision, apiKey, appName, appVersion) {
       logger.error(`Nexus API error: Revision ${revision} not found for collection ${slug}`);
       throw new Error(`Revision ${revision} not found for collection ${slug}`);
     }
+
+    // DEBUG: Log revision and modFiles count
+    logger.debug(`[fetchRevision] ${slug} rev ${revision}: found ${response.data.data.collectionRevision.modFiles.length} modFiles`);
+    // Optionally: logger.debug(`[fetchRevision] ${slug} rev ${revision} modFiles: ${JSON.stringify(response.data.data.collectionRevision.modFiles)}`);
     
     return response.data.data.collectionRevision;
   } catch (error) {
@@ -67,7 +71,6 @@ async function fetchRevision(slug, revision, apiKey, appName, appVersion) {
   }
 }
 
-
 function getCollectionSlug(name) {
   const normalizedName = name.toLowerCase().trim();
   return COLLECTION_MAPPINGS.slugs[normalizedName] || name;
@@ -78,6 +81,9 @@ function getCollectionName(slug) {
 }
 
 function computeDiff(oldMods, newMods) {
+  logger.debug(`[computeDiff] oldMods (${oldMods.length}): ${JSON.stringify(oldMods)}`);
+  logger.debug(`[computeDiff] newMods (${newMods.length}): ${JSON.stringify(newMods)}`);
+
   const oldMap = new Map(oldMods.map((m) => [String(m.id), m]));
   const newMap = new Map(newMods.map((m) => [String(m.id), m]));
 
@@ -102,6 +108,10 @@ function computeDiff(oldMods, newMods) {
     }
   }
 
+  logger.debug(`[computeDiff] added: ${JSON.stringify(added)}`);
+  logger.debug(`[computeDiff] removed: ${JSON.stringify(removed)}`);
+  logger.debug(`[computeDiff] updated: ${JSON.stringify(updated)}`);
+
   return { added, removed, updated };
 }
 
@@ -125,7 +135,7 @@ function findExclusiveChanges(diffs1, diffs2) {
 }
 
 function processModFiles(modFiles) {
-  return modFiles
+  const mods = modFiles
     .filter((mf) => mf.file && mf.file.mod)
     .map((mf) => ({
       id: `${mf.file.mod.modId}-${mf.file.mod.game.domainName}`,
@@ -134,6 +144,8 @@ function processModFiles(modFiles) {
       domainName: mf.file.mod.game.domainName,
       modId: mf.file.mod.modId
     }));
+  logger.debug(`[processModFiles] Processed ${mods.length} mods: ${JSON.stringify(mods)}`);
+  return mods;
 }
 
 module.exports = {
