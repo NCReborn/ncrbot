@@ -6,7 +6,7 @@
  * 
  * Fill in actual Nexus API calls where marked.
  */
-
+require('dotenv').config();
 const fs = require("fs");
 const path = require("path");
 const { collections } = require("../config/collections");
