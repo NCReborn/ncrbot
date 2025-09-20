@@ -7,27 +7,27 @@ module.exports = {
     .setName('ncrbotmsg')
     .setDescription('Post a message as NCRBot (admin only)')
     .addStringOption(opt =>
-      opt.setName('message')
-        .setDescription('The message for the bot to post')
-        .setRequired(true)
-    )
-    .addStringOption(opt =>
       opt.setName('format')
         .setDescription('Message format')
         .addChoices(
           { name: 'Plain', value: 'plain' },
           { name: 'Embed', value: 'embed' }
         )
-        .setRequired(false)
+        .setRequired(true) // <-- Make this required
     )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), // Only admins by default
+    .addStringOption(opt =>
+      opt.setName('message')
+        .setDescription('The message for the bot to post')
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   async execute(interaction) {
     if (!interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
       await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
       return;
     }
     const msg = interaction.options.getString('message');
-    const format = interaction.options.getString('format') || 'plain';
+    const format = interaction.options.getString('format');
 
     if (format === 'embed') {
       const embed = new EmbedBuilder()
