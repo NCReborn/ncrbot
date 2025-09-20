@@ -15,7 +15,7 @@ async function getOpenAIAnswer(question) {
     // console.dir(response, { depth: 10 });
     const answer = response.choices?.[0]?.message?.content;
     if (!answer || answer.trim() === '') {
-      return "Sorry, I couldn't generate an answer. The AI may not know about this topic, or the question may be unclear. Try rephrasing, or ask in <#support-channel-id>.";
+      return "Sorry, I couldn't generate an answer. The AI may not know about this topic, or the question may be unclear. Try rephrasing, or ask in <#1285796905640788030>.";
     }
     return answer.trim();
   } catch (err) {
