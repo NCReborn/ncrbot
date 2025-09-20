@@ -9,8 +9,7 @@ async function getOpenAIAnswer(question) {
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: question }
       ],
-      max_completion_tokens: 500,
-      temperature: 0.7,
+      max_completion_tokens: 500
     });
     console.log('OpenAI response:', response);
     return response.choices?.[0]?.message?.content?.trim() || "Sorry, I couldn't generate an answer.";
