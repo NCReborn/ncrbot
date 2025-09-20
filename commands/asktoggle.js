@@ -15,8 +15,11 @@ module.exports = {
         .setDescription('Enable (true) or disable (false) the ask command')
         .setRequired(true)),
   async execute(interaction) {
-    // Check for mod role
-    if (!interaction.member.roles.cache.has(MOD_ROLE_ID)) {
+    // Allow either mod role OR admin permission
+    if (
+      !interaction.member.roles.cache.has(MOD_ROLE_ID) &&
+      !interaction.member.permissions.has(PermissionFlagsBits.Administrator)
+    ) {
       return await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
     }
 
