@@ -42,6 +42,7 @@ module.exports = {
     setInterval(async () => {
       try {
         // MAIN polling for status/voice channel
+        logger.debug("Polling for main collection revision...");
         const revisionData = await fetchRevision(
           MAIN_COLLECTION_SLUG,
           null,
@@ -52,7 +53,10 @@ module.exports = {
         const currentRevision = revisionData.revisionNumber;
         const lastRevision = await getRevision();
 
+        logger.debug(`Fetched main collection revision: currentRevision=${currentRevision}, lastRevision=${lastRevision}`);
+
         if (!lastRevision || currentRevision > lastRevision) {
+          logger.info(`Main revision change detected! Updating voice/status channels for revision ${currentRevision}`);
           await updateCollectionVersionChannel(guild, currentRevision);
           await updateStatusChannel(guild, voiceConfig.statusChecking);
 
@@ -65,6 +69,8 @@ module.exports = {
           }, 24 * 60 * 60 * 1000);
 
           logger.info(`Detected new revision: ${currentRevision}, status set to Checking, will revert to Stable in 24h`);
+        } else {
+          logger.debug("No main revision change detected.");
         }
 
         // --- Diff and post changelog logic ---
@@ -82,13 +88,18 @@ module.exports = {
           const newRev1 = data1.revisionNumber;
           const newRev2 = data2.revisionNumber;
 
+          logger.debug(`[${name}/${compare}] prevRev1=${prevRev1}, newRev1=${newRev1}, prevRev2=${prevRev2}, newRev2=${newRev2}`);
+
           // Only post if either collection has a new revision
           if ((prevRev1 && newRev1 > prevRev1) || (prevRev2 && newRev2 > prevRev2)) {
+            logger.info(`[${name}/${compare}] Detected revision change. About to post changelog(s) to #${channelId}`);
             try {
               const channel = await client.channels.fetch(channelId);
+              logger.debug(`[${name}/${compare}] Fetched Discord channel`);
 
               // Both collections updated
               if ((prevRev1 && newRev1 > prevRev1) && (prevRev2 && newRev2 > prevRev2)) {
+                logger.info(`[${name}/${compare}] Both collections updated, calling sendCombinedChangelogMessages`);
                 await sendCombinedChangelogMessages(
                   channel,
                   null, null, null,
@@ -99,6 +110,7 @@ module.exports = {
               }
               // Only collection 1 updated
               else if (prevRev1 && newRev1 > prevRev1) {
+                logger.info(`[${name}/${compare}] Only ${name} updated, calling sendSingleChangelogMessages`);
                 await sendSingleChangelogMessages(
                   channel,
                   null, // diffs calculated internally
@@ -108,6 +120,7 @@ module.exports = {
               }
               // Only collection 2 updated
               else if (prevRev2 && newRev2 > prevRev2) {
+                logger.info(`[${name}/${compare}] Only ${compare} updated, calling sendSingleChangelogMessages`);
                 await sendSingleChangelogMessages(
                   channel,
                   null, // diffs calculated internally
@@ -118,9 +131,12 @@ module.exports = {
             } catch (err) {
               logger.error(`[DIFF-AUTO] Failed to send changelog for ${name}/${compare}: ${err.stack || err}`);
             }
+          } else {
+            logger.debug(`[${name}/${compare}] No revision change detected, not posting changelog.`);
           }
 
           // Update stored revision numbers for next poll
+          logger.debug(`[${name}/${compare}] Setting stored revision: slug1=${slug1}=${newRev1}, slug2=${slug2}=${newRev2}`);
           setCollectionRevision(slug1, newRev1, logger);
           setCollectionRevision(slug2, newRev2, logger);
         }
