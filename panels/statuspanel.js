@@ -5,7 +5,7 @@ const statusEmbed = new EmbedBuilder()
   .setColor(0xf1c40f)
   .setTitle('🔔 Status Control Panel')
   .setDescription(
-    "**Note:** Status changes are *rate limited* to **2 per 10 minutes**.\n\n" +
+    "**Note:** Status changes are *rate limited* to **2 per 10 minutes** (Admin Only).\n\n" +
     "🟡 `/investigating` — Set status: **Issues Reported (Latest)**\n" +
     "🔴 `/issues` — Set status: **Issues Detected (Latest)**\n" +
     "🔵 `/updating` — Set status: **Updating soon (Latest)**\n" +
