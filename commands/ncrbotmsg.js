@@ -21,9 +21,9 @@ module.exports = {
       .setLabel('Message Content')
       .setPlaceholder('Paste or write your full message here...')
       .setStyle(TextInputStyle.Paragraph)
-      .setRequired(true);
+      .setRequired(true)
+      .setMaxLength(2000); // Discord hard limit for messages
     modal.addComponents(new ActionRowBuilder().addComponents(msgInput));
     await interaction.showModal(modal);
   }
 };
- 
