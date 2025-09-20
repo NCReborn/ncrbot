@@ -162,16 +162,7 @@ module.exports = {
 
               await interaction.update({ embeds: [updatedEmbed] });
 
-              // --- Update the #bot-controls channel topic as well ---
-              const statusChannelId = '1418991273670479962';
-              try {
-                const statusChannel = await interaction.client.channels.fetch(statusChannelId);
-                if (statusChannel && statusChannel.type === ChannelType.GuildText) {
-                  await statusChannel.setTopic(`${config.emoji} | Status: ${config.label}`);
-                }
-              } catch (e) {
-                logger.warn('Failed to update status channel topic:', e);
-              }
+              // -- REMOVED: channel topic update on button press! --
               return;
             }
             resultMsg = 'Unknown control!';
@@ -206,11 +197,9 @@ module.exports = {
         try {
           await command.execute(interaction);
 
-          // --- Update the #bot-controls channel topic after a status command ---
-          // (You may want to only do this for specific commands, e.g. /stable, /investigating, etc.)
+          // --- Only update the #bot-controls channel topic after a status slash command ---
           const statusCommands = ['stable', 'investigating', 'issues', 'updating', 'pending'];
           if (statusCommands.includes(interaction.commandName)) {
-            // You need to determine the right emoji/label for each command
             const statusConfig = {
               investigating: {
                 emoji: '🟡',
