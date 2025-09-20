@@ -9,7 +9,7 @@ async function getOpenAIAnswer(question) {
         { role: 'system', content: 'You are a helpful assistant. If the question is about the NCReborn collection or community, use a helpful and friendly tone.' },
         { role: 'user', content: question }
       ],
-      max_completion_tokens: 500
+      max_completion_tokens: 200
     });
     // Debug: Uncomment the next line if you want to log the full response
     // console.dir(response, { depth: 10 });
