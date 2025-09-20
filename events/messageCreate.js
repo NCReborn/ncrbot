@@ -1,6 +1,7 @@
 const logger = require('../utils/logger');
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 const { loadResponses } = require('../utils/autoResponder');
+const botcontrol = require('../commands/botcontrol.js');
 
 // Add all roles that should be able to use mod autoresponder here:
 const MOD_ROLE_IDS = [
@@ -11,6 +12,9 @@ const MOD_ROLE_IDS = [
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
+    // --- Mute logic: bot does not respond to triggers if muted ---
+    if (botcontrol.botStatus.muted) return;
+
     // --- Crash Log Channel Logic (unchanged) ---
     const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
     if (
