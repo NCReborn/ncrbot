@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { loadResponses, upsertResponse, deleteResponse } = require('../utils/autoResponder');
 
 const MOD_ROLE_ID = '1288633895910375464'; // <-- Set your mod role ID here
@@ -7,7 +7,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('autoresponder')
     .setDescription('Manage auto-responses for mods')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages) // Or use custom logic for mod role
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .addSubcommand(sub =>
       sub.setName('list')
         .setDescription('List all auto-responses')
@@ -60,23 +60,26 @@ module.exports = {
       const modal = new ModalBuilder()
         .setCustomId('autoresponder_add')
         .setTitle('Add Auto-Response');
+
       const triggerInput = new TextInputBuilder()
         .setCustomId('trigger')
         .setLabel('Trigger Phrase')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. !bisect')
+        .setPlaceholder('e.g. !bisect — the word or phrase that triggers the response')
         .setRequired(true);
+
       const responseInput = new TextInputBuilder()
         .setCustomId('response')
         .setLabel('Response')
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Bot reply for this trigger')
+        .setPlaceholder("The bot's reply. Can be multi-line and contain links.")
         .setRequired(true);
+
       const wildcardInput = new TextInputBuilder()
         .setCustomId('wildcard')
         .setLabel('Wildcard match? (yes/no)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('yes or no')
+        .setPlaceholder('yes = match anywhere in message; no = exact match only')
         .setRequired(true);
 
       modal.addComponents(
@@ -100,23 +103,29 @@ module.exports = {
       const modal = new ModalBuilder()
         .setCustomId(`autoresponder_edit:${trigger}`)
         .setTitle('Edit Auto-Response');
+
       const triggerInput = new TextInputBuilder()
         .setCustomId('trigger')
         .setLabel('Trigger Phrase')
         .setStyle(TextInputStyle.Short)
         .setValue(entry.trigger)
+        .setPlaceholder('e.g. !bisect — the word or phrase that triggers the response')
         .setRequired(true);
+
       const responseInput = new TextInputBuilder()
         .setCustomId('response')
         .setLabel('Response')
         .setStyle(TextInputStyle.Paragraph)
         .setValue(entry.response)
+        .setPlaceholder("The bot's reply. Can be multi-line and contain links.")
         .setRequired(true);
+
       const wildcardInput = new TextInputBuilder()
         .setCustomId('wildcard')
         .setLabel('Wildcard match? (yes/no)')
         .setStyle(TextInputStyle.Short)
         .setValue(entry.wildcard ? 'yes' : 'no')
+        .setPlaceholder('yes = match anywhere in message; no = exact match only')
         .setRequired(true);
 
       modal.addComponents(
