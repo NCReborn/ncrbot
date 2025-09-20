@@ -1,10 +1,14 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
 
-// --- IMPROVED GLOBAL ERROR HANDLING: log to both console and file ---
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const logger = require('./utils/logger');
+
+// Error handling
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err && err.stack ? err.stack : err);
-  // If logger fails, at least we see it in the console
   try { logger.error('Uncaught Exception:', err && err.stack ? err.stack : err); } catch(e) {}
   process.exit(1);
 });
@@ -13,13 +17,7 @@ process.on('unhandledRejection', (reason, promise) => {
   try { logger.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason); } catch(e) {}
 });
 
-const { Client, GatewayIntentBits, Collection, InteractionType } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const cron = require('node-cron');
-const logger = require('./utils/logger');
-
-// Graceful shutdown on SIGINT/SIGTERM
+// Graceful shutdown
 process.on('SIGINT', () => {
   logger.info('Bot interrupted (SIGINT). Shutting down...');
   process.exit(0);
@@ -29,7 +27,7 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-// Auto-sync slash commands on startup if enabled in .env
+// Auto-sync slash commands if enabled
 if (process.env.AUTO_SYNC_COMMANDS === 'true') {
   const { syncSlashCommands } = require('./utils/commandSync');
   syncSlashCommands()
@@ -40,13 +38,7 @@ if (process.env.AUTO_SYNC_COMMANDS === 'true') {
     });
 }
 
-// Import log analysis utilities
-const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('./utils/logAnalyzer');
-const { sendLogScanButton, handleLogScanTicketInteraction } = require('./utils/logScanTicket');
-
 const BOT_TOKEN = process.env.DISCORD_TOKEN;
-const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
-const LOG_SCAN_CHANNEL_ID = process.env.LOG_SCAN_CHANNEL_ID || '1414027269680267274';
 
 const client = new Client({
   intents: [
@@ -56,13 +48,12 @@ const client = new Client({
   ],
 });
 
-// Load slash commands with validation and logging
+// Load commands (unchanged)
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 let runtimeRegistrationFailed = false;
-
 for (const file of commandFiles) {
   try {
     const command = require(`./commands/${file}`);
@@ -88,141 +79,22 @@ for (const file of commandFiles) {
     runtimeRegistrationFailed = true;
   }
 }
-
 if (runtimeRegistrationFailed) {
   logger.error('Aborting bot startup due to invalid/malformed commands.');
   process.exit(1);
 }
 
-// Combined ready handler: send log scan button and start revision poller
-client.once('ready', async () => {
-  logger.info(`Logged in as ${client.user.tag}`);
-  logger.info(`Loaded ${client.commands.size} commands.`);
-  logger.info(`Crash log channel: ${CRASH_LOG_CHANNEL_ID}, Log scan channel: ${LOG_SCAN_CHANNEL_ID}`);
-  logger.info(`Revision polling enabled: ${!!process.env.NEXUS_API_KEY}`);
-  client.user.setActivity('/help for commands', { type: 'LISTENING' });
+// --- LOAD EVENTS FROM events/ DIRECTORY ---
+const eventsPath = path.join(__dirname, 'events');
+const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
-  try {
-    await sendLogScanButton(client, LOG_SCAN_CHANNEL_ID);
-  } catch (err) {
-    logger.error(`Error sending log scan button: ${err.stack || err}`);
+for (const file of eventFiles) {
+  const event = require(`./events/${file}`);
+  if (event.once) {
+    client.once(event.name, (...args) => event.execute(...args, client));
+  } else {
+    client.on(event.name, (...args) => event.execute(...args, client));
   }
-
-  logger.info('Bot ready - starting revision poller');
-  const guild = client.guilds.cache.first();
-
-  // --- Revision polling logic ---
-  const { fetchRevision } = require('./utils/nexusApi');
-  const { updateCollectionVersionChannel, updateStatusChannel } = require('./utils/voiceChannelUpdater');
-  const { setRevision, getRevision, getRevertAt } = require('./utils/revisionStore');
-  const voiceConfig = require('./config/voiceChannels');
-
-  const POLL_INTERVAL = 60 * 1000;
-  const COLLECTION_SLUG = 'rcuccp';
-
-  const revertAt = await getRevertAt();
-  if (revertAt && Date.now() < revertAt) {
-    const timeLeft = revertAt - Date.now();
-    setTimeout(async () => {
-      await updateStatusChannel(guild, voiceConfig.statusStable);
-      await setRevision(await getRevision(), null);
-    }, timeLeft);
-    logger.info(`Scheduled status revert in ${Math.round(timeLeft / 1000 / 60)}min`);
-  }
-
-  setInterval(async () => {
-    try {
-      const revisionData = await fetchRevision(
-        COLLECTION_SLUG,
-        null,
-        process.env.NEXUS_API_KEY,
-        process.env.APP_NAME,
-        process.env.APP_VERSION
-      );
-      const currentRevision = revisionData.revisionNumber;
-      const lastRevision = await getRevision();
-
-      if (!lastRevision || currentRevision > lastRevision) {
-        await updateCollectionVersionChannel(guild, currentRevision);
-        await updateStatusChannel(guild, voiceConfig.statusChecking);
-
-        const revertAt = Date.now() + 24 * 60 * 60 * 1000;
-        await setRevision(currentRevision, revertAt);
-        setTimeout(async () => {
-          await updateStatusChannel(guild, voiceConfig.statusStable);
-          await setRevision(currentRevision, null);
-        }, 24 * 60 * 60 * 1000);
-
-        logger.info(`Detected new revision: ${currentRevision}, status set to Checking, will revert to Stable in 24h`);
-      }
-    } catch (err) {
-      logger.error('Revision polling error:', err);
-    }
-  }, POLL_INTERVAL);
-});
-
-// --- FAQ SYSTEM: register message handler ---
-// FAQ and ask-a-bot features removed
-
-// Handle ticket-style log scan (button + modal)
-client.on('interactionCreate', async interaction => {
-  try {
-    await handleLogScanTicketInteraction(interaction);
-
-    // Slash command handler
-    if (interaction.type === InteractionType.ApplicationCommand) {
-      const command = client.commands.get(interaction.commandName);
-      if (!command) return;
-      try {
-        await command.execute(interaction);
-      } catch (error) {
-        logger.error(error.stack || error);
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
-        } else {
-          await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
-        }
-      }
-    }
-  } catch (err) {
-    logger.error(`[INTERACTION_CREATE] Uncaught error: ${err.stack || err}`);
-    if (interaction && interaction.isRepliable && !interaction.replied && !interaction.deferred) {
-      try {
-        await interaction.reply({ content: 'An unexpected error occurred processing your request.', ephemeral: true });
-      } catch(e) {
-        logger.error(`[INTERACTION_CREATE] Failed to reply to interaction: ${e.stack || e}`);
-      }
-    }
-  }
-});
-
-// (Optional) If you want to keep file upload log analysis, leave this in. Otherwise, remove!
-client.on('messageCreate', async (message) => {
-  try {
-    if (
-      message.channelId !== CRASH_LOG_CHANNEL_ID ||
-      message.author.bot ||
-      message.attachments.size === 0
-    ) return;
-
-    for (const [, attachment] of message.attachments) {
-      const logContent = await fetchLogAttachment(attachment);
-      if (!logContent) continue;
-
-      const analysisResult = await analyzeLogForErrors(logContent);
-
-      const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
-      await message.reply({ embeds: [embed] });
-
-      if (analysisResult.matches.length > 0) {
-        await message.react('❌');
-      } else {
-        await message.react('✅');
-      }
-    }
-  } catch (err) {
-    logger.error(`[MESSAGE_CREATE] Uncaught error: ${err.stack || err}`);
-  }
-});
+}
 
 client.login(BOT_TOKEN);
