@@ -10,6 +10,9 @@ const {
   postOrUpdateControlPanel,
 } = require('../commands/botcontrol.js');
 
+// Import reload logic
+const reloadModule = require('../commands/reload.js');
+
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction, client) {
@@ -71,7 +74,13 @@ module.exports = {
         let resultMsg = '';
         switch (id) {
           case 'reload':
-            resultMsg = 'Bot commands reloaded!';
+            try {
+              await reloadModule.reloadCommands(client, logger);
+              resultMsg = 'Bot commands reloaded!';
+            } catch (err) {
+              logger.error(`[BUTTON_RELOAD] ${err.stack || err}`);
+              resultMsg = `Reload failed: ${err.message}`;
+            }
             break;
           case 'mute':
             botcontrol.botStatus.muted = true;
