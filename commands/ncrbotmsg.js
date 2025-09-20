@@ -4,7 +4,7 @@ const ADMIN_ROLE_ID = '1324783261439889439'; // <-- Replace with your actual adm
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('ncrbot')
+    .setName('ncrbotmsg')
     .setDescription('Post a message as NCRBot (admin only)')
     .addStringOption(opt =>
       opt.setName('message')
