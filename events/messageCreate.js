@@ -7,7 +7,7 @@ const MOD_ROLE_ID = '1288633895910375464'; // <-- Replace with your actual mod r
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
-    // --- Crash Log Channel Logic ---
+    // --- Crash Log Channel Logic (unchanged) ---
     const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
     if (
       message.channelId === CRASH_LOG_CHANNEL_ID &&
@@ -37,29 +37,21 @@ module.exports = {
 
     // --- Mod-Only Auto-Responder Logic (runs in all channels) ---
     try {
-      // Skip if bot
       if (message.author.bot) return;
-
-      // Only respond to mods
-      if (!message.member?.roles.cache.has(MOD_ROLE_ID)) {
-        console.log(`[AutoResponder] User ${message.author.tag} does NOT have mod role.`);
-        return;
-      }
-      // Debug: Confirm mod message is being processed
-      console.log(`[AutoResponder] Matched mod: ${message.author.tag}, message: '${message.content}'`);
+      if (!message.member?.roles.cache.has(MOD_ROLE_ID)) return;
 
       const responses = loadResponses();
-      console.log("[AutoResponder] Loaded responses:", responses);
-
       for (const entry of responses) {
-        // Debug: Log matching attempts
-        console.log(`[AutoResponder] Checking trigger '${entry.trigger}' (wildcard: ${entry.wildcard}) against message '${message.content}'`);
-        if (
-          (entry.wildcard && message.content.toLowerCase().includes(entry.trigger.toLowerCase())) ||
-          (!entry.wildcard && message.content.toLowerCase() === entry.trigger.toLowerCase())
-        ) {
-          console.log(`[AutoResponder] Trigger matched: '${entry.trigger}' -> Responding with: '${entry.response}'`);
-          await message.reply(entry.response);
+        const msgContent = message.content.toLowerCase();
+        const trigger = entry.trigger.toLowerCase();
+
+        const isMatch = entry.wildcard
+          ? msgContent.includes(trigger)
+          : msgContent === trigger;
+
+        if (isMatch) {
+          // Always send a standalone message (never as a reply, never mentioning anyone)
+          await message.channel.send({ content: entry.response });
           break;
         }
       }
