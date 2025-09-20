@@ -9,10 +9,12 @@ async function getOpenAIAnswer(question) {
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: question }
       ],
-      max_completion_tokens: 500
+      max_completion_tokens: 500 
     });
-    console.log('OpenAI response:', response);
-    return response.choices?.[0]?.message?.content?.trim() || "Sorry, I couldn't generate an answer.";
+    console.dir(response, { depth: 10 }); // This will help you debug the full response structure
+    const answer = response.choices?.[0]?.message?.content;
+    console.log('Extracted AI answer:', answer);
+    return answer?.trim() || "Sorry, I couldn't generate an answer.";
   } catch (err) {
     console.error('OpenAI error:', err);
     return "Sorry, I couldn't generate an answer.";
