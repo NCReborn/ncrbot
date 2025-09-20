@@ -102,7 +102,7 @@ const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
 
 // --- Status Button Panel: Repost status panel on startup if saved ---
-const { postOrUpdateStatusPanel } = require('./utils/statuspanel.js');
+const { postOrUpdateStatusPanel } = require('./panel/statuspanel.js');
 const { loadStatusPanelInfo, clearStatusPanelInfo } = require('./utils/statusPanelMessage');
 
 client.once('ready', async () => {
