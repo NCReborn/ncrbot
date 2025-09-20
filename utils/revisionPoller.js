@@ -14,8 +14,8 @@ module.exports = {
     const { setRevision, getRevision, getRevertAt } = require('./revisionStore');
     const voiceConfig = require('../config/voiceChannels');
 
-    const POLL_INTERVAL = 60 * 1000; // 60 seconds = 1 minute
-    //const POLL_INTERVAL = 15 * 60 * 1000; // 15 minutes
+    //const POLL_INTERVAL = 60 * 1000; // 60 seconds = 1 minute
+    const POLL_INTERVAL = 15 * 60 * 1000; // 15 minutes
     const MAIN_COLLECTION_SLUG = 'rcuccp';
 
     // Load previous revision state
