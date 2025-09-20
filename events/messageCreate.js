@@ -1,44 +1,33 @@
-const { parseFAQMessage } = require('../faq/parser');
-const { getFAQs, setFAQs, loadFAQs } = require('../faq/store');
-const { findFAQMatch, refreshMatcher } = require('../faq/matcher');
+const logger = require('../utils/logger');
+const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 
-const FAQ_CHANNEL_ID = '1418730986598043659';
-const ASK_CHANNEL_ID = '1418742976871399456'; // <-- Only FAQ in /ask
-const MOD_LOG_CHANNEL_ID = '1406048032457359481';
+module.exports = {
+  name: 'messageCreate',
+  async execute(message, client) {
+    const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
+    if (
+      message.channelId !== CRASH_LOG_CHANNEL_ID ||
+      message.author.bot ||
+      message.attachments.size === 0
+    ) return;
 
-async function onMessageCreate(message) {
-    if (message.author.bot) return;
+    try {
+      for (const [, attachment] of message.attachments) {
+        const logContent = await fetchLogAttachment(attachment);
+        if (!logContent) continue;
 
-    // 1. Handle FAQ channel entries
-    if (message.channel.id === FAQ_CHANNEL_ID) {
-        const fetched = await message.channel.messages.fetch({ limit: 100 });
-        const allFAQs = [];
-        for (const [_, msg] of fetched) {
-            const faq = parseFAQMessage(msg.content);
-            if (faq) allFAQs.push(faq);
+        const analysisResult = await analyzeLogForErrors(logContent);
+        const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
+        await message.reply({ embeds: [embed] });
+
+        if (analysisResult.matches.length > 0) {
+          await message.react('❌');
+        } else {
+          await message.react('✅');
         }
-        setFAQs(allFAQs);
-        refreshMatcher();
-        return;
+      }
+    } catch (err) {
+      logger.error(`[MESSAGE_CREATE] Uncaught error: ${err.stack || err}`);
     }
-
-    // 2. Only handle FAQ autorespond in /ask channel
-    if (message.channel.id === ASK_CHANNEL_ID) {
-        const faqs = getFAQs();
-        const match = findFAQMatch(message.content, faqs);
-        if (match && match.answer) {
-            try {
-                await message.reply(`**FAQ Match:**\n${match.answer}`);
-                const logChannel = await message.client.channels.fetch(MOD_LOG_CHANNEL_ID);
-                await logChannel.send(
-                    `📚 FAQ matched for <@${message.author.id}> in <#${message.channel.id}>:\n` +
-                    `**Q:** ${message.content}\n**A:** ${match.answer}`
-                );
-            } catch (err) {
-                console.error('Failed to reply in channel or log FAQ match:', err);
-            }
-        }
-    }
-}
-
-module.exports = { onMessageCreate };
+  }
+};
