@@ -133,8 +133,4 @@ client.once('ready', async () => {
   }
 });
 
-// --- MOD UPDATE CHECKER SETUP ---
-const { setupModUpdateChecker } = require('./scripts/modUpdateChecker');
-setupModUpdateChecker(client);
-
 client.login(BOT_TOKEN);
