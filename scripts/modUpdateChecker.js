@@ -2,9 +2,6 @@ const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
 
-// Import the already-created client from index.js
-const client = require('../index');
-
 console.log('[DEBUG] Starting modUpdateChecker.js');
 
 // Load your collections config and fetchCollectionMods utility
@@ -167,16 +164,17 @@ async function checkModsAndNotify(client) {
   }
 }
 
-// Wait for the client to be ready before starting the cron job
-client.once('ready', () => {
-  console.log('[DEBUG] Discord client ready (modUpdateChecker)');
-  // Run the check immediately on startup for testing
-  checkModsAndNotify(client);
-
-  // Every 30min (24 runs = 12h, adjust as needed)
-  cron.schedule('*/30 * * * *', () => {
-    console.log('[DEBUG] Running scheduled mod check');
+function setupModUpdateChecker(client) {
+  client.once('ready', () => {
+    console.log('[DEBUG] Discord client ready (modUpdateChecker)');
     checkModsAndNotify(client);
+
+    cron.schedule('*/30 * * * *', () => {
+      console.log('[DEBUG] Running scheduled mod check');
+      checkModsAndNotify(client);
+    });
+    console.log('Mod update cron started.');
   });
-  console.log('Mod update cron started.');
-});
+}
+
+module.exports = { setupModUpdateChecker };
