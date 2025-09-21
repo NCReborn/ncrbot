@@ -1,7 +1,9 @@
 const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits } = require('discord.js');
+
+// Import the already-created client from index.js
+const client = require('../index');
 
 console.log('[DEBUG] Starting modUpdateChecker.js');
 
@@ -10,9 +12,9 @@ const { collections } = require('../config/collections');
 const { fetchCollectionMods } = require('../utils/collectionMods');
 const { fetchModDetails } = require('../utils/fetchModDetails');
 
-const DATA_FILE = path.resolve(__dirname, './data/trackedMods.json');
-const REVISION_FILE = path.resolve(__dirname, './data/collectionRevision.json');
-const CURSOR_FILE = path.resolve(__dirname, './data/modCursor.json');
+const DATA_FILE = path.resolve(__dirname, '../data/trackedMods.json');
+const REVISION_FILE = path.resolve(__dirname, '../data/collectionRevision.json');
+const CURSOR_FILE = path.resolve(__dirname, '../data/modCursor.json');
 const BATCH_SIZE = Math.ceil(900 / 24); // 900 mods, 24 runs (every 30min for 12h)
 const CHANNEL_ID = '1419103241701949540'; // Replace with your channel ID
 
@@ -165,11 +167,9 @@ async function checkModsAndNotify(client) {
   }
 }
 
-// Example Discord bot integration
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
+// Wait for the client to be ready before starting the cron job
 client.once('ready', () => {
-  console.log('[DEBUG] Discord client ready');
+  console.log('[DEBUG] Discord client ready (modUpdateChecker)');
   // Run the check immediately on startup for testing
   checkModsAndNotify(client);
 
@@ -180,5 +180,3 @@ client.once('ready', () => {
   });
   console.log('Mod update cron started.');
 });
-
-client.login('YOUR_DISCORD_BOT_TOKEN');
