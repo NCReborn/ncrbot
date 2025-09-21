@@ -6,9 +6,9 @@ const { Client, GatewayIntentBits } = require('discord.js');
 console.log('[DEBUG] Starting modUpdateChecker.js');
 
 // Load your collections config and fetchCollectionMods utility
-const { collections } = require('./config/collections');
-const { fetchCollectionMods } = require('./utils/collectionMods');
-const { fetchModDetails } = require('./utils/fetchModDetails');
+const { collections } = require('../config/collections');
+const { fetchCollectionMods } = require('../utils/collectionMods');
+const { fetchModDetails } = require('../utils/fetchModDetails');
 
 const DATA_FILE = path.resolve(__dirname, './data/trackedMods.json');
 const REVISION_FILE = path.resolve(__dirname, './data/collectionRevision.json');
