@@ -1,12 +1,12 @@
 const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch');
 const { Client, GatewayIntentBits } = require('discord.js');
 
 // Load your collections config and fetchCollectionMods utility
 const { collections } = require('./config/collections');
 const { fetchCollectionMods } = require('./utils/collectionMods');
+const { fetchModDetails } = require('./utils/fetchModDetails');
 
 const DATA_FILE = path.resolve(__dirname, './data/trackedMods.json');
 const REVISION_FILE = path.resolve(__dirname, './data/collectionRevision.json');
@@ -92,13 +92,14 @@ async function checkModsAndNotify(client) {
 
   let updatedMods = [];
   for (const id of thisBatch) {
-    // Replace with your actual Nexus API call for mod details:
-    // const modInfo = await fetchModDetails(id);
-    const modInfo = { updatedAt: new Date().toISOString() }; // stub
-
-    if (tracked[id].lastKnownUpdate !== modInfo.updatedAt) {
-      updatedMods.push({ id, ...tracked[id], newUpdate: modInfo.updatedAt });
-      tracked[id].lastKnownUpdate = modInfo.updatedAt;
+    try {
+      const modInfo = await fetchModDetails(id);
+      if (tracked[id].lastKnownUpdate !== modInfo.updatedAt) {
+        updatedMods.push({ id, ...tracked[id], newUpdate: modInfo.updatedAt });
+        tracked[id].lastKnownUpdate = modInfo.updatedAt;
+      }
+    } catch (err) {
+      console.error(`Failed to fetch mod ${id}:`, err);
     }
   }
   saveTrackedMods(tracked);
