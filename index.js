@@ -132,5 +132,9 @@ client.once('ready', async () => {
     logger.warn('Failed to restore bot control panel on startup; previous message/channel not found.');
   }
 });
-require('./scripts/modUpdateChecker');
+
+// --- MOD UPDATE CHECKER SETUP ---
+const { setupModUpdateChecker } = require('./scripts/modUpdateChecker');
+setupModUpdateChecker(client);
+
 client.login(BOT_TOKEN);
