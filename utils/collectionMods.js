@@ -16,11 +16,25 @@ async function fetchCollectionMods(slug = COLLECTION_SLUG) {
     'accept': 'application/json'
   };
 
+  console.log('[fetchCollectionMods] URL:', url);
+  console.log('[fetchCollectionMods] Headers:', headers);
+
   const res = await fetch(url, { headers });
+  console.log('[fetchCollectionMods] Status:', res.status, res.statusText);
+
   if (!res.ok) {
-    throw new Error(`Failed to fetch collection: ${res.statusText}`);
+    let errorBody = '';
+    try {
+      errorBody = await res.text();
+    } catch (e) {
+      errorBody = '[Error reading body]';
+    }
+    console.error(`[fetchCollectionMods] Error response body: ${errorBody}`);
+    throw new Error(`Failed to fetch collection: ${res.status} ${res.statusText} - ${errorBody}`);
   }
+
   const data = await res.json();
+  console.log('[fetchCollectionMods] Data:', JSON.stringify(data, null, 2));
 
   // Parse revision and mods
   const revision = data.revision_number || data.revision || null;
