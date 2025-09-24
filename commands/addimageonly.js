@@ -1,18 +1,17 @@
+const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const configPath = path.join(__dirname, '../config/imageOnlyConfig.json');
 
 module.exports = {
-  data: {
-    name: 'addimageonly',
-    description: 'Add a channel to image-only enforcement.',
-    options: [{
-      name: 'channel',
-      description: 'Channel to add',
-      type: 7, // CHANNEL type
-      required: true,
-    }]
-  },
+  data: new SlashCommandBuilder()
+    .setName('addimageonly')
+    .setDescription('Add a channel to image-only enforcement.')
+    .addChannelOption(option =>
+      option.setName('channel')
+        .setDescription('Channel to add')
+        .setRequired(true)
+    ),
   async execute(interaction) {
     if (!interaction.member.permissions.has('ManageGuild')) {
       return interaction.reply({ content: 'You need Manage Server permissions.', ephemeral: true });
