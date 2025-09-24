@@ -15,7 +15,7 @@ module.exports = {
     // --- Mute logic: bot does not respond to triggers if muted ---
     if (botcontrol.botStatus.muted) return;
 
-    // --- Crash Log Channel Logic (unchanged) ---
+    // --- Crash Log Channel Logic ---
     const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
     if (
       message.channelId === CRASH_LOG_CHANNEL_ID &&
@@ -24,15 +24,26 @@ module.exports = {
     ) {
       console.log(`[DEBUG] Crash log analysis running for message ${message.id}`);
       try {
+        const embeds = [];
+        let hasErrors = false;
+
         for (const [, attachment] of message.attachments) {
           const logContent = await fetchLogAttachment(attachment);
           if (!logContent) continue;
 
           const analysisResult = await analyzeLogForErrors(logContent);
           const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
-          await message.reply({ embeds: [embed] });
+          embeds.push(embed);
 
-          if (analysisResult.matches.length > 0) {
+          if (analysisResult.matches.length > 0) hasErrors = true;
+        }
+
+        if (embeds.length) {
+          // Only send one message per upload, even with multiple files
+          await message.channel.send({ embeds });
+
+          // Only react once
+          if (hasErrors) {
             await message.react('❌');
           } else {
             await message.react('✅');
@@ -59,7 +70,6 @@ module.exports = {
           : msgContent === trigger;
 
         if (isMatch) {
-          // Always send a standalone message (never as a reply, never mentioning anyone)
           await message.channel.send({ content: entry.response });
           break;
         }
