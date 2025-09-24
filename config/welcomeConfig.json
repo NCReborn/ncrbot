@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "channelId": "YOUR_WELCOME_CHANNEL_ID",
+  "message": "Welcome to **{server}**! {user} with you, there are **{memberCount}** of us. 🥳🎉",
+  "image": "https://your-imgur-link.png"
+}
