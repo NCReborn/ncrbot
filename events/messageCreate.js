@@ -2,7 +2,7 @@ const logger = require('../utils/logger');
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 const { loadResponses } = require('../utils/autoResponder');
 const botcontrol = require('../commands/botcontrol.js');
-console.log(`[DEBUG] Crash log analysis running for message ${message.id}`);
+
 // Add all roles that should be able to use mod autoresponder here:
 const MOD_ROLE_IDS = [
   '1370874936456908931', // existing mod role
@@ -22,6 +22,7 @@ module.exports = {
       !message.author.bot &&
       message.attachments.size > 0
     ) {
+      console.log(`[DEBUG] Crash log analysis running for message ${message.id}`);
       try {
         for (const [, attachment] of message.attachments) {
           const logContent = await fetchLogAttachment(attachment);
