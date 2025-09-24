@@ -5,8 +5,8 @@ const configPath = path.join(__dirname, '../config/imageOnlyConfig.json');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('removefileonly')
-    .setDescription('Remove a channel from file-only enforcement.')
+    .setName('removeimageonly')
+    .setDescription('Remove a channel from image-only enforcement.')
     .addChannelOption(option =>
       option.setName('channel')
         .setDescription('Channel to remove')
@@ -19,12 +19,12 @@ module.exports = {
     const channel = interaction.options.getChannel('channel');
     let config = require(configPath);
 
-    if (config.fileOnlyChannels.includes(channel.id)) {
-      config.fileOnlyChannels = config.fileOnlyChannels.filter(id => id !== channel.id);
+    if (config.imageOnlyChannels.includes(channel.id)) {
+      config.imageOnlyChannels = config.imageOnlyChannels.filter(id => id !== channel.id);
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-      return interaction.reply(`Channel <#${channel.id}> removed from file-only list.`);
+      return interaction.reply(`Channel <#${channel.id}> removed from image-only list.`);
     } else {
-      return interaction.reply(`Channel <#${channel.id}> is not in the file-only list.`);
+      return interaction.reply(`Channel <#${channel.id}> is not in the image-only list.`);
     }
   }
 };
