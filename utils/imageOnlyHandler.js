@@ -4,6 +4,14 @@ module.exports = (client) => {
   client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
+    // Fetch the member object for permission checks
+    const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+    if (!member) return;
+
+    // Admins bypass check (Administrator permission)
+    const isAdmin = member.permissions.has('Administrator');
+    if (isAdmin) return;
+
     // IMAGE-ONLY CHANNELS
     if (config.imageOnlyChannels.includes(message.channel.id)) {
       const hasImage = message.attachments.some(att => att.contentType && att.contentType.startsWith('image/'));
