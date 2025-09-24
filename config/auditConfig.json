@@ -1,0 +1,89 @@
+{
+  "auditChannelId": null,
+  "events": {
+    "guildBanAdd": {
+      "enabled": true,
+      "name": "Member Banned",
+      "color": 16729943,
+      "emoji": "🔨"
+    },
+    "guildBanRemove": {
+      "enabled": true,
+      "name": "Member Unbanned", 
+      "color": 3069299,
+      "emoji": "🔓"
+    },
+    "guildMemberAdd": {
+      "enabled": true,
+      "name": "Member Joined",
+      "color": 3069299,
+      "emoji": "📥"
+    },
+    "guildMemberRemove": {
+      "enabled": true,
+      "name": "Member Left/Kicked",
+      "color": 16742273,
+      "emoji": "📤"
+    },
+    "guildMemberUpdate": {
+      "enabled": true,
+      "name": "Member Updated",
+      "color": 3622906,
+      "emoji": "✏️"
+    },
+    "messageDelete": {
+      "enabled": true,
+      "name": "Message Deleted",
+      "color": 16729943,
+      "emoji": "🗑️"
+    },
+    "messageUpdate": {
+      "enabled": true,
+      "name": "Message Edited",
+      "color": 16752451,
+      "emoji": "✏️"
+    },
+    "channelCreate": {
+      "enabled": true,
+      "name": "Channel Created",
+      "color": 3069299,
+      "emoji": "📝"
+    },
+    "channelDelete": {
+      "enabled": true,
+      "name": "Channel Deleted",
+      "color": 16729943,
+      "emoji": "🗑️"
+    },
+    "channelUpdate": {
+      "enabled": true,
+      "name": "Channel Updated",
+      "color": 3622906,
+      "emoji": "✏️"
+    },
+    "threadCreate": {
+      "enabled": true,
+      "name": "Thread Created",
+      "color": 3069299,
+      "emoji": "🧵"
+    },
+    "threadDelete": {
+      "enabled": true,
+      "name": "Thread Deleted", 
+      "color": 16729943,
+      "emoji": "🗑️"
+    },
+    "threadUpdate": {
+      "enabled": true,
+      "name": "Thread Updated",
+      "color": 3622906,
+      "emoji": "✏️"
+    },
+    "guildMemberTimeout": {
+      "enabled": true,
+      "name": "Member Timeout",
+      "color": 16752451,
+      "emoji": "⏰"
+    }
+  }
+}
