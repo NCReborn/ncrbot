@@ -240,6 +240,9 @@ class AuditLogger {
   }
 
   async logMessageDeleted(client, message) {
+    // Skip if this is the audit channel to prevent loops
+    if (message.channelId === this.getAuditChannel()) return;
+    
     const embed = this.createBaseEmbed('messageDelete', message.author, message.guild);
     if (!embed) return;
 
@@ -271,6 +274,9 @@ class AuditLogger {
   async logMessageUpdated(client, oldMessage, newMessage) {
     // Skip bot messages and messages without content changes
     if (newMessage.author?.bot || oldMessage.content === newMessage.content) return;
+    
+    // Skip if this is the audit channel to prevent loops
+    if (newMessage.channelId === this.getAuditChannel()) return;
 
     const embed = this.createBaseEmbed('messageUpdate', newMessage.author, newMessage.guild);
     if (!embed) return;
@@ -376,7 +382,8 @@ class AuditLogger {
   }
 
   async logThreadCreated(client, thread) {
-    const embed = this.createBaseEmbed('threadCreate', thread.ownerId ? { id: thread.ownerId } : null, thread.guild);
+    const owner = thread.ownerId ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } })) : null;
+    const embed = this.createBaseEmbed('threadCreate', owner?.user, thread.guild);
     if (!embed) return;
 
     embed.addFields([
@@ -385,11 +392,18 @@ class AuditLogger {
       { name: 'ID', value: thread.id, inline: true }
     ]);
 
+    if (owner?.user) {
+      embed.addFields([
+        { name: 'Created by', value: `${owner.user.tag} (${owner.user.id})`, inline: true }
+      ]);
+    }
+
     await this.sendAuditLog(client, 'threadCreate', embed);
   }
 
   async logThreadDeleted(client, thread) {
-    const embed = this.createBaseEmbed('threadDelete', thread.ownerId ? { id: thread.ownerId } : null, thread.guild);
+    const owner = thread.ownerId ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } })) : null;
+    const embed = this.createBaseEmbed('threadDelete', owner?.user, thread.guild);
     if (!embed) return;
 
     embed.addFields([
@@ -398,11 +412,18 @@ class AuditLogger {
       { name: 'ID', value: thread.id, inline: true }
     ]);
 
+    if (owner?.user) {
+      embed.addFields([
+        { name: 'Owned by', value: `${owner.user.tag} (${owner.user.id})`, inline: true }
+      ]);
+    }
+
     await this.sendAuditLog(client, 'threadDelete', embed);
   }
 
   async logThreadUpdated(client, oldThread, newThread) {
-    const embed = this.createBaseEmbed('threadUpdate', newThread.ownerId ? { id: newThread.ownerId } : null, newThread.guild);
+    const owner = newThread.ownerId ? await newThread.guild.members.fetch(newThread.ownerId).catch(() => ({ user: { id: newThread.ownerId } })) : null;
+    const embed = this.createBaseEmbed('threadUpdate', owner?.user, newThread.guild);
     if (!embed) return;
 
     const changes = [];

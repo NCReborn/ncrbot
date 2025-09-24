@@ -9,7 +9,7 @@
     },
     "guildBanRemove": {
       "enabled": true,
-      "name": "Member Unbanned", 
+      "name": "Member Unbanned",
       "color": 3069299,
       "emoji": "🔓"
     },
@@ -69,7 +69,7 @@
     },
     "threadDelete": {
       "enabled": true,
-      "name": "Thread Deleted", 
+      "name": "Thread Deleted",
       "color": 16729943,
       "emoji": "🗑️"
     },
