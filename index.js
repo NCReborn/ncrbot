@@ -52,9 +52,6 @@ const client = new Client({
   ],
 });
 
-client.on('messageCreate', message => {
-  console.log(`[ANY MESSAGE] Received in ${message.channel.id}: ${message.content}`);
-});
 require('./utils/welcomeHandler')(client);
 
 // Load commands
