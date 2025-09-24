@@ -38,11 +38,13 @@ module.exports = (client) => {
     // Draw banner at scaled size
     ctx.drawImage(welcomeImgRaw, avatar.width, 0, bannerWidth, targetHeight);
 
-    // Draw username below avatar, centered
-    ctx.font = 'bold 24px Sans';
+    // Draw username below avatar, centered and with a smaller font
+    ctx.font = 'bold 16px Sans'; // Smaller font size for username
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText(member.user.username, avatar.width / 2, height - 10);
+    // Position the text just below the avatar, but inside the canvas
+    const usernameY = avatar.height - 8; // 8px above the bottom of the avatar
+    ctx.fillText(member.user.username, avatar.width / 2, usernameY);
 
     // Create image attachment
     const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'welcome-combined.png' });
