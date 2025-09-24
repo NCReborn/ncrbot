@@ -1,6 +1,6 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
-require('./modules/welcomeHandler')(client);
+require('./utils/welcomeHandler')(client);
 
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
