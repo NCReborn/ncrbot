@@ -14,30 +14,35 @@ module.exports = (client) => {
       .replace('{userName}', member.user.username)
       .replace('{memberCount}', member.guild.memberCount);
 
-    // Load images
-    const avatar = await Canvas.loadImage(member.user.displayAvatarURL({ extension: 'png', size: 128 }));
-    const welcomeImg = await Canvas.loadImage(config.logo);
+    // Set desired height for avatar and banner
+    const targetHeight = 128;
 
-    // Create a canvas for side-by-side images
-    const height = Math.max(avatar.height, welcomeImg.height);
-    const width = avatar.width + welcomeImg.width;
+    // Load and resize avatar
+    const avatar = await Canvas.loadImage(member.user.displayAvatarURL({ extension: 'png', size: targetHeight }));
+    // Load banner
+    const welcomeImgRaw = await Canvas.loadImage(config.logo);
+
+    // Scale the banner to match targetHeight
+    const bannerScale = targetHeight / welcomeImgRaw.height;
+    const bannerWidth = Math.round(welcomeImgRaw.width * bannerScale);
+
+    // Create canvas for side-by-side images
+    const width = avatar.width + bannerWidth;
+    const height = targetHeight;
     const canvas = Canvas.createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Vertically center the avatar
-    const avatarY = (height - avatar.height) / 2;
-    ctx.drawImage(avatar, 0, avatarY, avatar.width, avatar.height);
+    // Draw avatar (already target size)
+    ctx.drawImage(avatar, 0, 0, avatar.width, avatar.height);
 
-    // Vertically center the welcome image
-    const welcomeY = (height - welcomeImg.height) / 2;
-    ctx.drawImage(welcomeImg, avatar.width, welcomeY, welcomeImg.width, welcomeImg.height);
+    // Draw banner at scaled size
+    ctx.drawImage(welcomeImgRaw, avatar.width, 0, bannerWidth, targetHeight);
 
-    // Draw the username below the avatar
-    ctx.font = 'bold 28px Sans';
+    // Draw username below avatar, centered
+    ctx.font = 'bold 24px Sans';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    // Position the text at the bottom of the avatar, but not below the canvas
-    ctx.fillText(member.user.username, avatar.width / 2, avatarY + avatar.height + 28 < height ? avatarY + avatar.height + 24 : height - 10);
+    ctx.fillText(member.user.username, avatar.width / 2, height - 10);
 
     // Create image attachment
     const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'welcome-combined.png' });
