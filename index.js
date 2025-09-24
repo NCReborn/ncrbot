@@ -1,6 +1,6 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
-require('./utils/welcomeHandler')(client);
+
 
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
@@ -51,6 +51,8 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
   ],
 });
+
+require('./utils/welcomeHandler')(client);
 
 // Load commands
 client.commands = new Collection();
