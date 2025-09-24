@@ -52,6 +52,8 @@ const client = new Client({
   ],
 });
 
+const imageOnlyHandler = require('./utils/imageOnlyHandler');
+imageOnlyHandler(client);
 require('./utils/welcomeHandler')(client);
 
 // Load commands
