@@ -19,7 +19,7 @@ module.exports = (client) => {
           console.error('Failed to delete message:', e);
         }
       }
-      return; // Don't process further
+      return;
     }
 
     // FILE-ONLY CHANNELS
