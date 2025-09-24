@@ -24,15 +24,20 @@ module.exports = (client) => {
     const canvas = Canvas.createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Draw avatar left, welcome image right
-    ctx.drawImage(avatar, 0, 0, avatar.width, height);
-    ctx.drawImage(welcomeImg, avatar.width, 0, welcomeImg.width, height);
+    // Vertically center the avatar
+    const avatarY = (height - avatar.height) / 2;
+    ctx.drawImage(avatar, 0, avatarY, avatar.width, avatar.height);
 
-    // Optionally, draw the username below the avatar
+    // Vertically center the welcome image
+    const welcomeY = (height - welcomeImg.height) / 2;
+    ctx.drawImage(welcomeImg, avatar.width, welcomeY, welcomeImg.width, welcomeImg.height);
+
+    // Draw the username below the avatar
     ctx.font = 'bold 28px Sans';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText(member.user.username, avatar.width / 2, height - 10);
+    // Position the text at the bottom of the avatar, but not below the canvas
+    ctx.fillText(member.user.username, avatar.width / 2, avatarY + avatar.height + 28 < height ? avatarY + avatar.height + 24 : height - 10);
 
     // Create image attachment
     const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'welcome-combined.png' });
