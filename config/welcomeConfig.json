@@ -2,7 +2,7 @@
   "enabled": true,
   "channelId": "1361831774975561849",
   "message": "Welcome to **{server}**! {user} with you, there are **{memberCount}** of us. 🥳🎉",
-  "logo": "https://imgur.com/58PJ4wz",
+  "logo": "https://i.imgur.com/58PJ4wz.png",
   "embedColor": "#2B2D31",
   "showUsernameBelowAvatar": true,
   "embedFooter": "Night City Reborn • Enjoy your stay!"
