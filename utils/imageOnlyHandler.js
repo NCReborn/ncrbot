@@ -5,14 +5,15 @@ module.exports = (client) => {
     // Ignore bots and DMs
     if (message.author.bot || !message.guild) return;
 
-    // Check if the channel is image-only
+    // DEBUG: Log all messages received in image-only channels
     if (config.imageOnlyChannels.includes(message.channel.id)) {
-      // Accept: any image attachment, any file attachment, or a link in the message content
+      console.log(`[DEBUG] Message in image-only channel: ${message.content} by ${message.author.tag}`);
       const hasImage = message.attachments.some(att => att.contentType && att.contentType.startsWith('image/'));
       const hasFile = message.attachments.size > 0;
       const hasLink = /(https?:\/\/[^\s]+)/i.test(message.content);
 
       if (!hasImage && !hasFile && !hasLink) {
+        console.log('[DEBUG] Deleting message:', message.content);
         try {
           await message.delete();
           const reply = await message.channel.send({
