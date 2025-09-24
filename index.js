@@ -7,6 +7,10 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
 
+client.on('messageCreate', message => {
+  console.log(`[ANY MESSAGE] Received in ${message.channel.id}: ${message.content}`);
+});
+
 // Error handling
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err && err.stack ? err.stack : err);
