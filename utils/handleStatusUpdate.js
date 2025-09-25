@@ -43,22 +43,18 @@ async function handleStatusUpdate(interaction, status) {
       id: channel.id,
       name: channel.name,
       type: channel.type,
-      topic: channel.topic,
-      description: channel.description
+      topic: channel.topic
     });
 
-    const newStatus = `${info.emoji} | Status: ${info.label}`;
-
-    if (channel.type === ChannelType.GuildText || channel.type === 0) {
-      // Text channel
-      console.log(`[DEBUG] Old topic: "${channel.topic}"`);
+    if (
+      channel.type === ChannelType.GuildText ||
+      channel.type === ChannelType.GuildVoice ||
+      channel.type === 0 || channel.type === 2
+    ) {
+      const newStatus = `${info.emoji} | Status: ${info.label}`;
+      console.log(`[DEBUG] Old topic/description: "${channel.topic}"`);
       await channel.setTopic(newStatus);
-      console.log(`[DEBUG] New topic set: "${newStatus}"`);
-    } else if (channel.type === ChannelType.GuildVoice || channel.type === 2) {
-      // Voice channel (use setDescription)
-      console.log(`[DEBUG] Old description: "${channel.description}"`);
-      await channel.setDescription(newStatus);
-      console.log(`[DEBUG] New description set: "${newStatus}"`);
+      console.log(`[DEBUG] New topic/description set: "${newStatus}"`);
     } else {
       console.error(`[DEBUG] Channel type is not supported: ${channel.type}`);
       await interaction.reply({ content: `Fetched channel is not a supported type. Type: ${channel.type}`, ephemeral: true });
