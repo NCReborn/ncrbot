@@ -5,11 +5,11 @@ const RATE_LIMIT_MS = 5 * 60 * 1000;
 const STATUS_CHANNEL_ID = '1395501617523986644';
 
 const statusLabels = {
-  investigating: { emoji: '🟡', label: 'Investigating' },
-  issues:       { emoji: '🔴', label: 'Issues' },
-  updating:     { emoji: '🔵', label: 'Updating' },
-  stable:       { emoji: '🟢', label: 'Stable' },
-  pending:      { emoji: '🔴', label: 'Pending' }
+  investigating: { emoji: '🟡', label: 'Investigating (Latest)' },
+  issues:       { emoji: '🔴', label: 'Issues (Latest)' },
+  updating:     { emoji: '🔵', label: 'Updating (Latest)' },
+  stable:       { emoji: '🟢', label: 'Stable (Latest)' },
+  pending:      { emoji: '🔴', label: 'Pending (Latest)' }
 };
 
 async function handleStatusUpdate(interaction, status) {
