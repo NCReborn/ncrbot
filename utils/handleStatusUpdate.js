@@ -31,7 +31,7 @@ async function handleStatusUpdate(interaction, status) {
     return;
   }
 
-  // --------- Topic update logic with debug ---------
+  // --------- Topic/Description update logic with debug ---------
   try {
     console.log(`[DEBUG] Fetching status channel with ID: ${STATUS_CHANNEL_ID}`);
     const channel = await interaction.client.channels.fetch(STATUS_CHANNEL_ID);
@@ -49,25 +49,27 @@ async function handleStatusUpdate(interaction, status) {
       topic: channel.topic
     });
 
-    // For Discord.js v14, ChannelType.GuildText === 0
-    if (channel.type !== ChannelType.GuildText && channel.type !== 0) {
-      console.error(`[DEBUG] Channel type is not GuildText: ${channel.type}`);
-      await interaction.reply({ content: `Fetched channel is not a text channel. Type: ${channel.type}`, ephemeral: true });
+    // Accept both text and voice channels
+    if (
+      channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildVoice ||
+      channel.type === 0 || channel.type === 2
+    ) {
+      // Log old topic/description
+      console.log(`[DEBUG] Old topic/description: "${channel.topic}"`);
+      const newTopic = `${info.emoji} | Status: ${info.label}`;
+      await channel.setTopic(newTopic);
+      // Log new topic/description
+      console.log(`[DEBUG] New topic/description set: "${newTopic}"`);
+    } else {
+      console.error(`[DEBUG] Channel type is not supported: ${channel.type}`);
+      await interaction.reply({ content: `Fetched channel is not a text or voice channel. Type: ${channel.type}`, ephemeral: true });
       return;
     }
 
-    // Log old topic
-    console.log(`[DEBUG] Old topic: "${channel.topic}"`);
-    const newTopic = `${info.emoji} | Status: ${info.label}`;
-    await channel.setTopic(newTopic);
-
-    // Log new topic
-    console.log(`[DEBUG] New topic set: "${newTopic}"`);
-
   } catch (e) {
-    console.error('[DEBUG] Failed to update status channel topic:', e);
+    console.error('[DEBUG] Failed to update status channel topic/description:', e);
     try {
-      await interaction.reply({ content: `Failed to update channel topic: ${e.message || e}`, ephemeral: true });
+      await interaction.reply({ content: `Failed to update channel topic/description: ${e.message || e}`, ephemeral: true });
     } catch (err) {
       console.error('[DEBUG] Failed to reply to interaction:', err);
     }
