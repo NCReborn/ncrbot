@@ -2,22 +2,28 @@ const logger = require('../utils/logger');
 const { handleLogScanTicketInteraction } = require('../utils/logScanTicket');
 const { InteractionType, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
 const { upsertResponse } = require('../utils/autoResponder');
-
-// Import bot control logic and persistent status helpers
 const botcontrol = require('../commands/botcontrol.js');
-const {
-  saveStatus,
-  postOrUpdateControlPanel,
-} = require('../commands/botcontrol.js');
-
-// Import reload logic
+const { saveStatus, postOrUpdateControlPanel } = require('../commands/botcontrol.js');
 const reloadModule = require('../commands/reload.js');
+const fs = require('fs');
+const path = require('path');
+const VERSION_FILE = path.join(__dirname, '../data/versionInfo.json');
 
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction, client) {
     try {
       await handleLogScanTicketInteraction(interaction);
+
+      // --- Handle /setversion modal submission ---
+      if (interaction.isModalSubmit() && interaction.customId === 'setVersionModal') {
+        const version = interaction.fields.getTextInputValue('version');
+        const changes = interaction.fields.getTextInputValue('changes');
+        // Save to JSON file
+        fs.writeFileSync(VERSION_FILE, JSON.stringify({ version, changes }, null, 2));
+        await interaction.reply({ content: `Version updated to **${version}**!`, ephemeral: true });
+        return;
+      }
 
       // Handle modal submit for autoresponder add/edit
       if (
@@ -107,65 +113,7 @@ module.exports = {
             needsPanelUpdate = true;
             resultMsg = 'Bot is stopping. Emergency shutdown in progress!';
             break;
-          default:
-            // --- Status Control Panel Button Handler ---
-            if (id.startsWith('status_')) {
-              const status = id.replace('status_', '');
-              // Status config
-              const statusConfig = {
-                investigating: {
-                  emoji: '🟡',
-                  label: 'Issues Reported (Latest)',
-                  color: 0xf1c40f
-                },
-                issues: {
-                  emoji: '🔴',
-                  label: 'Issues Detected (Latest)',
-                  color: 0xe74c3c
-                },
-                updating: {
-                  emoji: '🔵',
-                  label: 'Updating soon (Latest)',
-                  color: 0x3498db
-                },
-                stable: {
-                  emoji: '🟢',
-                  label: 'Stable (Latest)',
-                  color: 0x2ecc71
-                },
-                pending: {
-                  emoji: '⏳',
-                  label: 'Pending (Core Mods)',
-                  color: 0xe67e22
-                }
-              };
-
-              const config = statusConfig[status];
-              if (!config) {
-                await interaction.reply({ content: 'Unknown status!', ephemeral: true });
-                return;
-              }
-
-              // Build new embed
-              const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
-                .setColor(config.color)
-                .setTitle('🔔 Status Control Panel')
-                .setDescription(
-                  `**Status:** ${config.emoji} **${config.label}**\n\n` +
-                  "**Note:** Status changes are *rate limited* to **2 per 10 minutes**.\n\n" +
-                  "🟡 `/investigating` — Set status: **Issues Reported (Latest)**\n" +
-                  "🔴 `/issues` — Set status: **Issues Detected (Latest)**\n" +
-                  "🔵 `/updating` — Set status: **Updating soon (Latest)**\n" +
-                  "🟢 `/stable` — Set status: **Stable (Latest)**\n" +
-                  "⏳ `/pending` — Set status: **Pending (Core Mods)**"
-                );
-
-              await interaction.update({ embeds: [updatedEmbed] });
-
-              // -- REMOVED: channel topic update on button press! --
-              return;
-            }
-            resultMsg = 'Unknown control!';
+         
         }
 
         saveStatus(botcontrol.botStatus);
