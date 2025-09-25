@@ -18,60 +18,46 @@ async function handleStatusUpdate(interaction, status) {
   const lastUsed = rateLimitMap.get(userId) || 0;
 
   if (now - lastUsed < RATE_LIMIT_MS) {
-    await interaction.reply({ content: 'You can only change the status twice per 10 minutes.', ephemeral: true });
+    await interaction.reply({ content: 'You can only change the status twice per 10 minutes.', flags: 64 });
     return;
   }
   rateLimitMap.set(userId, now);
 
   const info = statusLabels[status];
   if (!info) {
-    await interaction.reply({ content: 'Unknown status.', ephemeral: true });
+    await interaction.reply({ content: 'Unknown status.', flags: 64 });
     return;
   }
 
   try {
-    console.log(`[DEBUG] Fetching status channel with ID: ${STATUS_CHANNEL_ID}`);
     const channel = await interaction.client.channels.fetch(STATUS_CHANNEL_ID);
 
     if (!channel) {
-      console.error(`[DEBUG] Channel not found for ID: ${STATUS_CHANNEL_ID}`);
-      await interaction.reply({ content: `Status channel not found (ID: ${STATUS_CHANNEL_ID})`, ephemeral: true });
+      await interaction.reply({ content: `Status channel not found (ID: ${STATUS_CHANNEL_ID})`, flags: 64 });
       return;
     }
 
-    console.log(`[DEBUG] Fetched channel:`, {
-      id: channel.id,
-      name: channel.name,
-      type: channel.type,
-      topic: channel.topic
-    });
-
-    if (
-      channel.type === ChannelType.GuildText ||
-      channel.type === ChannelType.GuildVoice ||
-      channel.type === 0 || channel.type === 2
-    ) {
+    if (channel.type === ChannelType.GuildText || channel.type === 0) {
+      // Text channel: update topic
       const newStatus = `${info.emoji} | Status: ${info.label}`;
-      console.log(`[DEBUG] Old topic/description: "${channel.topic}"`);
       await channel.setTopic(newStatus);
-      console.log(`[DEBUG] New topic/description set: "${newStatus}"`);
+    } else if (channel.type === ChannelType.GuildVoice || channel.type === 2) {
+      // Voice channel: update name
+      const newName = `${info.emoji}┃Status : ${info.label}`;
+      await channel.setName(newName);
     } else {
-      console.error(`[DEBUG] Channel type is not supported: ${channel.type}`);
-      await interaction.reply({ content: `Fetched channel is not a supported type. Type: ${channel.type}`, ephemeral: true });
+      await interaction.reply({ content: `Fetched channel is not a supported type. Type: ${channel.type}`, flags: 64 });
       return;
     }
 
   } catch (e) {
-    console.error('[DEBUG] Failed to update status channel topic/description:', e);
     try {
-      await interaction.reply({ content: `Failed to update channel topic/description: ${e.message || e}`, ephemeral: true });
-    } catch (err) {
-      console.error('[DEBUG] Failed to reply to interaction:', err);
-    }
+      await interaction.reply({ content: `Failed to update channel: ${e.message || e}`, flags: 64 });
+    } catch (err) {}
     return;
   }
 
-  await interaction.reply({ content: `Status changed to ${info.emoji} | ${info.label}`, ephemeral: true });
+  await interaction.reply({ content: `Status changed to ${info.emoji} | ${info.label}`, flags: 64 });
 }
 
 module.exports = { handleStatusUpdate, statusLabels };
