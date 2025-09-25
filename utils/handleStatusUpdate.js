@@ -31,15 +31,47 @@ async function handleStatusUpdate(interaction, status) {
     return;
   }
 
-  // --------- Topic update logic here ---------
+  // --------- Topic update logic with debug ---------
   try {
+    console.log(`[DEBUG] Fetching status channel with ID: ${STATUS_CHANNEL_ID}`);
     const channel = await interaction.client.channels.fetch(STATUS_CHANNEL_ID);
-    if (channel && channel.type === ChannelType.GuildText) {
-      await channel.setTopic(`${info.emoji} | Status: ${info.label}`);
+
+    if (!channel) {
+      console.error(`[DEBUG] Channel not found for ID: ${STATUS_CHANNEL_ID}`);
+      await interaction.reply({ content: `Status channel not found (ID: ${STATUS_CHANNEL_ID})`, ephemeral: true });
+      return;
     }
+
+    console.log(`[DEBUG] Fetched channel:`, {
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      topic: channel.topic
+    });
+
+    // For Discord.js v14, ChannelType.GuildText === 0
+    if (channel.type !== ChannelType.GuildText && channel.type !== 0) {
+      console.error(`[DEBUG] Channel type is not GuildText: ${channel.type}`);
+      await interaction.reply({ content: `Fetched channel is not a text channel. Type: ${channel.type}`, ephemeral: true });
+      return;
+    }
+
+    // Log old topic
+    console.log(`[DEBUG] Old topic: "${channel.topic}"`);
+    const newTopic = `${info.emoji} | Status: ${info.label}`;
+    await channel.setTopic(newTopic);
+
+    // Log new topic
+    console.log(`[DEBUG] New topic set: "${newTopic}"`);
+
   } catch (e) {
-    // You can add logging here if desired
-    console.warn('Failed to update status channel topic:', e);
+    console.error('[DEBUG] Failed to update status channel topic:', e);
+    try {
+      await interaction.reply({ content: `Failed to update channel topic: ${e.message || e}`, ephemeral: true });
+    } catch (err) {
+      console.error('[DEBUG] Failed to reply to interaction:', err);
+    }
+    return;
   }
   // -------------------------------------------
 
