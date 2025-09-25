@@ -1,42 +1,28 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { VERSION_INFO, VERSION_COOLDOWN_TIME } = require('../config/constants');
-const { checkCooldown, setCooldown, cleanupOldCooldowns } = require('../utils/cooldownManager');
-const logger = require('../utils/logger');
-const { errorEmbed } = require('../utils/discordUtils');
+const fs = require('fs');
+const path = require('path');
+const VERSION_FILE = path.join(__dirname, '../data/versionInfo.json');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('version')
     .setDescription('Show the bot version and recent changes.'),
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
-
-    const username = `${interaction.user.tag} (${interaction.user.id})`;
-
+    // Load latest version info
+    let versionObj = { version: 'N/A', changes: 'No changes recorded yet.' };
     try {
-      // Use consistent key formatting for version cooldowns
-      const cooldownKey = interaction.user.id;
-      const timeLeft = checkCooldown(cooldownKey, VERSION_COOLDOWN_TIME);
-
-      if (timeLeft > 0) {
-        logger.info(`[VERSION] Cooldown hit for ${username} (${timeLeft} min left)`);
-        await interaction.editReply({ embeds: [errorEmbed('Command Cooldown', `Please wait ${timeLeft} more minutes before using the version command again.`)] });
-        return;
+      if (fs.existsSync(VERSION_FILE)) {
+        versionObj = JSON.parse(fs.readFileSync(VERSION_FILE, 'utf8'));
       }
-
-      setCooldown(cooldownKey, VERSION_COOLDOWN_TIME);
-      if (Math.random() < 0.1) cleanupOldCooldowns();
-
-      const versionEmbed = new EmbedBuilder()
-        .setTitle('NCReborn CL Bot Version')
-        .setDescription(`**Version:** ${VERSION_INFO.version}\n**Changes:** ${VERSION_INFO.changes}`)
-        .setColor(5814783);
-
-      await interaction.editReply({ embeds: [versionEmbed] });
-      logger.info(`[VERSION] Version info shown to ${username}`);
     } catch (err) {
-      logger.error(`[VERSION] Error for ${username}: ${err.message}`);
-      await interaction.editReply({ embeds: [errorEmbed('Error Getting Version', err.message)] });
+      // ignore, fallback to default
     }
+
+    const versionEmbed = new EmbedBuilder()
+      .setTitle('NCReborn CL Bot Version')
+      .setDescription(`**Version:** ${versionObj.version}\n**Changes:** ${versionObj.changes}`)
+      .setColor(5814783);
+
+    await interaction.reply({ embeds: [versionEmbed], ephemeral: true });
   }
 };
