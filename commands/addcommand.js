@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const mysql = require('mysql2/promise');
 
-const MODERATOR_ROLE_ID = "1370874936456908931";
+const MODERATOR_ROLE_ID = "1370874936456908931"; // Change as needed
 const DB_CONFIG = {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -10,7 +10,7 @@ const DB_CONFIG = {
     port: Number(process.env.DB_PORT)
 };
 
-const COMMAND_FIELDS = 4; // 1 mod name + 4 command fields = 5 fields max for Discord modals
+const COMMAND_FIELDS = 4; // Number of command fields (plus mod name)
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -38,7 +38,7 @@ module.exports = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-            // Add up to 4 command input fields (total 5 allowed)
+            // Add up to 4 command input fields (total 5 allowed by Discord modals)
             let actionRows = [new ActionRowBuilder().addComponents(modInput)];
             for (let i = 1; i <= COMMAND_FIELDS; i++) {
                 const commandsInput = new TextInputBuilder()
@@ -85,13 +85,15 @@ module.exports = {
                 connection = await mysql.createConnection(DB_CONFIG);
 
                 for (const command of commands) {
-                    // Check for duplicate
+                    // Check for global duplicate (regardless of mod)
                     const [rows] = await connection.execute(
-                        "SELECT * FROM mod_commands WHERE `mod` = ? AND command = ?",
-                        [mod, command]
+                        "SELECT * FROM mod_commands WHERE command = ?",
+                        [command]
                     );
                     if (rows.length > 0) {
-                        duplicates.push(command);
+                        // Optionally include which mod(s) already have this command
+                        const existingMods = [...new Set(rows.map(r => r.mod))].join(", ");
+                        duplicates.push(`${command} (already in: ${existingMods})`);
                         continue;
                     }
                     await connection.execute(
