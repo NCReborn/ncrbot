@@ -9,7 +9,7 @@ const DB_CONFIG = {
 };
 
 module.exports = {
-    name: 'findmod',
+    name: 'findcommand',
     description: 'Search for mod commands by keyword.',
     options: [
         {
