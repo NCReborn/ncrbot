@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits } = require('discord.js');
 const { convertChangelogToNexusMarkdownFromEmbeds } = require('../utils/changelogConverter');
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +19,12 @@ module.exports = {
         .setRequired(false)
     ),
   async execute(interaction) {
+    // --- ADMIN CHECK ---
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({ content: 'You do not have permission to use this command. (Admin only)', ephemeral: true });
+      return;
+    }
+
     await interaction.deferReply({ ephemeral: true });
 
     const messageIdsRaw = interaction.options.getString('message_ids');
