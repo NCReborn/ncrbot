@@ -1,3 +1,4 @@
+const { SlashCommandBuilder } = require('discord.js');
 const mysql = require('mysql2/promise');
 
 const DB_CONFIG = {
@@ -9,16 +10,14 @@ const DB_CONFIG = {
 };
 
 module.exports = {
-    name: 'findcommand',
-    description: 'Search for mod commands by keyword.',
-    options: [
-        {
-            name: 'query',
-            type: 3, // STRING
-            description: 'Keyword to search for (mod name, item, etc.)',
-            required: true
-        }
-    ],
+    data: new SlashCommandBuilder()
+        .setName('findcommand')
+        .setDescription('Search for mod commands by keyword (mod name, item, etc.)')
+        .addStringOption(option =>
+            option.setName('query')
+                .setDescription('Keyword to search for')
+                .setRequired(true)
+        ),
     async execute(interaction) {
         const query = interaction.options.getString('query');
         let connection;
