@@ -10,18 +10,21 @@ const DB_CONFIG = {
     port: Number(process.env.DB_PORT)
 };
 
-// Number of input fields for commands
-const COMMAND_FIELDS = 5;
+const COMMAND_FIELDS = 4; // 1 mod name + 4 command fields = 5 fields max for Discord modals
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('addcommand')
         .setDescription('Open a popup to manually add mod commands to the database'),
     async execute(interaction) {
+        console.log(`[DEBUG] addcommand execute called by user ${interaction.user.tag} (${interaction.user.id})`);
         try {
+            // Check mod role or admin
             const member = await interaction.guild.members.fetch(interaction.user.id);
             const isModerator = member.roles.cache.has(MODERATOR_ROLE_ID);
             const isAdmin = member.permissions.has("Administrator");
+            console.log(`[DEBUG] Member roles:`, member.roles.cache.map(role => role.id));
+            console.log(`[DEBUG] isModerator: ${isModerator}, isAdmin: ${isAdmin}`);
             if (!isModerator && !isAdmin) {
                 await interaction.reply({ content: "You do not have permission to use this command.", ephemeral: true });
                 return;
@@ -38,7 +41,7 @@ module.exports = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-            // Add multiple command input fields
+            // Add up to 4 command input fields (total 5 allowed)
             let actionRows = [new ActionRowBuilder().addComponents(modInput)];
             for (let i = 1; i <= COMMAND_FIELDS; i++) {
                 const commandsInput = new TextInputBuilder()
@@ -53,6 +56,7 @@ module.exports = {
 
             modal.addComponents(...actionRows);
 
+            console.log('[DEBUG] Showing modal...');
             await interaction.showModal(modal);
         } catch (err) {
             console.error('[DEBUG] Error in addcommand execute:', err);
@@ -61,6 +65,7 @@ module.exports = {
     },
 
     async handleModalSubmit(interaction) {
+        console.log(`[DEBUG] Modal submit called by user ${interaction.user.tag} (${interaction.user.id}), customId: ${interaction.customId}`);
         if (interaction.customId !== 'addcommand_modal') return;
 
         try {
@@ -73,6 +78,8 @@ module.exports = {
                 }
             }
 
+            console.log(`[DEBUG] Parsed ${commands.length} commands from all fields`);
+
             if (commands.length === 0) {
                 await interaction.reply({ content: "No valid commands detected.", ephemeral: true });
                 return;
@@ -80,11 +87,14 @@ module.exports = {
 
             let connection;
             try {
+                console.log('[DEBUG] Connecting to MySQL...');
                 connection = await mysql.createConnection(DB_CONFIG);
 
                 for (const command of commands) {
+                    console.log(`[DEBUG] Inserting command: ${command}`);
                     await connection.execute("INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)", [mod, command]);
                 }
+                console.log('[DEBUG] All commands inserted');
                 await interaction.reply({
                     content: `Added ${commands.length} command(s) to **${mod}**.`,
                     ephemeral: true
@@ -98,7 +108,9 @@ module.exports = {
                 });
             } finally {
                 if (connection) {
-                    try { await connection.end(); } catch {}
+                    try { await connection.end(); } catch (closeErr) {
+                        console.error('[DEBUG] Error closing MySQL connection:', closeErr);
+                    }
                 }
             }
         } catch (outerErr) {
