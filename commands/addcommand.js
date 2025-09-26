@@ -17,14 +17,11 @@ module.exports = {
         .setName('addcommand')
         .setDescription('Open a popup to manually add mod commands to the database'),
     async execute(interaction) {
-        console.log(`[DEBUG] addcommand execute called by user ${interaction.user.tag} (${interaction.user.id})`);
         try {
             // Check mod role or admin
             const member = await interaction.guild.members.fetch(interaction.user.id);
             const isModerator = member.roles.cache.has(MODERATOR_ROLE_ID);
             const isAdmin = member.permissions.has("Administrator");
-            console.log(`[DEBUG] Member roles:`, member.roles.cache.map(role => role.id));
-            console.log(`[DEBUG] isModerator: ${isModerator}, isAdmin: ${isAdmin}`);
             if (!isModerator && !isAdmin) {
                 await interaction.reply({ content: "You do not have permission to use this command.", ephemeral: true });
                 return;
@@ -55,17 +52,13 @@ module.exports = {
             }
 
             modal.addComponents(...actionRows);
-
-            console.log('[DEBUG] Showing modal...');
             await interaction.showModal(modal);
         } catch (err) {
-            console.error('[DEBUG] Error in addcommand execute:', err);
             await interaction.reply({ content: "Error showing modal.", ephemeral: true });
         }
     },
 
     async handleModalSubmit(interaction) {
-        console.log(`[DEBUG] Modal submit called by user ${interaction.user.tag} (${interaction.user.id}), customId: ${interaction.customId}`);
         if (interaction.customId !== 'addcommand_modal') return;
 
         try {
@@ -78,9 +71,6 @@ module.exports = {
                 }
             }
 
-            console.log(`[DEBUG] Parsed ${commands.length} commands from all fields`);
-
-            // Defer reply immediately to avoid Discord interaction timeout
             await interaction.deferReply({ ephemeral: true });
 
             if (commands.length === 0) {
@@ -90,32 +80,25 @@ module.exports = {
 
             let connection;
             try {
-                console.log('[DEBUG] Connecting to MySQL...');
                 connection = await mysql.createConnection(DB_CONFIG);
 
                 for (const command of commands) {
-                    console.log(`[DEBUG] Inserting command: ${command}`);
                     await connection.execute("INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)", [mod, command]);
                 }
-                console.log('[DEBUG] All commands inserted');
                 await interaction.editReply({
                     content: `Added ${commands.length} command(s) to **${mod}**.`
                 });
 
             } catch (dbErr) {
-                console.error('[DEBUG] DB error:', dbErr);
                 await interaction.editReply({
                     content: `Error adding commands to the database.\n${dbErr.message}`
                 });
             } finally {
                 if (connection) {
-                    try { await connection.end(); } catch (closeErr) {
-                        console.error('[DEBUG] Error closing MySQL connection:', closeErr);
-                    }
+                    try { await connection.end(); } catch (closeErr) {}
                 }
             }
         } catch (outerErr) {
-            console.error('[DEBUG] Error handling modal submit:', outerErr);
             await interaction.editReply({
                 content: `Error processing modal submission.\n${outerErr.message}`
             });
