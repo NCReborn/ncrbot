@@ -80,8 +80,11 @@ module.exports = {
 
             console.log(`[DEBUG] Parsed ${commands.length} commands from all fields`);
 
+            // Defer reply immediately to avoid Discord interaction timeout
+            await interaction.deferReply({ ephemeral: true });
+
             if (commands.length === 0) {
-                await interaction.reply({ content: "No valid commands detected.", ephemeral: true });
+                await interaction.editReply({ content: "No valid commands detected." });
                 return;
             }
 
@@ -95,16 +98,14 @@ module.exports = {
                     await connection.execute("INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)", [mod, command]);
                 }
                 console.log('[DEBUG] All commands inserted');
-                await interaction.reply({
-                    content: `Added ${commands.length} command(s) to **${mod}**.`,
-                    ephemeral: true
+                await interaction.editReply({
+                    content: `Added ${commands.length} command(s) to **${mod}**.`
                 });
 
             } catch (dbErr) {
                 console.error('[DEBUG] DB error:', dbErr);
-                await interaction.reply({
-                    content: `Error adding commands to the database.\n${dbErr.message}`,
-                    ephemeral: true
+                await interaction.editReply({
+                    content: `Error adding commands to the database.\n${dbErr.message}`
                 });
             } finally {
                 if (connection) {
@@ -115,9 +116,8 @@ module.exports = {
             }
         } catch (outerErr) {
             console.error('[DEBUG] Error handling modal submit:', outerErr);
-            await interaction.reply({
-                content: `Error processing modal submission.\n${outerErr.message}`,
-                ephemeral: true
+            await interaction.editReply({
+                content: `Error processing modal submission.\n${outerErr.message}`
             });
         }
     }
