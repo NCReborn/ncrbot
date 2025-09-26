@@ -24,7 +24,7 @@ module.exports = {
         try {
             connection = await mysql.createConnection(DB_CONFIG);
             const [rows] = await connection.execute(
-                "SELECT mod, command FROM mod_commands WHERE mod LIKE ? OR command LIKE ? LIMIT 10",
+                "SELECT `mod`, command FROM mod_commands WHERE `mod` LIKE ? OR command LIKE ? LIMIT 10",
                 [`%${query}%`, `%${query}%`]
             );
             if (rows.length > 0) {
