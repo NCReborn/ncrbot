@@ -1,6 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const mysql = require('mysql2/promise');
 
+const MODERATOR_ROLE_ID = "1370874936456908931"; // Your moderator role ID
+
 const DB_CONFIG = {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -24,6 +26,16 @@ module.exports = {
                 .setRequired(true)
         ),
     async execute(interaction) {
+        // Check for mod role or admin
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const isModerator = member.roles.cache.has(MODERATOR_ROLE_ID);
+        const isAdmin = member.permissions.has("Administrator");
+
+        if (!isModerator && !isAdmin) {
+            await interaction.reply({ content: "You do not have permission to use this command.", ephemeral: true });
+            return;
+        }
+
         const mod = interaction.options.getString('mod');
         const commandsInput = interaction.options.getString('commands');
 
