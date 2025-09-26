@@ -30,15 +30,22 @@ module.exports = {
             if (rows.length > 0) {
                 let reply = rows.map(row => `**${row.mod}**:\n\`${row.command}\``).join('\n');
                 if (reply.length > 2000) reply = reply.slice(0, 1990) + '\n...';
-                await interaction.reply({ content: `Results for **${query}**:\n${reply}` });
+                await interaction.reply({
+                    content: `Results for **${query}**:\n${reply}`,
+                    ephemeral: true
+                });
             } else {
                 await interaction.reply({
-                    content: `No mod commands found for **${query}**. Try checking your spelling or using a different keyword!`
+                    content: `No mod commands found for **${query}**. Try checking your spelling or using a different keyword!`,
+                    ephemeral: true
                 });
             }
         } catch (err) {
             console.error('DB error:', err);
-            await interaction.reply({ content: 'Error querying the database.' });
+            await interaction.reply({
+                content: 'Error querying the database.',
+                ephemeral: true
+            });
         } finally {
             if (connection) await connection.end();
         }
