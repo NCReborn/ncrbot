@@ -119,7 +119,6 @@ module.exports = {
             needsPanelUpdate = true;
             resultMsg = 'Bot is stopping. Emergency shutdown in progress!';
             break;
-         
         }
 
         saveStatus(botcontrol.botStatus);
@@ -148,6 +147,17 @@ module.exports = {
       if (interaction.type === InteractionType.ApplicationCommand) {
         const command = client.commands.get(interaction.commandName);
         if (!command) return;
+
+        // --- Only allow admins to use status commands ---
+        const adminOnlyCommands = ['stable', 'investigating', 'issues', 'updating', 'pending'];
+        if (adminOnlyCommands.includes(interaction.commandName)) {
+          const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+          if (!isAdmin) {
+            await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+            return;
+          }
+        }
+
         try {
           await command.execute(interaction);
 
