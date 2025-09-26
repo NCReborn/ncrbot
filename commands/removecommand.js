@@ -12,15 +12,15 @@ const DB_CONFIG = {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('removecommand')
-        .setDescription('Remove a command for a mod (including duplicates)')
+        .setDescription('Remove a command for a mod (or all commands for a mod)')
         .addStringOption(option =>
             option.setName('mod_name')
-                .setDescription('The mod name')
+                .setDescription('The mod name (required)')
                 .setRequired(true))
         .addStringOption(option =>
             option.setName('command_code')
-                .setDescription('The command code to remove')
-                .setRequired(true)),
+                .setDescription('The command code to remove (optional, removes all commands for mod if omitted)')
+                .setRequired(false)),
     async execute(interaction) {
         // --- ADMIN CHECK ---
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -38,33 +38,53 @@ module.exports = {
         try {
             connection = await mysql.createConnection(DB_CONFIG);
 
-            // Check if it exists
-            const [rows] = await connection.execute(
-                "SELECT * FROM mod_commands WHERE `mod` = ? AND command = ?",
-                [modName, commandCode]
-            );
-
-            if (!rows.length) {
+            let rows, result;
+            if (commandCode) {
+                // Remove specific command for a mod
+                [rows] = await connection.execute(
+                    "SELECT * FROM mod_commands WHERE `mod` = ? AND command = ?",
+                    [modName, commandCode]
+                );
+                if (!rows.length) {
+                    await interaction.reply({
+                        content: `❌ No command \`${commandCode}\` found for mod \`${modName}\`.`,
+                        ephemeral: true
+                    });
+                    return;
+                }
+                await connection.execute(
+                    "DELETE FROM mod_commands WHERE `mod` = ? AND command = ?",
+                    [modName, commandCode]
+                );
                 await interaction.reply({
-                    content: `❌ No command \`${commandCode}\` found for mod \`${modName}\`.`,
+                    content: `✅ Removed ${rows.length} command(s) \`${commandCode}\` for mod \`${modName}\`.`,
                     ephemeral: true
                 });
-                return;
+            } else {
+                // Remove all commands for the mod
+                [rows] = await connection.execute(
+                    "SELECT * FROM mod_commands WHERE `mod` = ?",
+                    [modName]
+                );
+                if (!rows.length) {
+                    await interaction.reply({
+                        content: `❌ No commands found for mod \`${modName}\`.`,
+                        ephemeral: true
+                    });
+                    return;
+                }
+                await connection.execute(
+                    "DELETE FROM mod_commands WHERE `mod` = ?",
+                    [modName]
+                );
+                await interaction.reply({
+                    content: `✅ Removed ${rows.length} command(s) for mod \`${modName}\`.`,
+                    ephemeral: true
+                });
             }
-
-            // Remove all matching entries (including duplicates)
-            await connection.execute(
-                "DELETE FROM mod_commands WHERE `mod` = ? AND command = ?",
-                [modName, commandCode]
-            );
-
-            await interaction.reply({
-                content: `✅ Removed ${rows.length} command(s) \`${commandCode}\` for mod \`${modName}\`.`,
-                ephemeral: true
-            });
         } catch (err) {
             await interaction.reply({
-                content: `Error removing command: ${err.message}`,
+                content: `Error removing command(s): ${err.message}`,
                 ephemeral: true
             });
         } finally {
