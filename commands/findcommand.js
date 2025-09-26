@@ -32,7 +32,9 @@ module.exports = {
                 if (reply.length > 2000) reply = reply.slice(0, 1990) + '\n...';
                 await interaction.reply({ content: `Results for **${query}**:\n${reply}` });
             } else {
-                await interaction.reply({ content: `No results found for **${query}**.` });
+                await interaction.reply({
+                    content: `No mod commands found for **${query}**. Try checking your spelling or using a different keyword!`
+                });
             }
         } catch (err) {
             console.error('DB error:', err);
