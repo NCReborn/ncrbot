@@ -1,9 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const mysql = require('mysql2/promise');
-const fs = require('fs');
 
-const MODERATOR_ROLE_ID = "1370874936456908931"; // Your moderator role ID
-
+const MODERATOR_ROLE_ID = "1370874936456908931";
 const DB_CONFIG = {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -12,69 +10,69 @@ const DB_CONFIG = {
     port: Number(process.env.DB_PORT)
 };
 
+
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('addcommand')
-        .setDescription('Manually add mod commands to the database (paste or upload .txt)')
-        .addStringOption(option =>
-            option.setName('mod')
-                .setDescription('Name of the mod')
-                .setRequired(true)
-        )
-        .addStringOption(option =>
-            option.setName('commands')
-                .setDescription('One or more mod command codes, one per line (optional if uploading file)')
-                .setRequired(false)
-        ),
+        .setName('addcommandmodal')
+        .setDescription('Open a popup to manually add mod commands to the database'),
     async execute(interaction) {
-        // Check for mod role or admin
+        // Check mod role or admin
         const member = await interaction.guild.members.fetch(interaction.user.id);
         const isModerator = member.roles.cache.has(MODERATOR_ROLE_ID);
         const isAdmin = member.permissions.has("Administrator");
-
         if (!isModerator && !isAdmin) {
             await interaction.reply({ content: "You do not have permission to use this command.", ephemeral: true });
             return;
         }
 
-        const mod = interaction.options.getString('mod');
-        let commands = [];
+        // Build modal
+        const modal = new ModalBuilder()
+            .setCustomId('addcommand_modal')
+            .setTitle('Add Mod Commands');
 
-        // Check for file attachment first
-        const file = interaction.options.getAttachment?.('commands_file') || interaction.attachments?.first?.(); // Depending on discord.js version
-        if (file && file.name.endsWith('.txt')) {
-            // Download the file
-            const response = await fetch(file.url);
-            const text = await response.text();
-            commands = text.split(/\r?\n/).map(c => c.trim()).filter(c => c.length > 0);
-        } else {
-            // Use text field
-            const commandsInput = interaction.options.getString('commands') || '';
-            commands = commandsInput.split(/\r?\n/).map(c => c.trim()).filter(c => c.length > 0);
-        }
+        const modInput = new TextInputBuilder()
+            .setCustomId('mod_name')
+            .setLabel('Mod name')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+
+        const commandsInput = new TextInputBuilder()
+            .setCustomId('commands')
+            .setLabel('Command codes (one per line, up to 4000 chars)')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setMaxLength(4000);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(modInput),
+            new ActionRowBuilder().addComponents(commandsInput)
+        );
+
+        await interaction.showModal(modal);
+    },
+    // This handler goes in your interactionCreate.js or similar central event file:
+    async handleModalSubmit(interaction) {
+        if (interaction.customId !== 'addcommand_modal') return;
+
+        const mod = interaction.fields.getTextInputValue('mod_name');
+        const commandsInput = interaction.fields.getTextInputValue('commands');
+        const commands = commandsInput.split(/\r?\n/).map(c => c.trim()).filter(c => c.length > 0);
 
         if (commands.length === 0) {
-            await interaction.reply({ content: "No valid commands detected (paste or upload .txt).", ephemeral: true });
+            await interaction.reply({ content: "No valid commands detected.", ephemeral: true });
             return;
         }
 
         let connection;
         try {
             connection = await mysql.createConnection(DB_CONFIG);
-
-            // Insert each command into the database
             for (const command of commands) {
-                await connection.execute(
-                    "INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)",
-                    [mod, command]
-                );
+                await connection.execute("INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)", [mod, command]);
             }
-
-            await interaction.reply({
+            await connection.reply({
                 content: `Added ${commands.length} command(s) to **${mod}**.`,
                 ephemeral: true
             });
-
         } catch (err) {
             console.error('DB error:', err);
             await interaction.reply({
