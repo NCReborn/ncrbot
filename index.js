@@ -106,14 +106,14 @@ for (const file of eventFiles) {
 }
 
 // --- CLEAR DUPLICATE SLASH COMMANDS ONCE (REMOVE OR COMMENT AFTER RUNNING ONCE) ---
-// Uncomment next lines to clear all global commands (and optionally guild commands).
-// const clearCommands = require('./utils/clearCommands');
-// client.once('ready', async () => {
- //  logger.info(`Ready! Logged in as ${client.user.tag}`);
-  // await clearCommands(client);
-   //logger.info('All global commands cleared. Remove or comment this after running once.');
+// Uncomment next lines to clear all global and guild commands.
+ const clearCommands = require('./utils/clearCommands');
+ client.once('ready', async () => {
+   logger.info(`Ready! Logged in as ${client.user.tag}`);
+   await clearCommands(client);
+   logger.info('All global and guild commands cleared. Remove or comment this after running once.');
 //   // ...rest of your on-ready code...
- //});
+ });
 
 // --- Bot Control Panel: Repost control panel on startup if saved ---
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
