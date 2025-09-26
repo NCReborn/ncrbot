@@ -32,7 +32,7 @@ module.exports = {
 
             if (!rows.length) {
                 await interaction.reply({
-                    content: `No commands found matching \`${query}\`.`,
+                    content: `No commands found matching \`${query}\`. If this is a mod in the collection and nothing shows likely our automated system hasn't found the commands as the mod author stores the codes on there nexus page, instead of inside the mod files directly, please ping a mod to add the mod commands to the database for future use. `,
                     ephemeral: true
                 });
                 return;
