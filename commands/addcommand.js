@@ -41,10 +41,11 @@ module.exports = {
 
             const commandsInput = new TextInputBuilder()
                 .setCustomId('commands')
-                .setLabel('Command codes (one per line, up to 4000 chars)')
+                .setLabel('Command codes (one per line)') // FIXED: <= 45 chars!
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true)
-                .setMaxLength(4000);
+                .setMaxLength(4000)
+                .setPlaceholder('Paste codes here (max 4000 chars)'); // Optional helper
 
             modal.addComponents(
                 new ActionRowBuilder().addComponents(modInput),
