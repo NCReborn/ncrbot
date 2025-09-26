@@ -12,50 +12,41 @@ const DB_CONFIG = {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('findcommand')
-        .setDescription('Add a new mod command if not already present')
+        .setDescription('Search for mod commands by keyword (mod name, item, etc.)')
         .addStringOption(option =>
-            option.setName('mod_name')
-                .setDescription('The mod name')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('command_code')
-                .setDescription('The command code')
+            option.setName('query')
+                .setDescription('Search term (mod name, command, etc.)')
                 .setRequired(true)),
     async execute(interaction) {
-        const modName = interaction.options.getString('mod_name');
-        const commandCode = interaction.options.getString('command_code');
+        const query = interaction.options.getString('query');
 
         let connection;
         try {
             connection = await mysql.createConnection(DB_CONFIG);
 
-            // Check for duplicate
+            // Perform search by mod name or command code
             const [rows] = await connection.execute(
-                "SELECT * FROM mod_commands WHERE `mod` = ? AND command = ?",
-                [modName, commandCode]
+                "SELECT * FROM mod_commands WHERE `mod` LIKE ? OR command LIKE ?",
+                [`%${query}%`, `%${query}%`]
             );
 
-            if (rows.length > 0) {
+            if (!rows.length) {
                 await interaction.reply({
-                    content: `❌ The command \`${commandCode}\` for mod \`${modName}\` is already stored.`,
+                    content: `No commands found matching \`${query}\`.`,
                     ephemeral: true
                 });
                 return;
             }
 
-            // Insert new command
-            await connection.execute(
-                "INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)",
-                [modName, commandCode]
-            );
-
+            // Format results
+            const results = rows.map(row => `• \`${row.mod}\` — \`${row.command}\``).join('\n');
             await interaction.reply({
-                content: `✅ Added command \`${commandCode}\` for mod \`${modName}\`.`,
+                content: `Found these commands:\n${results}`,
                 ephemeral: true
             });
         } catch (err) {
             await interaction.reply({
-                content: `Error processing command: ${err.message}`,
+                content: `Error searching commands: ${err.message}`,
                 ephemeral: true
             });
         } finally {
