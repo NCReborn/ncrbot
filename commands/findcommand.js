@@ -23,17 +23,43 @@ module.exports = {
         let connection;
         try {
             connection = await mysql.createConnection(DB_CONFIG);
+            // Remove LIMIT 10 to get all results
             const [rows] = await connection.execute(
-                "SELECT `mod`, command FROM mod_commands WHERE `mod` LIKE ? OR command LIKE ? LIMIT 10",
+                "SELECT `mod`, command, type FROM mod_commands WHERE `mod` LIKE ? OR command LIKE ?",
                 [`%${query}%`, `%${query}%`]
             );
             if (rows.length > 0) {
-                let reply = rows.map(row => `**${row.mod}**:\n\`${row.command}\``).join('\n');
-                if (reply.length > 2000) reply = reply.slice(0, 1990) + '\n...';
+                // Build the messages
+                let replyChunks = [];
+                let currentChunk = `Results for **${query}**:\n`;
+                for (const row of rows) {
+                    let line;
+                    if (row.type === "vehicle") {
+                        line = `🚗 **[Vehicle] ${row.mod}**:\n\`${row.command}\`\n`;
+                    } else {
+                        line = `**${row.mod}**:\n\`${row.command}\`\n`;
+                    }
+                    if (currentChunk.length + line.length > 2000) {
+                        replyChunks.push(currentChunk);
+                        currentChunk = line;
+                    } else {
+                        currentChunk += line;
+                    }
+                }
+                if (currentChunk.length > 0) replyChunks.push(currentChunk);
+
+                // Send the first reply as the interaction response, then follow-ups
                 await interaction.reply({
-                    content: `Results for **${query}**:\n${reply}`,
-                    ephemeral: true
+                    content: replyChunks[0],
+                    ephemeral: true,
                 });
+                // Send additional chunks as follow-up ephemeral messages
+                for (let i = 1; i < replyChunks.length; i++) {
+                    await interaction.followUp({
+                        content: replyChunks[i],
+                        ephemeral: true,
+                    });
+                }
             } else {
                 await interaction.reply({
                     content: `No mod commands found for **${query}**. Try checking your spelling or using a different keyword!`,
