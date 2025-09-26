@@ -19,7 +19,7 @@ module.exports = {
     }
 
     const versionEmbed = new EmbedBuilder()
-      .setTitle('NCReborn CL Bot Version')
+      .setTitle('NCReborn Utilities Bot Version')
       .setDescription(`**Version:** ${versionObj.version}\n**Changes:** ${versionObj.changes}`)
       .setColor(5814783);
 
