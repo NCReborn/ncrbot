@@ -1,7 +1,6 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
 
-
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -105,6 +104,16 @@ for (const file of eventFiles) {
     client.on(event.name, (...args) => event.execute(...args, client));
   }
 }
+
+// --- CLEAR DUPLICATE SLASH COMMANDS ONCE (REMOVE OR COMMENT AFTER RUNNING ONCE) ---
+// Uncomment next lines to clear all global commands (and optionally guild commands).
+ const clearCommands = require('./utils/clearCommands');
+ client.once('ready', async () => {
+   logger.info(`Ready! Logged in as ${client.user.tag}`);
+   await clearCommands(client);
+   logger.info('All global commands cleared. Remove or comment this after running once.');
+//   // ...rest of your on-ready code...
+ });
 
 // --- Bot Control Panel: Repost control panel on startup if saved ---
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
