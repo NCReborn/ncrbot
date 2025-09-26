@@ -10,19 +10,18 @@ const DB_CONFIG = {
     port: Number(process.env.DB_PORT)
 };
 
+// Number of input fields for commands
+const COMMAND_FIELDS = 5;
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('addcommand')
         .setDescription('Open a popup to manually add mod commands to the database'),
     async execute(interaction) {
-        console.log(`[DEBUG] addcommand execute called by user ${interaction.user.tag} (${interaction.user.id})`);
         try {
-            // Check mod role or admin
             const member = await interaction.guild.members.fetch(interaction.user.id);
             const isModerator = member.roles.cache.has(MODERATOR_ROLE_ID);
             const isAdmin = member.permissions.has("Administrator");
-            console.log(`[DEBUG] Member roles:`, member.roles.cache.map(role => role.id));
-            console.log(`[DEBUG] isModerator: ${isModerator}, isAdmin: ${isAdmin}`);
             if (!isModerator && !isAdmin) {
                 await interaction.reply({ content: "You do not have permission to use this command.", ephemeral: true });
                 return;
@@ -39,20 +38,21 @@ module.exports = {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-            const commandsInput = new TextInputBuilder()
-                .setCustomId('commands')
-                .setLabel('Command codes (one per line)') // FIXED: <= 45 chars!
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true)
-                .setMaxLength(4000)
-                .setPlaceholder('Paste codes here (max 4000 chars)'); // Optional helper
+            // Add multiple command input fields
+            let actionRows = [new ActionRowBuilder().addComponents(modInput)];
+            for (let i = 1; i <= COMMAND_FIELDS; i++) {
+                const commandsInput = new TextInputBuilder()
+                    .setCustomId(`commands_${i}`)
+                    .setLabel(`Command codes ${i} (one per line)`)
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(i === 1) // Only require the first box
+                    .setMaxLength(4000)
+                    .setPlaceholder(`Paste codes here (max 4000 chars)`);
+                actionRows.push(new ActionRowBuilder().addComponents(commandsInput));
+            }
 
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(modInput),
-                new ActionRowBuilder().addComponents(commandsInput)
-            );
+            modal.addComponents(...actionRows);
 
-            console.log('[DEBUG] Showing modal...');
             await interaction.showModal(modal);
         } catch (err) {
             console.error('[DEBUG] Error in addcommand execute:', err);
@@ -61,17 +61,17 @@ module.exports = {
     },
 
     async handleModalSubmit(interaction) {
-        console.log(`[DEBUG] Modal submit called by user ${interaction.user.tag} (${interaction.user.id}), customId: ${interaction.customId}`);
         if (interaction.customId !== 'addcommand_modal') return;
 
         try {
             const mod = interaction.fields.getTextInputValue('mod_name');
-            const commandsInput = interaction.fields.getTextInputValue('commands');
-            console.log(`[DEBUG] Modal input - mod: ${mod}`);
-            console.log(`[DEBUG] Modal input - commandsInput length: ${commandsInput.length}`);
-
-            const commands = commandsInput.split(/\r?\n/).map(c => c.trim()).filter(c => c.length > 0);
-            console.log(`[DEBUG] Parsed ${commands.length} commands`);
+            let commands = [];
+            for (let i = 1; i <= COMMAND_FIELDS; i++) {
+                const value = interaction.fields.getTextInputValue(`commands_${i}`);
+                if (value && value.trim().length > 0) {
+                    commands = commands.concat(value.split(/\r?\n/).map(c => c.trim()).filter(c => c.length > 0));
+                }
+            }
 
             if (commands.length === 0) {
                 await interaction.reply({ content: "No valid commands detected.", ephemeral: true });
@@ -80,15 +80,11 @@ module.exports = {
 
             let connection;
             try {
-                console.log('[DEBUG] Connecting to MySQL...');
                 connection = await mysql.createConnection(DB_CONFIG);
-                console.log('[DEBUG] Connected to MySQL');
 
                 for (const command of commands) {
-                    console.log(`[DEBUG] Inserting command: ${command}`);
                     await connection.execute("INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)", [mod, command]);
                 }
-                console.log('[DEBUG] All commands inserted');
                 await interaction.reply({
                     content: `Added ${commands.length} command(s) to **${mod}**.`,
                     ephemeral: true
@@ -102,12 +98,7 @@ module.exports = {
                 });
             } finally {
                 if (connection) {
-                    try {
-                        await connection.end();
-                        console.log('[DEBUG] MySQL connection closed');
-                    } catch (closeErr) {
-                        console.error('[DEBUG] Error closing MySQL connection:', closeErr);
-                    }
+                    try { await connection.end(); } catch {}
                 }
             }
         } catch (outerErr) {
