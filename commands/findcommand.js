@@ -23,22 +23,17 @@ module.exports = {
         let connection;
         try {
             connection = await mysql.createConnection(DB_CONFIG);
-            // Remove LIMIT 10 to get all results
+            // Fetch all matching results, no LIMIT
             const [rows] = await connection.execute(
-                "SELECT `mod`, command, type FROM mod_commands WHERE `mod` LIKE ? OR command LIKE ?",
+                "SELECT `mod`, command FROM mod_commands WHERE `mod` LIKE ? OR command LIKE ?",
                 [`%${query}%`, `%${query}%`]
             );
             if (rows.length > 0) {
-                // Build the messages
+                // Split replies to fit Discord's 2000-character limit
                 let replyChunks = [];
                 let currentChunk = `Results for **${query}**:\n`;
                 for (const row of rows) {
-                    let line;
-                    if (row.type === "vehicle") {
-                        line = `🚗 **[Vehicle] ${row.mod}**:\n\`${row.command}\`\n`;
-                    } else {
-                        line = `**${row.mod}**:\n\`${row.command}\`\n`;
-                    }
+                    let line = `**${row.mod}**:\n\`${row.command}\`\n`;
                     if (currentChunk.length + line.length > 2000) {
                         replyChunks.push(currentChunk);
                         currentChunk = line;
@@ -48,12 +43,12 @@ module.exports = {
                 }
                 if (currentChunk.length > 0) replyChunks.push(currentChunk);
 
-                // Send the first reply as the interaction response, then follow-ups
+                // First reply
                 await interaction.reply({
                     content: replyChunks[0],
                     ephemeral: true,
                 });
-                // Send additional chunks as follow-up ephemeral messages
+                // Additional replies
                 for (let i = 1; i < replyChunks.length; i++) {
                     await interaction.followUp({
                         content: replyChunks[i],
