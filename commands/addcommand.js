@@ -13,7 +13,7 @@ const DB_CONFIG = {
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('addcommandmodal')
+        .setName('addcommand')
         .setDescription('Open a popup to manually add mod commands to the database'),
     async execute(interaction) {
         // Check mod role or admin
