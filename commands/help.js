@@ -24,6 +24,7 @@ module.exports = {
 • /addimageonly – Add a channel to image-only enforcement. (Moderator/Admin)
 • /removeimageonly – Remove a channel from image-only enforcement. 
 • /listmediachannels – List all image-only and file-only channels
+* /removecommand - Remove a mod command from the database 
 
 **Moderator Commands:**
 • /autoresponder – Manage auto-responses for mods
