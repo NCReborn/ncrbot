@@ -5,6 +5,7 @@ const { upsertResponse } = require('../utils/autoResponder');
 const botcontrol = require('../commands/botcontrol.js');
 const { saveStatus, postOrUpdateControlPanel } = require('../commands/botcontrol.js');
 const reloadModule = require('../commands/reload.js');
+const addcommand = require('../commands/addcommand.js'); // <-- Import your modal command handler
 const fs = require('fs');
 const path = require('path');
 const VERSION_FILE = path.join(__dirname, '../data/versionInfo.json');
@@ -19,7 +20,6 @@ module.exports = {
       if (interaction.isModalSubmit() && interaction.customId === 'setVersionModal') {
         const version = interaction.fields.getTextInputValue('version');
         const changes = interaction.fields.getTextInputValue('changes');
-        // Save to JSON file
         fs.writeFileSync(VERSION_FILE, JSON.stringify({ version, changes }, null, 2));
         await interaction.reply({ content: `Version updated to **${version}**!`, ephemeral: true });
         return;
@@ -65,6 +65,12 @@ module.exports = {
         }
         await interaction.channel.send({ content: msg });
         await interaction.reply({ content: 'Message sent!', ephemeral: true });
+        return;
+      }
+
+      // --- Handle modal submit for /addcommand ---
+      if (interaction.isModalSubmit() && interaction.customId === 'addcommand_modal') {
+        await addcommand.handleModalSubmit(interaction);
         return;
       }
 
