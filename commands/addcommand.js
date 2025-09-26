@@ -79,15 +79,35 @@ module.exports = {
             }
 
             let connection;
+            let added = 0;
+            let duplicates = [];
             try {
                 connection = await mysql.createConnection(DB_CONFIG);
 
                 for (const command of commands) {
-                    await connection.execute("INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)", [mod, command]);
+                    // Check for duplicate
+                    const [rows] = await connection.execute(
+                        "SELECT * FROM mod_commands WHERE `mod` = ? AND command = ?",
+                        [mod, command]
+                    );
+                    if (rows.length > 0) {
+                        duplicates.push(command);
+                        continue;
+                    }
+                    await connection.execute(
+                        "INSERT INTO mod_commands (`mod`, command) VALUES (?, ?)",
+                        [mod, command]
+                    );
+                    added++;
                 }
-                await interaction.editReply({
-                    content: `Added ${commands.length} command(s) to **${mod}**.`
-                });
+
+                let replyMsg = `Added ${added} command(s) to **${mod}**.`;
+                if (duplicates.length > 0) {
+                    replyMsg += `\n❌ Skipped ${duplicates.length} duplicate command(s):\n` +
+                        duplicates.map(d => `• \`${d}\``).join('\n');
+                }
+
+                await interaction.editReply({ content: replyMsg });
 
             } catch (dbErr) {
                 await interaction.editReply({
