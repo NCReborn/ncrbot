@@ -149,9 +149,21 @@ async function execute(interaction) {
                     if (!userData.snapsmithAchievedAt) {
                         userData.snapsmithAchievedAt = new Date().toISOString();
                     }
-                    // Recalculate all milestone/bonus days and expiration!
+                    // Calculate correct initialCount
+                    let totalUniqueReactions = 0;
+                    const userReactions = reactionsObj[userId] || {};
+                    for (const monthObj of Object.values(userReactions)) {
+                        for (const reactorsArr of Object.values(monthObj)) {
+                            totalUniqueReactions += reactorsArr.length;
+                        }
+                    }
+                    let initialCount = userData.superApproved ? 0 : (userData.initialReactionCount ?? REACTION_TARGET);
+                    let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
+                    let milestoneDays = totalUniqueReactions >= initialCount ? Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT) : 0;
+                    userData.reactionMilestoneDays = milestoneDays;
+
+                    // Use recalculateExpiration to update everything else
                     const result = recalculateExpiration(userId, reactionsObj, dataObj, month);
-                    userData.reactionMilestoneDays = result.milestoneDays;
                     userData.superApprovalBonusDays = result.superApprovalBonusDays;
                     userData.expiration = result.newExpiration;
                     processed++;
@@ -288,7 +300,7 @@ async function execute(interaction) {
                 }
                 let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
                 let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
-                let milestoneDays = Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT);
+                let milestoneDays = totalUniqueReactions >= initialCount ? Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT) : 0;
                 let baseDays = ROLE_DURATION_DAYS;
                 let maxDays = MAX_BUFFER_DAYS;
                 let superApprovalBonusDays = userData.superApprovalBonusDays || 0;
