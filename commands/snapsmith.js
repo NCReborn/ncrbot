@@ -136,8 +136,10 @@ module.exports = {
         .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)'),
     async execute(interaction) {
         try {
-            const status = await getUserSnapsmithStatus(interaction.user.id);
-            const user = interaction.user;
+            // Use the mentioned user if provided, else self
+            const targetUser = interaction.options.getUser?.('user') || interaction.user;
+            const status = await getUserSnapsmithStatus(targetUser.id);
+            const user = targetUser;
 
             let embed;
             if (!status) {
