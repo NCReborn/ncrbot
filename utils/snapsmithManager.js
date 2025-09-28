@@ -39,6 +39,7 @@ function getCurrentMonth() {
 }
 
 // --- PATCH: Rolling extra days logic ---
+// FIX: Count all reactions in the achievement month and after
 function recalculateExpiration(userId, reactionsObj, dataObj, month) {
     const userData = dataObj[userId];
     if (!userData || !userData.snapsmithAchievedAt) {
@@ -48,10 +49,11 @@ function recalculateExpiration(userId, reactionsObj, dataObj, month) {
     let totalUniqueReactions = 0;
     const userReactions = reactionsObj[userId] || {};
     const achievementDate = new Date(userData.snapsmithAchievedAt);
+    const achievementMonth = achievementDate.getUTCFullYear() + '-' + String(achievementDate.getUTCMonth() + 1).padStart(2, '0');
 
     for (const [mon, posts] of Object.entries(userReactions)) {
-        const monDate = new Date(mon + '-01T00:00:00.000Z');
-        if (monDate >= achievementDate) {
+        // Include achievement month and after
+        if (mon >= achievementMonth) {
             for (const reactorsArr of Object.values(posts)) {
                 totalUniqueReactions += reactorsArr.length;
             }
@@ -331,10 +333,10 @@ async function evaluateRoles(client, data, reactions) {
         let totalUniqueReactions = 0;
         const userReactions = reactions[userId] || {};
         const achievementDate = userData && userData.snapsmithAchievedAt ? new Date(userData.snapsmithAchievedAt) : null;
+        const achievementMonth = achievementDate ? achievementDate.getUTCFullYear() + '-' + String(achievementDate.getUTCMonth() + 1).padStart(2, '0') : null;
         if (achievementDate) {
             for (const [mon, posts] of Object.entries(userReactions)) {
-                const monDate = new Date(mon + '-01T00:00:00.000Z');
-                if (monDate >= achievementDate) {
+                if (mon >= achievementMonth) {
                     for (const reactorsArr of Object.values(posts)) {
                         totalUniqueReactions += reactorsArr.length;
                     }
