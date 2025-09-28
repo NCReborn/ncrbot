@@ -108,12 +108,12 @@ for (const file of eventFiles) {
 // --- CLEAR DUPLICATE SLASH COMMANDS ONCE (REMOVE OR COMMENT AFTER RUNNING ONCE) ---
 // Uncomment next lines to clear all global and guild commands.
 // const clearCommands = require('./utils/clearCommands');
- //client.once('ready', async () => {
-  // logger.info(`Ready! Logged in as ${client.user.tag}`);
-   //await clearCommands(client);
-   //logger.info('All global and guild commands cleared. Remove or comment this after running once.');
+// client.once('ready', async () => {
+//   logger.info(`Ready! Logged in as ${client.user.tag}`);
+//   await clearCommands(client);
+//   logger.info('All global and guild commands cleared. Remove or comment this after running once.');
 //   // ...rest of your on-ready code...
- //});
+// });
 
 // --- Bot Control Panel: Repost control panel on startup if saved ---
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
@@ -147,6 +147,23 @@ client.once('ready', async () => {
   } catch (e) {
     clearMessageInfo();
     logger.warn('Failed to restore bot control panel on startup; previous message/channel not found.');
+  }
+});
+
+// --- Snapsmith Manager: Start periodic scan ---
+const { startPeriodicScan } = require('./utils/snapsmithManager');
+startPeriodicScan(client);
+
+// --- Slash command handler ---
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
+  try {
+    await command.execute(interaction);
+  } catch (error) {
+    logger.error(`Error executing command ${interaction.commandName}: ${error}`);
+    await interaction.reply({ content: 'There was an error executing that command.', ephemeral: true });
   }
 });
 
