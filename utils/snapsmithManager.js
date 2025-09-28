@@ -210,7 +210,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
 
         if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false, initialReactionCount: 0 };
 
-        // SUPER APPROVAL PATCH
+        // SUPER APPROVAL PATCH: Give role or add a day with custom message
         if (superApproved) {
             const currTime = Date.now();
             const expirationDate = data[userId].expiration ? new Date(data[userId].expiration) : null;
@@ -259,7 +259,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                         .setTitle('Super Approval Bonus')
                         .addFields(
                             { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                            { name: 'Details', value: `You already have Snapsmith status, but <@${SUPER_APPROVER_ID}> gave you a 🌟 Super Approval! You've earned **1 extra day** on your Snapsmith role. You now have **${daysLeft} days** remaining.`, inline: false }
+                            { name: 'Details', value: `You already have Snapsmith status, but <@${SUPER_APPROVER_ID}> gave you a 🌟 Super Approval!\n\n**You have received 1 extra day on your Snapsmith role thanks to Veinz's Super Approval!**\nYou now have **${daysLeft} days** remaining.`, inline: false }
                         )
                         .setTimestamp();
                     await snapsmithChannel.send({ embeds: [embed] });
