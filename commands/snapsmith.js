@@ -21,6 +21,7 @@ function loadReactions() {
     }
     return {};
 }
+
 function loadMeta() {
     if (fs.existsSync(META_DATA_PATH)) {
         return JSON.parse(fs.readFileSync(META_DATA_PATH, 'utf8'));
@@ -45,6 +46,7 @@ async function getUserSnapsmithStatus(userId) {
     const now = new Date();
     const month = getCurrentMonth();
 
+    // Tally reactions
     let totalUniqueReactions = 0;
     if (reactions[userId] && reactions[userId][month]) {
         for (const reactorsArr of Object.values(reactions[userId][month])) {
@@ -52,6 +54,7 @@ async function getUserSnapsmithStatus(userId) {
         }
     }
 
+    // Metadata (role status, expiration, superApproved)
     const userMeta = meta[userId];
     let roleActive = false;
     let timeLeft = null;
@@ -72,6 +75,7 @@ async function getUserSnapsmithStatus(userId) {
         }
     }
 
+    // Calculate how many days queued
     let daysQueued = 0;
     if (superApproved) daysQueued += ROLE_DURATION_DAYS;
     if (totalUniqueReactions >= REACTION_TARGET) {
@@ -85,8 +89,10 @@ async function getUserSnapsmithStatus(userId) {
     }
     daysQueued = Math.min(daysQueued, MAX_BUFFER_DAYS);
 
+    // Count superreactions from Veinz this month
     const superReactionCount = countSuperReactions(userId, month);
 
+    // If no reactions and no meta, show nothing
     if (totalUniqueReactions === 0 && !userMeta) return null;
 
     return {
@@ -105,19 +111,9 @@ module.exports = {
         .setName('snapsmith')
         .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)'),
     async execute(interaction) {
-        // Always deferReply first, so Discord never times out
-        try {
-            await interaction.deferReply({ ephemeral: true });
-        } catch (err) {
-            // If defer fails, interaction already closed, just log and abort
-            console.error("Error in /snapsmith deferReply:", err);
-            return;
-        }
-
-        // Now do all work AFTER deferring
-        let msg;
         try {
             const status = await getUserSnapsmithStatus(interaction.user.id);
+            let msg;
             if (!status) {
                 msg = `You have no Snapsmith activity yet. Submit your best in-game photos in <#${SHOWCASE_CHANNEL_ID}> to get started!`;
             } else {
@@ -125,10 +121,8 @@ module.exports = {
                 msg += status.roleActive
                     ? `- You currently have the Snapsmith role.\n- Time left: **${status.timeLeft} days**\n`
                     : `- You do not currently have the Snapsmith role.\n`;
-
                 msg += `- Unique reactions this month (unique reactors per post summed): **${status.totalUniqueReactions}**\n`;
                 msg += `- You need **${Math.max(REACTION_TARGET - status.totalUniqueReactions, 0)}** more unique reactions this month to earn Snapsmith.\n`;
-
                 msg += status.superApproved
                     ? `- You received a :star2: Super Approval from <@${SUPER_APPROVER_ID}> this month!\n`
                     : "";
@@ -136,7 +130,7 @@ module.exports = {
                 msg += `- Days queued (total): **${status.daysQueued}** (max ${MAX_BUFFER_DAYS})\n`;
             }
 
-            // Now editReply (NEVER reply again)
+            // Only use editReply, since interaction is already deferred in your handler
             await interaction.editReply({ content: msg });
         } catch (err) {
             console.error("Error in /snapsmith command:", err);
