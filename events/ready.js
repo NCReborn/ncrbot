@@ -2,7 +2,7 @@ const logger = require('../utils/logger');
 const { sendLogScanButton } = require('../utils/logScanTicket');
 
 module.exports = {
-  name: 'ready',
+  name: 'clientReady', // <-- FIXED: use clientReady for Discord.js v15+
   once: true,
   async execute(client) {
     logger.info(`Logged in as ${client.user.tag}`);
