@@ -57,15 +57,6 @@ async function getUserSnapsmithStatus(userId) {
     const now = new Date();
     const month = getCurrentMonth();
 
-    // Tally reactions
-    let totalUniqueReactions = 0;
-    if (reactions[userId] && reactions[userId][month]) {
-        for (const reactorsArr of Object.values(reactions[userId][month])) {
-            totalUniqueReactions += reactorsArr.length;
-        }
-    }
-
-    // Metadata (role status, expiration, superApproved)
     const userMeta = meta[userId];
     let roleActive = false;
     let timeLeft = null;
@@ -86,7 +77,29 @@ async function getUserSnapsmithStatus(userId) {
         }
     }
 
-    // Days queued (total), capped at MAX_BUFFER_DAYS
+    let totalUniqueReactions = 0;
+
+    if (roleActive && userMeta && userMeta.snapsmithAchievedAt) {
+        // Sum all reactions since achievement
+        const achievementDate = new Date(userMeta.snapsmithAchievedAt);
+        const userReactions = reactions[userId] || {};
+        for (const [mon, posts] of Object.entries(userReactions)) {
+            const monDate = new Date(mon + '-01T00:00:00.000Z');
+            if (monDate >= achievementDate) {
+                for (const reactorsArr of Object.values(posts)) {
+                    totalUniqueReactions += reactorsArr.length;
+                }
+            }
+        }
+    } else {
+        // If not a snapsmith yet, just show current month
+        if (reactions[userId] && reactions[userId][month]) {
+            for (const reactorsArr of Object.values(reactions[userId][month])) {
+                totalUniqueReactions += reactorsArr.length;
+            }
+        }
+    }
+
     let daysQueued = 0;
     if (expiration) {
         const expirationDate = new Date(expiration);
@@ -97,10 +110,8 @@ async function getUserSnapsmithStatus(userId) {
     // Count superreactions from Veinz this month
     const superReactionCount = countSuperReactions(userId, month);
 
-    // If no reactions and no meta, show nothing
     if (totalUniqueReactions === 0 && !userMeta) return null;
 
-    // How many more reactions until next day is added (only if already has role)
     let nextDayReactions = null;
     if (roleActive) {
         nextDayReactions = getNextDayReactions(userMeta, totalUniqueReactions);
