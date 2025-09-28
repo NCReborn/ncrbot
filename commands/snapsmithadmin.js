@@ -2,13 +2,15 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
+// Import constants from snapsmithManager.js
+const { SNAPSMITH_ROLE_ID, SNAPSMITH_CHANNEL_ID } = require('../utils/snapsmithManager');
+
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
 const MAX_BUFFER_DAYS = 60;
 //const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
 const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
-const SNAPSMITH_CHANNEL_ID = '1406275196133965834';
 
 function loadData() {
     if (fs.existsSync(DATA_PATH)) {
@@ -107,7 +109,7 @@ async function execute(interaction) {
         }
 
         const sub = interaction.options.getSubcommand();
-        const data = loadData();
+        const dataObj = loadData();
         const month = getCurrentMonth();
         let user = interaction.options.getUser('user');
         let messageId = interaction.options.getString('messageid');
@@ -118,12 +120,12 @@ async function execute(interaction) {
                 reply = "User and message ID required.";
             } else {
                 let found = false;
-                for (const [uid, userData] of Object.entries(data)) {
+                for (const [uid, userData] of Object.entries(dataObj)) {
                     if (userData.months[month] && userData.months[month][messageId]) {
                         found = true;
                         if (!userData.months[month][messageId].includes(user.id)) {
                             userData.months[month][messageId].push(user.id);
-                            saveData(data);
+                            saveData(dataObj);
                             reply = `Added reaction for ${user} on message ${messageId}.`;
                         } else {
                             reply = `${user} already has a reaction on message ${messageId}.`;
@@ -140,14 +142,14 @@ async function execute(interaction) {
                 reply = "User and message ID required.";
             } else {
                 let found = false;
-                for (const [uid, userData] of Object.entries(data)) {
+                for (const [uid, userData] of Object.entries(dataObj)) {
                     if (userData.months[month] && userData.months[month][messageId]) {
                         found = true;
                         let arr = userData.months[month][messageId];
                         if (arr.includes(user.id)) {
                             arr = arr.filter(id => id !== user.id);
                             userData.months[month][messageId] = arr;
-                            saveData(data);
+                            saveData(dataObj);
                             reply = `Removed reaction for ${user} on message ${messageId}.`;
                         } else {
                             reply = `${user} does not have a reaction on message ${messageId}.`;
@@ -163,10 +165,10 @@ async function execute(interaction) {
             let days = interaction.options.getInteger('days') || ROLE_DURATION_DAYS;
             if (!user) reply = "User required.";
             else {
-                if (!data[user.id]) data[user.id] = { months: {}, expiration: null, superApproved: false };
+                if (!dataObj[user.id]) dataObj[user.id] = { months: {}, expiration: null, superApproved: false };
                 const newExpiry = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-                data[user.id].expiration = newExpiry.toISOString();
-                saveData(data);
+                dataObj[user.id].expiration = newExpiry.toISOString();
+                saveData(dataObj);
                 try {
                     const member = await interaction.guild.members.fetch(user.id);
                     await member.roles.add(SNAPSMITH_ROLE_ID);
@@ -178,10 +180,10 @@ async function execute(interaction) {
         } else if (sub === 'forceremove') {
             if (!user) reply = "User required.";
             else {
-                if (data[user.id]) {
-                    data[user.id].expiration = null;
-                    data[user.id].superApproved = false;
-                    saveData(data);
+                if (dataObj[user.id]) {
+                    dataObj[user.id].expiration = null;
+                    dataObj[user.id].superApproved = false;
+                    saveData(dataObj);
                     try {
                         const member = await interaction.guild.members.fetch(user.id);
                         await member.roles.remove(SNAPSMITH_ROLE_ID);
@@ -196,9 +198,9 @@ async function execute(interaction) {
         } else if (sub === 'reset') {
             if (!user) reply = "User required.";
             else {
-                if (data[user.id]) {
-                    data[user.id].months[month] = {};
-                    saveData(data);
+                if (dataObj[user.id]) {
+                    dataObj[user.id].months[month] = {};
+                    saveData(dataObj);
                     reply = `Cleared all reaction data for ${user} for month ${month}.`;
                 } else {
                     reply = "User not found in data.";
@@ -207,8 +209,8 @@ async function execute(interaction) {
         } else if (sub === 'debug') {
             if (!user) reply = "User required.";
             else {
-                if (data[user.id]) {
-                    reply = `Data for ${user}:\n\`\`\`json\n${JSON.stringify(data[user.id], null, 2)}\n\`\`\``;
+                if (dataObj[user.id]) {
+                    reply = `Data for ${user}:\n\`\`\`json\n${JSON.stringify(dataObj[user.id], null, 2)}\n\`\`\``;
                 } else {
                     reply = "User not found in data.";
                 }
@@ -217,9 +219,9 @@ async function execute(interaction) {
             let remove = interaction.options.getBoolean('remove');
             if (!user) reply = "User required.";
             else {
-                if (!data[user.id]) data[user.id] = { months: {}, expiration: null, superApproved: false };
-                data[user.id].superApproved = !remove;
-                saveData(data);
+                if (!dataObj[user.id]) dataObj[user.id] = { months: {}, expiration: null, superApproved: false };
+                dataObj[user.id].superApproved = !remove;
+                saveData(dataObj);
                 reply = `${remove ? 'Removed' : 'Set'} super approval for ${user}.`;
             }
         } else if (sub === 'syncroles') {
@@ -237,9 +239,9 @@ async function execute(interaction) {
                 const exp = new Date(dateStr);
                 if (isNaN(exp.getTime())) reply = "Invalid date format. Use YYYY-MM-DD.";
                 else {
-                    if (!data[user.id]) data[user.id] = { months: {}, expiration: null, superApproved: false };
-                    data[user.id].expiration = exp.toISOString();
-                    saveData(data);
+                    if (!dataObj[user.id]) dataObj[user.id] = { months: {}, expiration: null, superApproved: false };
+                    dataObj[user.id].expiration = exp.toISOString();
+                    saveData(dataObj);
                     reply = `Set expiration for ${user} to ${exp.toISOString()}.`;
                 }
             }
@@ -249,7 +251,7 @@ async function execute(interaction) {
                 reply = "Months to keep must be at least 1.";
             } else {
                 let purged = 0;
-                for (const userData of Object.values(data)) {
+                for (const userData of Object.values(dataObj)) {
                     if (!userData.months) continue;
                     const keys = Object.keys(userData.months);
                     if (keys.length > months) {
@@ -258,7 +260,7 @@ async function execute(interaction) {
                         purged += toDelete.length;
                     }
                 }
-                saveData(data);
+                saveData(dataObj);
                 reply = `Purged data for ${purged} month(s) older than last ${months} months.`;
             }
         } else if (sub === 'announce') {
