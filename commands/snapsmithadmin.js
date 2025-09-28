@@ -102,18 +102,184 @@ module.exports = {
             await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
             return;
         }
-        await interaction.deferReply({ ephemeral: true }); // Defer for all admin commands
+        await interaction.deferReply({ ephemeral: true }); // Only ONE deferReply
 
         const sub = interaction.options.getSubcommand();
         const data = loadData();
         const month = getCurrentMonth();
         let user = interaction.options.getUser('user');
         let messageId = interaction.options.getString('messageid');
-        let reply = "";
+        let reply = "No action taken."; // Default reply to ensure non-empty
 
-        // ...all previous subcommands unchanged...
-
-        if (sub === 'scan') {
+        if (sub === 'addreaction') {
+            if (!user || !messageId) {
+                reply = "User and message ID required.";
+            } else {
+                let found = false;
+                for (const [uid, userData] of Object.entries(data)) {
+                    if (userData.months[month] && userData.months[month][messageId]) {
+                        found = true;
+                        if (!userData.months[month][messageId].includes(user.id)) {
+                            userData.months[month][messageId].push(user.id);
+                            saveData(data);
+                            reply = `Added reaction for ${user} on message ${messageId}.`;
+                        } else {
+                            reply = `${user} already has a reaction on message ${messageId}.`;
+                        }
+                        break;
+                    }
+                }
+                if (!found) {
+                    reply = `Message ${messageId} not found in current month data.`;
+                }
+            }
+        } else if (sub === 'removereaction') {
+            if (!user || !messageId) {
+                reply = "User and message ID required.";
+            } else {
+                let found = false;
+                for (const [uid, userData] of Object.entries(data)) {
+                    if (userData.months[month] && userData.months[month][messageId]) {
+                        found = true;
+                        let arr = userData.months[month][messageId];
+                        if (arr.includes(user.id)) {
+                            arr = arr.filter(id => id !== user.id);
+                            userData.months[month][messageId] = arr;
+                            saveData(data);
+                            reply = `Removed reaction for ${user} on message ${messageId}.`;
+                        } else {
+                            reply = `${user} does not have a reaction on message ${messageId}.`;
+                        }
+                        break;
+                    }
+                }
+                if (!found) {
+                    reply = `Message ${messageId} not found in current month data.`;
+                }
+            }
+        } else if (sub === 'forcegive') {
+            let days = interaction.options.getInteger('days') || ROLE_DURATION_DAYS;
+            if (!user) reply = "User required.";
+            else {
+                if (!data[user.id]) data[user.id] = { months: {}, expiration: null, superApproved: false };
+                const newExpiry = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+                data[user.id].expiration = newExpiry.toISOString();
+                saveData(data);
+                try {
+                    const member = await interaction.guild.members.fetch(user.id);
+                    await member.roles.add(SNAPSMITH_ROLE_ID);
+                    reply = `Force-given Snapsmith role to ${user} for ${days} days.`;
+                } catch (e) {
+                    reply = `Force-given in system, but could not add Discord role: ${e.message}`;
+                }
+            }
+        } else if (sub === 'forceremove') {
+            if (!user) reply = "User required.";
+            else {
+                if (data[user.id]) {
+                    data[user.id].expiration = null;
+                    data[user.id].superApproved = false;
+                    saveData(data);
+                    try {
+                        const member = await interaction.guild.members.fetch(user.id);
+                        await member.roles.remove(SNAPSMITH_ROLE_ID);
+                        reply = `Force-removed Snapsmith role from ${user}.`;
+                    } catch (e) {
+                        reply = `Force-removed in system, but could not remove Discord role: ${e.message}`;
+                    }
+                } else {
+                    reply = "User not found in data.";
+                }
+            }
+        } else if (sub === 'reset') {
+            if (!user) reply = "User required.";
+            else {
+                if (data[user.id]) {
+                    data[user.id].months[month] = {};
+                    saveData(data);
+                    reply = `Cleared all reaction data for ${user} for month ${month}.`;
+                } else {
+                    reply = "User not found in data.";
+                }
+            }
+        } else if (sub === 'debug') {
+            if (!user) reply = "User required.";
+            else {
+                if (data[user.id]) {
+                    reply = `Data for ${user}:\n\`\`\`json\n${JSON.stringify(data[user.id], null, 2)}\n\`\`\``;
+                } else {
+                    reply = "User not found in data.";
+                }
+            }
+        } else if (sub === 'forcesuper') {
+            let remove = interaction.options.getBoolean('remove');
+            if (!user) reply = "User required.";
+            else {
+                if (!data[user.id]) data[user.id] = { months: {}, expiration: null, superApproved: false };
+                data[user.id].superApproved = !remove;
+                saveData(data);
+                reply = `${remove ? 'Removed' : 'Set'} super approval for ${user}.`;
+            }
+        } else if (sub === 'syncroles') {
+            try {
+                const { syncCurrentSnapsmiths } = require('../utils/snapsmithManager');
+                await syncCurrentSnapsmiths(interaction.client);
+                reply = "Synced current Snapsmith role holders from Discord into system.";
+            } catch (e) {
+                reply = `Sync failed: ${e.message}`;
+            }
+        } else if (sub === 'setexpiry') {
+            const dateStr = interaction.options.getString('date');
+            if (!user || !dateStr) reply = "User and date required.";
+            else {
+                const exp = new Date(dateStr);
+                if (isNaN(exp.getTime())) reply = "Invalid date format. Use YYYY-MM-DD.";
+                else {
+                    if (!data[user.id]) data[user.id] = { months: {}, expiration: null, superApproved: false };
+                    data[user.id].expiration = exp.toISOString();
+                    saveData(data);
+                    reply = `Set expiration for ${user} to ${exp.toISOString()}.`;
+                }
+            }
+        } else if (sub === 'purge') {
+            const months = interaction.options.getInteger('months');
+            if (!months || months < 1) {
+                reply = "Months to keep must be at least 1.";
+            } else {
+                let purged = 0;
+                for (const userData of Object.values(data)) {
+                    if (!userData.months) continue;
+                    const keys = Object.keys(userData.months);
+                    if (keys.length > months) {
+                        const toDelete = keys.sort().slice(0, keys.length - months);
+                        toDelete.forEach(k => delete userData.months[k]);
+                        purged += toDelete.length;
+                    }
+                }
+                saveData(data);
+                reply = `Purged data for ${purged} month(s) older than last ${months} months.`;
+            }
+        } else if (sub === 'announce') {
+            if (!user) reply = "User required.";
+            else {
+                const days = interaction.options.getInteger('days');
+                const reactions = interaction.options.getInteger('reactions');
+                const superapproved = interaction.options.getBoolean('superapproved');
+                try {
+                    const channel = await interaction.guild.channels.fetch(SNAPSMITH_CHANNEL_ID);
+                    let msg = `<@${user.id}> has been manually announced as a Snapsmith winner! 🎉\n`;
+                    msg += `Awarded: **${days} days** of Snapsmith.\n`;
+                    if (typeof reactions === 'number')
+                        msg += `Unique reactions: **${reactions}**\n`;
+                    if (superapproved)
+                        msg += `Super Approval: :star2: included!\n`;
+                    await channel.send(msg);
+                    reply = `Announced Snapsmith winner for ${user}.`;
+                } catch (e) {
+                    reply = `Failed to announce in channel: ${e.message}`;
+                }
+            }
+        } else if (sub === 'scan') {
             try {
                 const { scanShowcase } = require('../utils/snapsmithManager');
                 await scanShowcase(interaction.client);
@@ -122,8 +288,6 @@ module.exports = {
                 reply = `Manual scan failed: ${e.message}`;
             }
         }
-
-        // ...other subcommands unchanged...
 
         await interaction.editReply({ content: reply });
     }
