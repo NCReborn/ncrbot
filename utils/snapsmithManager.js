@@ -9,7 +9,8 @@ const SNAPSMITH_ROLE_ID   = '1374841261898469378';
 const REACTION_TARGET     = 25;
 const ROLE_DURATION_DAYS  = 30;
 const MAX_BUFFER_DAYS     = 60;
-const SUPER_APPROVER_ID   = '278359162860077056'; // zVeinz
+//const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
+const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
 
 // Persistent data path
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
@@ -110,7 +111,7 @@ async function scanShowcase(client) {
                     uniqueReactors.add(user.id);
                 }
             });
-            // Check for super approval (star2 emoji by zVeinz)
+            // Check for super approval (star2 emoji by zVeinz or your test user)
             if (
                 reaction.emoji.name === 'star2' || reaction.emoji.id === '✨' || reaction.emoji.name === '✨'
             ) {
@@ -216,5 +217,6 @@ module.exports = {
             scanShowcase(client).catch(console.error);
         }, 3600 * 1000); // Scan every hour
     },
-    syncCurrentSnapsmiths
+    syncCurrentSnapsmiths,
+    scanShowcase // <-- now exported for admin command!
 };
