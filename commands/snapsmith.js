@@ -112,6 +112,13 @@ module.exports = {
         .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)'),
     async execute(interaction) {
         try {
+            // Use deferReply for robustness against timeouts
+            let usedDefer = false;
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: true });
+                usedDefer = true;
+            }
+
             const status = await getUserSnapsmithStatus(interaction.user.id);
             let msg;
             if (!status) {
@@ -132,17 +139,15 @@ module.exports = {
                 msg += `- Days queued (total): **${status.daysQueued}** (max ${MAX_BUFFER_DAYS})\n`;
             }
 
-            // Only reply ONCE per interaction, and use flags for ephemeral!
-            if (!interaction.replied && !interaction.deferred) {
+            // Respond ONLY ONCE
+            if (usedDefer) {
+                await interaction.editReply({ content: msg });
+            } else {
                 await interaction.reply({ content: msg, flags: 64 });
             }
         } catch (err) {
-            // Only log errors, never throw
+            // Only log errors, never try to reply again
             console.error("Error in /snapsmith command:", err);
-            // Only reply if not already responded
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ content: "There was an error running /snapsmith.", flags: 64 });
-            }
         }
     }
 };
