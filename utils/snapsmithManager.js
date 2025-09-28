@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { ChannelType } = require('discord.js');
 
-// CONFIG (Replace with your actual IDs)
+// CONFIG (Replace these with your actual IDs)
 const SHOWCASE_CHANNEL_ID = '1285797205927792782';
 const SNAPSMITH_CHANNEL_ID = '1406275196133965834';
 const SNAPSMITH_ROLE_ID   = '1374841261898469378';
@@ -12,7 +12,6 @@ const MAX_BUFFER_DAYS     = 60;
 //const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
 const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
 
-// Persistent data path
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
 
@@ -39,12 +38,12 @@ function getCurrentMonth() {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// Sync current Snapsmith role holders into the system (unchanged)
 async function syncCurrentSnapsmiths(client) {
+    console.log('[SCAN DEBUG] syncCurrentSnapsmiths called!');
     const data = loadData();
     const guild = client.guilds.cache.values().next().value;
     if (!guild) {
-        console.log("No guild found for syncCurrentSnapsmiths.");
+        console.log("[SCAN DEBUG] No guild found for syncCurrentSnapsmiths.");
         return;
     }
 
@@ -52,17 +51,17 @@ async function syncCurrentSnapsmiths(client) {
     try {
         role = await guild.roles.fetch(SNAPSMITH_ROLE_ID);
     } catch (e) {
-        console.log("Role fetch failed:", e);
+        console.log("[SCAN DEBUG] Role fetch failed:", e);
         return;
     }
     if (!role) {
-        console.log("Snapsmith role not found in guild.");
+        console.log("[SCAN DEBUG] Snapsmith role not found in guild.");
         return;
     }
 
     await guild.members.fetch();
     const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
-    console.log(`Found ${membersWithRole.size} members with Snapsmith role.`);
+    console.log(`[SCAN DEBUG] Found ${membersWithRole.size} members with Snapsmith role.`);
 
     const now = new Date();
     let updated = false;
@@ -80,14 +79,14 @@ async function syncCurrentSnapsmiths(client) {
 
     if (updated) {
         saveData(data);
-        console.log("Snapsmith data updated and saved.");
+        console.log("[SCAN DEBUG] Snapsmith data updated and saved.");
     } else {
-        console.log("No new Snapsmiths to add to data.");
+        console.log("[SCAN DEBUG] No new Snapsmiths to add to data.");
     }
 }
 
-// Main scan function: reactions now go to snapsmithreactions.json
 async function scanShowcase(client) {
+    console.log('[SCAN DEBUG] scanShowcase called!');
     await syncCurrentSnapsmiths(client);
 
     const reactions = loadReactions();
@@ -96,27 +95,40 @@ async function scanShowcase(client) {
     const now = new Date();
     const month = getCurrentMonth();
 
-    if (!showcase || showcase.type !== ChannelType.GuildText) return;
+    if (!showcase || showcase.type !== ChannelType.GuildText) {
+        console.log('[SCAN DEBUG] Showcase channel not found or wrong type!');
+        return;
+    }
 
     const messages = await showcase.messages.fetch({ limit: 100 });
+    console.log(`[SCAN DEBUG] Fetched ${messages.size} messages from showcase.`);
+
+    let messageCount = 0;
+    let attachmentCount = 0;
     for (const msg of messages.values()) {
-        if (!msg.attachments.size) continue;
+        messageCount++;
+        if (!msg.attachments.size) {
+            // No images, skip
+            continue;
+        }
+        attachmentCount++;
 
         const userId = msg.author.id;
         if (!reactions[userId]) reactions[userId] = {};
         if (!reactions[userId][month]) reactions[userId][month] = {};
 
-        // Collect unique user IDs who reacted to this message (per photo)
         let uniqueReactors = new Set();
         let superApproved = false;
+
         for (const reaction of msg.reactions.cache.values()) {
             const users = await reaction.users.fetch();
+            console.log(`[SCAN DEBUG] Reaction ${reaction.emoji.name} on msg ${msg.id}: Users:`, Array.from(users.values()).map(u => u.id));
             users.forEach(user => {
                 if (user.id !== msg.author.id && !user.bot) {
                     uniqueReactors.add(user.id);
                 }
             });
-            // Check for super approval (star2 emoji by zVeinz or your test user)
+
             if (
                 reaction.emoji.name === 'star2' || reaction.emoji.id === '✨' || reaction.emoji.name === '✨'
             ) {
@@ -125,13 +137,14 @@ async function scanShowcase(client) {
                 }
             }
         }
-        // Store array of unique reactor user IDs for this message in reactions file
+
+        // Debug log: what did we see?
+        console.log(`[SCAN DEBUG] Message ${msg.id} by ${userId}: ${uniqueReactors.size} unique reactors:`, Array.from(uniqueReactors));
+
         reactions[userId][month][msg.id] = Array.from(uniqueReactors);
 
         // Still update snapsmith.json for superApproved logic, etc.
         if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false };
-        // Optionally, you can reference reactions in snapsmith.json if needed.
-        // Super approval logic
         if (superApproved && !data[userId].superApproved) {
             const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             data[userId].expiration = newExpiry.toISOString();
@@ -144,30 +157,36 @@ async function scanShowcase(client) {
                 await snapsmithChannel.send(
                     `<@${userId}> has received a **Super Approval** from <@${SUPER_APPROVER_ID}> and is awarded Snapsmith for 30 days! :star2:`
                 );
-            } catch (e) {}
+                console.log(`[SCAN DEBUG] Super approval awarded for ${userId}.`);
+            } catch (e) {
+                console.log(`[SCAN DEBUG] Super approval role assignment failed for ${userId}: ${e.message}`);
+            }
         }
     }
 
+    console.log(`[SCAN DEBUG] Processed ${messageCount} messages, found ${attachmentCount} with attachments.`);
     saveReactions(reactions);
+    console.log('[SCAN DEBUG] Reactions file saved. Current data:', JSON.stringify(reactions, null, 2));
     saveData(data);
     await evaluateRoles(client, data, reactions);
+    console.log('[SCAN DEBUG] scanShowcase finished.');
 }
 
-// Evaluate reactions and update roles (now reads from reactions file)
 async function evaluateRoles(client, data, reactions) {
+    console.log('[SCAN DEBUG] evaluateRoles called!');
     const guild = client.guilds.cache.values().next().value;
     const now = new Date();
     const month = getCurrentMonth();
 
     for (const [userId, userData] of Object.entries(data)) {
-        // Use reactions file for reaction count
         let totalUniqueReactions = 0;
         const userReactionsMonth = reactions[userId]?.[month] || {};
         for (const reactorsArr of Object.values(userReactionsMonth)) {
             totalUniqueReactions += reactorsArr.length;
         }
 
-        // Duration logic
+        console.log(`[SCAN DEBUG] User ${userId}: ${totalUniqueReactions} unique reactions this month.`);
+
         let durationDays = 0;
         if (userData.superApproved) {
             durationDays += ROLE_DURATION_DAYS;
@@ -183,7 +202,6 @@ async function evaluateRoles(client, data, reactions) {
         }
         durationDays = Math.min(durationDays, MAX_BUFFER_DAYS);
 
-        // Calculate new expiration
         if (durationDays > 0) {
             const currentExpiration = userData.expiration ? new Date(userData.expiration) : null;
             const newExpiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
@@ -201,22 +219,28 @@ async function evaluateRoles(client, data, reactions) {
                         msg += ` (Includes Super Approval :star2:)`;
                     }
                     await snapsmithChannel.send(msg);
-                } catch (e) {}
+                    console.log(`[SCAN DEBUG] Role/award message sent for ${userId}.`);
+                } catch (e) {
+                    console.log(`[SCAN DEBUG] Failed to add role/send award for ${userId}: ${e.message}`);
+                }
             }
         }
 
-        // Remove role if expired
         if (userData.expiration && new Date(userData.expiration) < now) {
             try {
                 const member = await guild.members.fetch(userId);
                 await member.roles.remove(SNAPSMITH_ROLE_ID);
-            } catch (e) {}
+                console.log(`[SCAN DEBUG] Removed Snapsmith role for expired user ${userId}.`);
+            } catch (e) {
+                console.log(`[SCAN DEBUG] Failed to remove role for expired user ${userId}: ${e.message}`);
+            }
             userData.expiration = null;
             userData.superApproved = false;
         }
     }
 
     saveData(data);
+    console.log('[SCAN DEBUG] evaluateRoles finished.');
 }
 
 module.exports = {
