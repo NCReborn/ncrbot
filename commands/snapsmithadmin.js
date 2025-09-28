@@ -6,7 +6,7 @@ const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
 const MAX_BUFFER_DAYS = 60;
-const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
+//const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
 const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
 const SNAPSMITH_CHANNEL_ID = '1406275196133965834';
 
