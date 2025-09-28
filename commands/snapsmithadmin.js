@@ -119,17 +119,17 @@ async function execute(interaction) {
                     const achievedAt = new Date(expirationDate.getTime() - daysLeft * 24 * 60 * 60 * 1000);
                     userData.snapsmithAchievedAt = achievedAt.toISOString();
 
-                    // Compute initialReactionCount
-                    let initialReactionCount = REACTION_TARGET;
+                    // Compute initialReactionCount correctly
                     const userReactionsMonth = reactionsObj[userId]?.[month] || {};
                     let totalUniqueReactions = 0;
                     for (const reactorsArr of Object.values(userReactionsMonth)) {
                         totalUniqueReactions += reactorsArr.length;
                     }
-                    if (totalUniqueReactions > 0) {
-                        initialReactionCount = totalUniqueReactions;
+                    if (userData.superApproved) {
+                        userData.initialReactionCount = totalUniqueReactions;
+                    } else {
+                        userData.initialReactionCount = REACTION_TARGET;
                     }
-                    userData.initialReactionCount = initialReactionCount;
 
                     patched++;
                 }
