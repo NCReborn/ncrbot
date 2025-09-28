@@ -2,7 +2,6 @@ const { SlashCommandBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
-// Match your utils/snapsmithManager.js config
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
@@ -29,11 +28,11 @@ async function getUserSnapsmithStatus(userId) {
 
     if (!userData) return null;
 
-    // Count unique reactions this month
-    let monthlyUniqueReactors = new Set();
+    // Sum all unique user counts across all images for the month
+    let totalUniqueReactions = 0;
     const monthData = userData.months[month] || {};
     for (const reactorsArr of Object.values(monthData)) {
-        reactorsArr.forEach(id => monthlyUniqueReactors.add(id));
+        totalUniqueReactions += reactorsArr.length;
     }
 
     // Role status
@@ -52,13 +51,12 @@ async function getUserSnapsmithStatus(userId) {
     // Calculate how many days queued
     let daysQueued = 0;
     if (userData.superApproved) daysQueued += ROLE_DURATION_DAYS;
-    let totalUniqueReactors = monthlyUniqueReactors.size;
-    if (totalUniqueReactors >= REACTION_TARGET) {
+    if (totalUniqueReactions >= REACTION_TARGET) {
         let additionalMilestones = 0;
         if (userData.superApproved) {
-            additionalMilestones = Math.floor((totalUniqueReactors - 5) / REACTION_TARGET);
+            additionalMilestones = Math.floor((totalUniqueReactions - 5) / REACTION_TARGET);
         } else {
-            additionalMilestones = Math.floor(totalUniqueReactors / REACTION_TARGET);
+            additionalMilestones = Math.floor(totalUniqueReactions / REACTION_TARGET);
         }
         daysQueued += Math.min(additionalMilestones * ROLE_DURATION_DAYS, MAX_BUFFER_DAYS - daysQueued);
     }
@@ -67,7 +65,7 @@ async function getUserSnapsmithStatus(userId) {
     return {
         roleActive,
         timeLeft,
-        totalUniqueReactors,
+        totalUniqueReactions,
         superApproved: !!userData.superApproved,
         daysQueued,
         expiration: userData.expiration
@@ -77,7 +75,7 @@ async function getUserSnapsmithStatus(userId) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('snapsmith')
-        .setDescription('Check your Snapsmith role status and eligibility'),
+        .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)'),
     async execute(interaction) {
         const status = await getUserSnapsmithStatus(interaction.user.id);
         if (!status) {
@@ -93,7 +91,7 @@ module.exports = {
             ? `- You currently have the Snapsmith role.\n- Time left: **${status.timeLeft} days**\n`
             : `- You do not currently have the Snapsmith role.\n`;
 
-        msg += `- Unique reactions this month: **${status.totalUniqueReactors}**\n`;
+        msg += `- Unique reactions this month (unique reactors per post summed): **${status.totalUniqueReactions}**\n`;
         msg += status.superApproved
             ? `- You received a :star2: Super Approval from <@${SUPER_APPROVER_ID}> this month!\n`
             : "";
