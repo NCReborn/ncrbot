@@ -17,7 +17,7 @@ const {
 } = require('../utils/snapsmithManager');
 
 const ROLE_DURATION_DAYS = 30;
-const EXTRA_DAY_REACTION_COUNT = 5; // Change this to your needed value
+const EXTRA_DAY_REACTION_COUNT = 5;
 const MAX_BUFFER_DAYS = 60;
 
 const data = new SlashCommandBuilder()
@@ -149,7 +149,8 @@ async function execute(interaction) {
                     if (!userData.snapsmithAchievedAt) {
                         userData.snapsmithAchievedAt = new Date().toISOString();
                     }
-                    // Calculate correct initialCount
+                    // Make sure initial count is correct for superApproved users
+                    if (userData.superApproved) userData.initialReactionCount = 0;
                     let totalUniqueReactions = 0;
                     const userReactions = reactionsObj[userId] || {};
                     for (const monthObj of Object.values(userReactions)) {
@@ -157,7 +158,7 @@ async function execute(interaction) {
                             totalUniqueReactions += reactorsArr.length;
                         }
                     }
-                    let initialCount = userData.superApproved ? 0 : (userData.initialReactionCount ?? REACTION_TARGET);
+                    let initialCount = userData.initialReactionCount ?? REACTION_TARGET;
                     let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
                     let milestoneDays = totalUniqueReactions >= initialCount ? Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT) : 0;
                     userData.reactionMilestoneDays = milestoneDays;
@@ -271,7 +272,7 @@ async function execute(interaction) {
                         totalUniqueReactions += reactorsArr.length;
                     }
                     if (userData.superApproved) {
-                        userData.initialReactionCount = totalUniqueReactions;
+                        userData.initialReactionCount = 0;
                     } else {
                         userData.initialReactionCount = REACTION_TARGET;
                     }
@@ -291,6 +292,7 @@ async function execute(interaction) {
             } else {
                 const userId = user.id;
                 const userData = dataObj[userId];
+                if (userData.superApproved) userData.initialReactionCount = 0;
                 let totalUniqueReactions = 0;
                 const userReactions = reactionsObj[userId] || {};
                 for (const monthObj of Object.values(userReactions)) {
@@ -298,7 +300,7 @@ async function execute(interaction) {
                         totalUniqueReactions += reactorsArr.length;
                     }
                 }
-                let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
+                let initialCount = userData.initialReactionCount ?? REACTION_TARGET;
                 let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
                 let milestoneDays = totalUniqueReactions >= initialCount ? Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT) : 0;
                 let baseDays = ROLE_DURATION_DAYS;
@@ -321,7 +323,6 @@ async function execute(interaction) {
                 });
             }
         }
-        // ... rest unchanged ...
         else if (sub === 'scan') {
             try {
                 const limit = interaction.options.getInteger('limit') || 100;
