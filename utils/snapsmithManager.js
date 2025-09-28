@@ -199,11 +199,11 @@ async function evaluateRoles(client, data) {
     saveData(data);
 }
 
-// Export periodic task for use in your bot
 module.exports = {
     startPeriodicScan: function(client) {
         setInterval(() => {
             scanShowcase(client).catch(console.error);
         }, 3600 * 1000); // Scan every hour
-    }
+    },
+    syncCurrentSnapsmiths
 };
