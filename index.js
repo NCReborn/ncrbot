@@ -152,7 +152,7 @@ client.once('ready', async () => {
 
 // --- Snapsmith Manager: Start periodic scan ---
 const { startPeriodicScan } = require('./utils/snapsmithManager');
-startPeriodicScan(client);
+// startPeriodicScan(client); <-- UNCOMMENT THIS AFTER MANUAL TESTS
 
 // --- Slash command handler ---
 client.on('interactionCreate', async interaction => {
