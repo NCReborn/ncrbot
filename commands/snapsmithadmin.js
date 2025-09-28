@@ -12,7 +12,8 @@ const {
     loadData,
     saveData,
     loadReactions,
-    getCurrentMonth
+    getCurrentMonth,
+    syncCurrentSnapsmiths
 } = require('../utils/snapsmithManager');
 
 const ROLE_DURATION_DAYS = 30;
@@ -335,6 +336,15 @@ async function execute(interaction) {
                 dataObj[user.id].snapsmithAchievedAt = dateObj.toISOString();
                 saveData(dataObj);
                 await interaction.editReply({ content: `Set snapsmithAchievedAt for ${user} to ${dateObj.toISOString()}` });
+            }
+        }
+        else if (sub === 'syncroles') {
+            // FULL PATCH
+            const result = await syncCurrentSnapsmiths(interaction.client);
+            if (result > 0) {
+                await interaction.editReply({ content: `Synced and patched ${result} Snapsmith role holders into snapsmith.json.` });
+            } else {
+                await interaction.editReply({ content: "No new Snapsmiths to add or update." });
             }
         }
         else {
