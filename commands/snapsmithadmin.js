@@ -149,7 +149,11 @@ async function execute(interaction) {
                     if (!userData.snapsmithAchievedAt) {
                         userData.snapsmithAchievedAt = new Date().toISOString();
                     }
-                    recalculateExpiration(userId, reactionsObj, dataObj, month);
+                    // Recalculate all milestone/bonus days and expiration!
+                    const result = recalculateExpiration(userId, reactionsObj, dataObj, month);
+                    userData.reactionMilestoneDays = result.milestoneDays;
+                    userData.superApprovalBonusDays = result.superApprovalBonusDays;
+                    userData.expiration = result.newExpiration;
                     processed++;
                 }
             }
@@ -199,7 +203,8 @@ async function execute(interaction) {
                     for (const reactorsArr of Object.values(userReactionsMonth)) {
                         if (reactorsArr.includes(SUPER_APPROVER_ID)) superReactionCount++;
                     }
-                    let extra = Math.max(0, totalUniqueReactions - (userData.initialReactionCount ?? REACTION_TARGET));
+                    let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
+                    let extra = Math.max(0, totalUniqueReactions - initialCount);
                     let reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - (extra % EXTRA_DAY_REACTION_COUNT);
                     if (reactionsToNextDay === 0) reactionsToNextDay = EXTRA_DAY_REACTION_COUNT;
                     nextDayReactions = reactionsToNextDay;
@@ -283,22 +288,24 @@ async function execute(interaction) {
                 }
                 let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
                 let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
-                let additionalDays = Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT);
+                let milestoneDays = Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT);
                 let baseDays = ROLE_DURATION_DAYS;
                 let maxDays = MAX_BUFFER_DAYS;
+                let superApprovalBonusDays = userData.superApprovalBonusDays || 0;
                 let achievedTimestamp = typeof userData?.snapsmithAchievedAt === 'string'
                     ? new Date(userData.snapsmithAchievedAt).getTime()
                     : userData?.snapsmithAchievedAt ?? Date.now();
-                let newExpiration = achievedTimestamp + (baseDays + additionalDays) * 24 * 60 * 60 * 1000;
+                let newExpiration = achievedTimestamp + (baseDays + milestoneDays + superApprovalBonusDays) * 24 * 60 * 60 * 1000;
                 let today = Date.now();
                 let actualDaysLeft = Math.max(0, Math.ceil((newExpiration - today) / (1000 * 60 * 60 * 24)));
                 if (actualDaysLeft > maxDays) actualDaysLeft = maxDays;
                 if (userData) {
+                    userData.reactionMilestoneDays = milestoneDays;
                     userData.expiration = new Date(newExpiration).toISOString();
                     saveData(dataObj);
                 }
                 await interaction.editReply({
-                    content: `<@${userId}> Snapsmith recalculated: Achieved on **${new Date(achievedTimestamp).toLocaleDateString()}**, total reactions: **${totalUniqueReactions}** (+${additionalDays} extra days), expires: **${new Date(newExpiration).toLocaleDateString()}**, days left: **${actualDaysLeft}**.`
+                    content: `<@${userId}> Snapsmith recalculated: Achieved on **${new Date(achievedTimestamp).toLocaleDateString()}**, total reactions: **${totalUniqueReactions}** (+${milestoneDays} milestone days, +${superApprovalBonusDays} Super Approval days), expires: **${new Date(newExpiration).toLocaleDateString()}**, days left: **${actualDaysLeft}**.`
                 });
             }
         }
