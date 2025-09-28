@@ -17,6 +17,7 @@ const {
 } = require('../utils/snapsmithManager');
 
 const ROLE_DURATION_DAYS = 30;
+const EXTRA_DAY_REACTION_COUNT = 5; // Change this to your needed value
 const MAX_BUFFER_DAYS = 60;
 
 const data = new SlashCommandBuilder()
@@ -145,7 +146,6 @@ async function execute(interaction) {
             let processed = 0;
             for (const [userId, userData] of Object.entries(dataObj)) {
                 if (userData.expiration) {
-                    // Ensure snapsmithAchievedAt is set for all users with a role
                     if (!userData.snapsmithAchievedAt) {
                         userData.snapsmithAchievedAt = new Date().toISOString();
                     }
@@ -200,8 +200,8 @@ async function execute(interaction) {
                         if (reactorsArr.includes(SUPER_APPROVER_ID)) superReactionCount++;
                     }
                     let extra = Math.max(0, totalUniqueReactions - (userData.initialReactionCount ?? REACTION_TARGET));
-                    let reactionsToNextDay = 3 - (extra % 3);
-                    if (reactionsToNextDay === 0) reactionsToNextDay = 3;
+                    let reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - (extra % EXTRA_DAY_REACTION_COUNT);
+                    if (reactionsToNextDay === 0) reactionsToNextDay = EXTRA_DAY_REACTION_COUNT;
                     nextDayReactions = reactionsToNextDay;
                 }
                 const embed = new EmbedBuilder()
@@ -281,10 +281,9 @@ async function execute(interaction) {
                         totalUniqueReactions += reactorsArr.length;
                     }
                 }
-                // PATCH: Only count extra days if user has met initial requirement
                 let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
                 let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
-                let additionalDays = Math.floor(extraReactions / 3);
+                let additionalDays = Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT);
                 let baseDays = ROLE_DURATION_DAYS;
                 let maxDays = MAX_BUFFER_DAYS;
                 let achievedTimestamp = typeof userData?.snapsmithAchievedAt === 'string'
@@ -303,6 +302,7 @@ async function execute(interaction) {
                 });
             }
         }
+        // ... rest unchanged ...
         else if (sub === 'scan') {
             try {
                 const limit = interaction.options.getInteger('limit') || 100;
