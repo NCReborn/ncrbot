@@ -31,31 +31,36 @@ function getCurrentMonth() {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// Sync current Snapsmith role holders into the system
+// Sync current Snapsmith role holders into the system (improved, with debug logs)
 async function syncCurrentSnapsmiths(client) {
     const data = loadData();
-    const guild = client.guilds.cache.first();
-    if (!guild) return;
+    // Use client.guilds.cache.values().next().value to reliably get the first guild
+    const guild = client.guilds.cache.values().next().value;
+    if (!guild) {
+        console.log("No guild found for syncCurrentSnapsmiths.");
+        return;
+    }
 
     let role;
     try {
         role = await guild.roles.fetch(SNAPSMITH_ROLE_ID);
     } catch (e) {
+        console.log("Role fetch failed:", e);
         return;
     }
-    if (!role) return;
-
-    let membersWithRole;
-    try {
-        membersWithRole = await role.members;
-        membersWithRole = [...membersWithRole.values()];
-    } catch (e) {
-        await guild.members.fetch();
-        membersWithRole = [...guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID)).values()];
+    if (!role) {
+        console.log("Snapsmith role not found in guild.");
+        return;
     }
 
+    // Force fetch all members for reliability
+    await guild.members.fetch();
+    const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
+    console.log(`Found ${membersWithRole.size} members with Snapsmith role.`);
+
     const now = new Date();
-    for (const member of membersWithRole) {
+    let updated = false;
+    for (const member of membersWithRole.values()) {
         const userId = member.id;
         if (!data[userId]) {
             data[userId] = {
@@ -63,10 +68,16 @@ async function syncCurrentSnapsmiths(client) {
                 expiration: new Date(now.getTime() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
                 superApproved: false
             };
+            updated = true;
         }
     }
 
-    saveData(data);
+    if (updated) {
+        saveData(data);
+        console.log("Snapsmith data updated and saved.");
+    } else {
+        console.log("No new Snapsmiths to add to data.");
+    }
 }
 
 // Main scan function
@@ -118,7 +129,7 @@ async function scanShowcase(client) {
             data[userId].superApproved = true;
 
             try {
-                const guild = client.guilds.cache.first();
+                const guild = client.guilds.cache.values().next().value;
                 const member = await guild.members.fetch(userId);
                 await member.roles.add(SNAPSMITH_ROLE_ID);
                 const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
@@ -135,7 +146,7 @@ async function scanShowcase(client) {
 
 // Evaluate reactions and update roles
 async function evaluateRoles(client, data) {
-    const guild = client.guilds.cache.first();
+    const guild = client.guilds.cache.values().next().value;
     const now = new Date();
     const month = getCurrentMonth();
 
