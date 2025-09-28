@@ -1,6 +1,4 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const path = require('path');
-const fs = require('fs');
 const {
     SNAPSMITH_ROLE_ID,
     SNAPSMITH_CHANNEL_ID,
@@ -133,7 +131,7 @@ async function execute(interaction) {
 
         if (sub === 'setinitialcountall') {
             let changed = 0;
-            for (const [userId, userData] of Object.entries(dataObj)) {
+            for (const [, userData] of Object.entries(dataObj)) {
                 if (userData.expiration) {
                     userData.initialReactionCount = 25;
                     changed++;
@@ -142,120 +140,99 @@ async function execute(interaction) {
             saveData(dataObj);
             await interaction.editReply({ content: `Set initialReactionCount = 25 for ${changed} Snapsmith users.` });
         }
-else if (sub === 'recalcall') {
-    let processed = 0;
-    for (const [userId, userData] of Object.entries(dataObj)) {
-        if (userData.expiration) {
-            // Only set snapsmithAchievedAt if missing
-            if (!userData.snapsmithAchievedAt) {
-                const userReactions = reactionsObj[userId] || {};
-                let earliestMonth = null;
-                for (const mon of Object.keys(userReactions)) {
-                    if (!earliestMonth || mon < earliestMonth) earliestMonth = mon;
-                }
-                if (earliestMonth) {
-                    userData.snapsmithAchievedAt = new Date(earliestMonth + '-01T00:00:00.000Z').toISOString();
-                } else {
-                    userData.snapsmithAchievedAt = new Date().toISOString();
-                }
-            }
-            // Make sure initial count is correct for superApproved users
-            if (userData.superApproved) userData.initialReactionCount = 0;
-            // Use recalculateExpiration to update all logic (milestoneDays, bonusDays, expiration)
-            const result = recalculateExpiration(userId, reactionsObj, dataObj, month);
-            // PATCH: Only update if milestoneDays or expiration have changed
-            userData.reactionMilestoneDays = result.milestoneDays;
-            userData.superApprovalBonusDays = result.superApprovalBonusDays;
-            userData.expiration = result.newExpiration;
-            // Add debug logging!
-            console.log(`[recalcall] User ${userId}: superApproved=${userData.superApproved}, achievedAt=${userData.snapsmithAchievedAt}, reactions=${result.totalUniqueReactions}, milestoneDays=${result.milestoneDays}, expiration=${result.newExpiration}`);
-            processed++;
-        }
-    }
-    saveData(dataObj);
-    await interaction.editReply({ content: `Recalculated days for ${processed} Snapsmith users.` });
-}
-        else if (sub === 'check') {
-            if (!user) {
-                await interaction.editReply({ content: "User required." });
-            } else {
-                const userId = user.id;
-                const userData = dataObj[userId];
-
-                let totalUniqueReactions = 0;
-                const userReactions = reactionsObj[userId] || {};
-                for (const monthObj of Object.values(userReactions)) {
-                    for (const reactorsArr of Object.values(monthObj)) {
-                        totalUniqueReactions += reactorsArr.length;
-                    }
-                }
-
-                let timeLeft = null;
-                let roleActive = false;
-                let superApproved = false;
-                let expiration = null;
-                let daysQueued = 0;
-                let nextDayReactions = null;
-                let superReactionCount = 0;
-                if (userData) {
-                    if (userData.expiration) {
-                        const expirationDate = new Date(userData.expiration);
-                        if (expirationDate > new Date()) {
-                            roleActive = true;
-                            timeLeft = Math.ceil((expirationDate - new Date()) / (1000 * 60 * 60 * 24));
+        else if (sub === 'recalcall') {
+            let processed = 0;
+            for (const [userId, userData] of Object.entries(dataObj)) {
+                if (userData.expiration) {
+                    // Only set snapsmithAchievedAt if missing
+                    if (!userData.snapsmithAchievedAt) {
+                        const userReactions = reactionsObj[userId] || {};
+                        let earliestMonth = null;
+                        for (const mon of Object.keys(userReactions)) {
+                            if (!earliestMonth || mon < earliestMonth) earliestMonth = mon;
                         }
-                        expiration = userData.expiration;
+                        userData.snapsmithAchievedAt = earliestMonth
+                            ? new Date(earliestMonth + '-01T00:00:00.000Z').toISOString()
+                            : new Date().toISOString();
                     }
-                    if (userData.superApproved) {
-                        superApproved = true;
-                    }
-                    if (expiration) {
-                        const expirationDate = new Date(expiration);
-                        daysQueued = Math.ceil((expirationDate - new Date()) / (1000 * 60 * 60 * 24));
-                        daysQueued = Math.min(daysQueued, MAX_BUFFER_DAYS);
-                    }
-                    const userReactionsMonth = reactionsObj[userId]?.[month] || {};
-                    for (const reactorsArr of Object.values(userReactionsMonth)) {
-                        if (reactorsArr.includes(SUPER_APPROVER_ID)) superReactionCount++;
-                    }
-                    let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
-                    let extra = Math.max(0, totalUniqueReactions - initialCount);
-                    let reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - (extra % EXTRA_DAY_REACTION_COUNT);
-                    if (reactionsToNextDay === 0) reactionsToNextDay = EXTRA_DAY_REACTION_COUNT;
-                    nextDayReactions = reactionsToNextDay;
+                    if (userData.superApproved) userData.initialReactionCount = 0;
+                    const result = recalculateExpiration(userId, reactionsObj, dataObj, month);
+                    userData.reactionMilestoneDays = result.milestoneDays;
+                    userData.superApprovalBonusDays = result.superApprovalBonusDays;
+                    userData.expiration = result.newExpiration;
+                    processed++;
                 }
-                const embed = new EmbedBuilder()
-                    .setColor(0xFAA61A)
-                    .setTitle(`Snapsmith Status`)
-                    .addFields(
-                        { name: 'User', value: `<@${userId}>`, inline: true },
-                        { name: 'Role Status', value: roleActive
-                            ? (superApproved
-                                ? 'You currently have the Snapsmith role (**awarded via Super Approval**).'
-                                : 'You currently have the Snapsmith role.')
-                            : 'You do **not** currently have the Snapsmith role.', inline: false },
-                        { name: 'Time Left', value: `**${timeLeft ?? 0} days**`, inline: true },
-                        { name: 'Unique Reactions', value: `**${totalUniqueReactions}**`, inline: true },
-                        { name: 'Next Day Progress', value: roleActive ? `**${nextDayReactions}** more reactions until an additional day is added.` : 'N/A', inline: true },
-                        ...(superApproved ? [
-                            { name: 'Super Approval', value: `You received a 🌟 Super Approval from <@${SUPER_APPROVER_ID}>!`, inline: false }
-                        ] : []),
-                        { name: 'Super reactions this month', value: `**${superReactionCount}**`, inline: true },
-                        { name: 'Days queued', value: `**${daysQueued}** (max ${MAX_BUFFER_DAYS})`, inline: true }
-                    );
-                await interaction.editReply({ embeds: [embed] });
             }
+            saveData(dataObj);
+            await interaction.editReply({ content: `Recalculated days for ${processed} Snapsmith users.` });
+        }
+        else if (sub === 'check') {
+            if (!user) return interaction.editReply({ content: "User required." });
+            const userId = user.id;
+            const userData = dataObj[userId];
+
+            let totalUniqueReactions = 0;
+            const userReactions = reactionsObj[userId] || {};
+            for (const monthObj of Object.values(userReactions)) {
+                for (const reactorsArr of Object.values(monthObj)) {
+                    totalUniqueReactions += reactorsArr.length;
+                }
+            }
+            let timeLeft = null, roleActive = false, superApproved = false,
+                expiration = null, daysQueued = 0, nextDayReactions = null, superReactionCount = 0;
+            if (userData) {
+                if (userData.expiration) {
+                    const expirationDate = new Date(userData.expiration);
+                    if (expirationDate > new Date()) {
+                        roleActive = true;
+                        timeLeft = Math.ceil((expirationDate - new Date()) / (1000 * 60 * 60 * 24));
+                    }
+                    expiration = userData.expiration;
+                }
+                if (userData.superApproved) superApproved = true;
+                if (expiration) {
+                    const expirationDate = new Date(expiration);
+                    daysQueued = Math.ceil((expirationDate - new Date()) / (1000 * 60 * 60 * 24));
+                    daysQueued = Math.min(daysQueued, MAX_BUFFER_DAYS);
+                }
+                const userReactionsMonth = reactionsObj[userId]?.[month] || {};
+                for (const reactorsArr of Object.values(userReactionsMonth)) {
+                    if (reactorsArr.includes(SUPER_APPROVER_ID)) superReactionCount++;
+                }
+                let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
+                let extra = Math.max(0, totalUniqueReactions - initialCount);
+                let reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - (extra % EXTRA_DAY_REACTION_COUNT);
+                if (reactionsToNextDay === 0) reactionsToNextDay = EXTRA_DAY_REACTION_COUNT;
+                nextDayReactions = reactionsToNextDay;
+            }
+            const embed = new EmbedBuilder()
+                .setColor(0xFAA61A)
+                .setTitle(`Snapsmith Status`)
+                .addFields(
+                    { name: 'User', value: `<@${userId}>`, inline: true },
+                    { name: 'Role Status', value: roleActive
+                        ? (superApproved
+                            ? 'You currently have the Snapsmith role (**awarded via Super Approval**).'
+                            : 'You currently have the Snapsmith role.')
+                        : 'You do **not** currently have the Snapsmith role.', inline: false },
+                    { name: 'Time Left', value: `**${timeLeft ?? 0} days**`, inline: true },
+                    { name: 'Unique Reactions', value: `**${totalUniqueReactions}**`, inline: true },
+                    { name: 'Next Day Progress', value: roleActive ? `**${nextDayReactions}** more reactions until an additional day is added.` : 'N/A', inline: true },
+                    ...(superApproved ? [
+                        { name: 'Super Approval', value: `You received a 🌟 Super Approval from <@${SUPER_APPROVER_ID}>!`, inline: false }
+                    ] : []),
+                    { name: 'Super reactions this month', value: `**${superReactionCount}**`, inline: true },
+                    { name: 'Days queued', value: `**${daysQueued}** (max ${MAX_BUFFER_DAYS})`, inline: true }
+                );
+            await interaction.editReply({ embeds: [embed] });
         }
         else if (sub === 'debug') {
-            if (!user) {
-                await interaction.editReply({ content: "User required." });
+            if (!user) return interaction.editReply({ content: "User required." });
+            const userData = dataObj[user.id];
+            if (userData) {
+                await interaction.editReply({ content: "Raw stored data for " + user.username + ":\n```json\n" + JSON.stringify(userData, null, 2) + "\n```" });
             } else {
-                const userData = dataObj[user.id];
-                if (userData) {
-                    await interaction.editReply({ content: "Raw stored data for " + user.username + ":\n```json\n" + JSON.stringify(userData, null, 2) + "\n```" });
-                } else {
-                    await interaction.editReply({ content: "No data found for " + user.username + "." });
-                }
+                await interaction.editReply({ content: "No data found for " + user.username + "." });
             }
         }
         else if (sub === 'patchusers') {
@@ -273,57 +250,46 @@ else if (sub === 'recalcall') {
                     for (const reactorsArr of Object.values(userReactionsMonth)) {
                         totalUniqueReactions += reactorsArr.length;
                     }
-                    if (userData.superApproved) {
-                        userData.initialReactionCount = 0;
-                    } else {
-                        userData.initialReactionCount = REACTION_TARGET;
-                    }
+                    userData.initialReactionCount = userData.superApproved ? 0 : REACTION_TARGET;
                     patched++;
                 }
             }
-            if (patched > 0) {
-                saveData(dataObj);
-                await interaction.editReply({ content: `Patched ${patched} users. Updated snapsmith.json.` });
-            } else {
-                await interaction.editReply({ content: 'No users needed patching.' });
-            }
+            saveData(dataObj);
+            await interaction.editReply({ content: patched > 0
+                ? `Patched ${patched} users. Updated snapsmith.json.`
+                : 'No users needed patching.' });
         }
         else if (sub === 'recalc') {
-            if (!user) {
-                await interaction.editReply({ content: "User required." });
-            } else {
-                const userId = user.id;
-                const userData = dataObj[userId];
-                if (userData.superApproved) userData.initialReactionCount = 0;
-                let totalUniqueReactions = 0;
-                const userReactions = reactionsObj[userId] || {};
-                for (const monthObj of Object.values(userReactions)) {
-                    for (const reactorsArr of Object.values(monthObj)) {
-                        totalUniqueReactions += reactorsArr.length;
-                    }
+            if (!user) return interaction.editReply({ content: "User required." });
+            const userId = user.id;
+            const userData = dataObj[userId];
+            if (userData.superApproved) userData.initialReactionCount = 0;
+            let totalUniqueReactions = 0;
+            const userReactions = reactionsObj[userId] || {};
+            for (const monthObj of Object.values(userReactions)) {
+                for (const reactorsArr of Object.values(monthObj)) {
+                    totalUniqueReactions += reactorsArr.length;
                 }
-                let initialCount = userData.initialReactionCount ?? REACTION_TARGET;
-                let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
-                let milestoneDays = totalUniqueReactions >= initialCount ? Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT) : 0;
-                let baseDays = ROLE_DURATION_DAYS;
-                let maxDays = MAX_BUFFER_DAYS;
-                let superApprovalBonusDays = userData.superApprovalBonusDays || 0;
-                let achievedTimestamp = typeof userData?.snapsmithAchievedAt === 'string'
-                    ? new Date(userData.snapsmithAchievedAt).getTime()
-                    : userData?.snapsmithAchievedAt ?? Date.now();
-                let newExpiration = achievedTimestamp + (baseDays + milestoneDays + superApprovalBonusDays) * 24 * 60 * 60 * 1000;
-                let today = Date.now();
-                let actualDaysLeft = Math.max(0, Math.ceil((newExpiration - today) / (1000 * 60 * 60 * 24)));
-                if (actualDaysLeft > maxDays) actualDaysLeft = maxDays;
-                if (userData) {
-                    userData.reactionMilestoneDays = milestoneDays;
-                    userData.expiration = new Date(newExpiration).toISOString();
-                    saveData(dataObj);
-                }
-                await interaction.editReply({
-                    content: `<@${userId}> Snapsmith recalculated: Achieved on **${new Date(achievedTimestamp).toLocaleDateString()}**, total reactions: **${totalUniqueReactions}** (+${milestoneDays} milestone days, +${superApprovalBonusDays} Super Approval days), expires: **${new Date(newExpiration).toLocaleDateString()}**, days left: **${actualDaysLeft}**.`
-                });
             }
+            let initialCount = userData.initialReactionCount ?? REACTION_TARGET;
+            let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
+            let milestoneDays = totalUniqueReactions >= initialCount ? Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT) : 0;
+            let baseDays = ROLE_DURATION_DAYS;
+            let maxDays = MAX_BUFFER_DAYS;
+            let superApprovalBonusDays = userData.superApprovalBonusDays || 0;
+            let achievedTimestamp = typeof userData?.snapsmithAchievedAt === 'string'
+                ? new Date(userData.snapsmithAchievedAt).getTime()
+                : userData?.snapsmithAchievedAt ?? Date.now();
+            let newExpiration = achievedTimestamp + (baseDays + milestoneDays + superApprovalBonusDays) * 24 * 60 * 60 * 1000;
+            let today = Date.now();
+            let actualDaysLeft = Math.max(0, Math.ceil((newExpiration - today) / (1000 * 60 * 60 * 24)));
+            if (actualDaysLeft > maxDays) actualDaysLeft = maxDays;
+            userData.reactionMilestoneDays = milestoneDays;
+            userData.expiration = new Date(newExpiration).toISOString();
+            saveData(dataObj);
+            await interaction.editReply({
+                content: `<@${userId}> Snapsmith recalculated: Achieved on **${new Date(achievedTimestamp).toLocaleDateString()}**, total reactions: **${totalUniqueReactions}** (+${milestoneDays} milestone days, +${superApprovalBonusDays} Super Approval days), expires: **${new Date(newExpiration).toLocaleDateString()}**, days left: **${actualDaysLeft}**.`
+            });
         }
         else if (sub === 'scan') {
             try {
@@ -343,40 +309,34 @@ else if (sub === 'recalcall') {
             await interaction.editReply({ content: reply });
         }
         else if (sub === 'setachieved') {
-            if (!user) {
-                await interaction.editReply({ content: "User required." });
-            } else {
-                const dateStr = interaction.options.getString('date');
-                let dateObj;
-                try {
-                    dateObj = new Date(dateStr + "T00:00:00.000Z");
-                    if (isNaN(dateObj.getTime())) throw new Error("Invalid date.");
-                } catch {
-                    await interaction.editReply({ content: "Invalid date format. Use YYYY-MM-DD." });
-                    return;
-                }
-                if (!dataObj[user.id]) {
-                    await interaction.editReply({ content: "User not found in data." });
-                    return;
-                }
-                dataObj[user.id].snapsmithAchievedAt = dateObj.toISOString();
-                saveData(dataObj);
-                await interaction.editReply({ content: `Set snapsmithAchievedAt for ${user} to ${dateObj.toISOString()}` });
+            if (!user) return interaction.editReply({ content: "User required." });
+            const dateStr = interaction.options.getString('date');
+            let dateObj;
+            try {
+                dateObj = new Date(dateStr + "T00:00:00.000Z");
+                if (isNaN(dateObj.getTime())) throw new Error("Invalid date.");
+            } catch {
+                return await interaction.editReply({ content: "Invalid date format. Use YYYY-MM-DD." });
             }
+            if (!dataObj[user.id]) {
+                return await interaction.editReply({ content: "User not found in data." });
+            }
+            dataObj[user.id].snapsmithAchievedAt = dateObj.toISOString();
+            saveData(dataObj);
+            await interaction.editReply({ content: `Set snapsmithAchievedAt for ${user} to ${dateObj.toISOString()}` });
         }
         else if (sub === 'syncroles') {
             const result = await syncCurrentSnapsmiths(interaction.client);
-            if (result > 0) {
-                await interaction.editReply({ content: `Synced and patched ${result} Snapsmith role holders into snapsmith.json.` });
-            } else {
-                await interaction.editReply({ content: "No new Snapsmiths to add or update." });
-            }
+            await interaction.editReply({ content: result > 0
+                ? `Synced and patched ${result} Snapsmith role holders into snapsmith.json.`
+                : "No new Snapsmiths to add or update." });
         }
         else {
             await interaction.editReply({ content: reply });
         }
     } catch (err) {
         console.error("Error in snapsmithadmin command:", err);
+        await interaction.editReply({ content: "An error occurred while executing snapsmithadmin." });
     }
 }
 
