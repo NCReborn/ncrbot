@@ -112,7 +112,6 @@ const data = new SlashCommandBuilder()
         subcmd.setName('patchusers')
             .setDescription('Patch old Snapsmith users with missing achievement date and initial reactions')
     )
-    // Add setachieved subcommand for manually setting achievement date:
     .addSubcommand(subcmd =>
         subcmd.setName('setachieved')
             .setDescription('Manually set Snapsmith achievement date for a user')
@@ -122,7 +121,6 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
     try {
-        // DO NOT deferReply here! Your event handler already does it.
         const sub = interaction.options.getSubcommand();
         const dataObj = loadData();
         const reactionsObj = loadReactions();
@@ -170,6 +168,12 @@ async function execute(interaction) {
                                 totalUniqueReactions += reactorsArr.length;
                             }
                         }
+                    }
+                } else {
+                    // If user hasn't achieved, just sum current month
+                    const userReactionsMonth = userReactions[month] || {};
+                    for (const reactorsArr of Object.values(userReactionsMonth)) {
+                        totalUniqueReactions += reactorsArr.length;
                     }
                 }
                 let timeLeft = null;
@@ -322,7 +326,6 @@ async function execute(interaction) {
                 await interaction.editReply({ content: `Set snapsmithAchievedAt for ${user} to ${dateObj.toISOString()}` });
             }
         }
-        // For brevity, you can add the implementation for other subcommands as before, just ensure you only use editReply ONCE per interaction.
         else {
             await interaction.editReply({ content: reply });
         }
