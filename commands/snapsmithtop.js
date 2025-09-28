@@ -19,10 +19,16 @@ function loadMeta() {
     return {};
 }
 
+function isCurrentSnapsmith(userMeta) {
+    if (!userMeta || !userMeta.expiration) return false;
+    const expDate = new Date(userMeta.expiration);
+    return expDate > new Date();
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('snapsmithtop')
-        .setDescription('Show top users by unique reactions')
+        .setDescription('Show top Snapsmith role holders by unique reactions')
         .addIntegerOption(opt =>
             opt.setName('count')
                 .setDescription('Number of top users to show')
@@ -34,9 +40,14 @@ module.exports = {
             const meta = loadMeta();
             const count = interaction.options.getInteger('count') ?? 10;
 
-            // Build a map of userId -> totalUniqueReactions
+            // Only include users who currently have the Snapsmith role
+            const currentSnapsmithIds = Object.entries(meta)
+                .filter(([userId, userMeta]) => isCurrentSnapsmith(userMeta))
+                .map(([userId]) => userId);
+
+            // Build a map of userId -> totalUniqueReactions for current Snapsmiths only
             const totals = {};
-            for (const userId of Object.keys(reactions)) {
+            for (const userId of currentSnapsmithIds) {
                 let totalUniqueReactions = 0;
                 const userReactions = reactions[userId] || {};
                 for (const monthObj of Object.values(userReactions)) {
@@ -61,9 +72,8 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor(0xFAA61A)
                 .setTitle(`Snapsmith Top ${count}`)
-                .setDescription(desc.length > 0 ? desc : "No Snapsmith data found.");
+                .setDescription(desc.length > 0 ? desc : "No current Snapsmith role holders found.");
 
-            // Use editReply() since interaction is already deferred!
             await interaction.editReply({ embeds: [embed] });
 
         } catch (err) {
