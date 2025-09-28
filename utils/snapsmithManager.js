@@ -92,6 +92,7 @@ function recalculateExpiration(userId, reactionsObj, dataObj, month) {
     };
 }
 
+// PATCH: Only create user if missing, never overwrite expiration
 async function syncCurrentSnapsmiths(client) {
     const data = loadData();
     const guild = client.guilds.cache.values().next().value;
@@ -112,14 +113,14 @@ async function syncCurrentSnapsmiths(client) {
     }
     await guild.members.fetch();
     const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
-    const now = new Date();
     let updated = false;
     for (const member of membersWithRole.values()) {
         const userId = member.id;
         if (!data[userId]) {
+            // Only create new user if not present. Do NOT set expiration here!
             data[userId] = {
                 months: {},
-                expiration: new Date(now.getTime() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+                expiration: null,
                 superApproved: false,
                 initialReactionCount: 0,
                 superApprovalBonusDays: 0,
@@ -127,6 +128,7 @@ async function syncCurrentSnapsmiths(client) {
             };
             updated = true;
         }
+        // PATCH: Do NOT overwrite expiration for existing users!
     }
     if (updated) {
         saveData(data);
