@@ -63,15 +63,15 @@ module.exports = {
                 .setTitle(`Snapsmith Top ${count}`)
                 .setDescription(desc.length > 0 ? desc : "No Snapsmith data found.");
 
-            // Only reply once
-            await interaction.reply({ embeds: [embed] }); // ephemeral removed
+            // Use editReply() since interaction is already deferred!
+            await interaction.editReply({ embeds: [embed] });
 
         } catch (err) {
             console.error("Error in /snapsmithtop command:", err);
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({ content: "There was an error executing this command!", flags: 64 });
             } else {
-                await interaction.reply({ content: "There was an error executing this command!", flags: 64 });
+                await interaction.editReply({ content: "There was an error executing this command!", flags: 64 });
             }
         }
     }
