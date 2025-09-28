@@ -144,7 +144,11 @@ async function execute(interaction) {
         else if (sub === 'recalcall') {
             let processed = 0;
             for (const [userId, userData] of Object.entries(dataObj)) {
-                if (userData.expiration && userData.snapsmithAchievedAt) {
+                if (userData.expiration) {
+                    // Ensure snapsmithAchievedAt is set for all users with a role
+                    if (!userData.snapsmithAchievedAt) {
+                        userData.snapsmithAchievedAt = new Date().toISOString();
+                    }
                     recalculateExpiration(userId, reactionsObj, dataObj, month);
                     processed++;
                 }
@@ -339,7 +343,6 @@ async function execute(interaction) {
             }
         }
         else if (sub === 'syncroles') {
-            // FULL PATCH
             const result = await syncCurrentSnapsmiths(interaction.client);
             if (result > 0) {
                 await interaction.editReply({ content: `Synced and patched ${result} Snapsmith role holders into snapsmith.json.` });
