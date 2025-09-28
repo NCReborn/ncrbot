@@ -60,7 +60,6 @@ function recalculateExpiration(userId, reactionsObj, dataObj, month) {
         }
     }
 
-    // --- PATCH: For superApproved, initialReactionCount should be 0 ---
     let initialCount = userData.superApproved ? 0 : (userData.initialReactionCount ?? REACTION_TARGET);
 
     let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
@@ -210,35 +209,63 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
         reactions[userId][month][msg.id] = Array.from(uniqueReactors);
 
         if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false, initialReactionCount: 0 };
-        if (superApproved && !data[userId].superApproved) {
-            const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
-            data[userId].expiration = newExpiry.toISOString();
-            data[userId].superApproved = true;
-            let totalUniqueReactions = Array.from(uniqueReactors).length;
-            data[userId].initialReactionCount = 0;
-            data[userId].snapsmithAchievedAt = Date.now();
-            try {
-                const guild = client.guilds.cache.values().next().value;
-                const member = await guild.members.fetch(userId);
-                await member.roles.add(SNAPSMITH_ROLE_ID);
-                const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
 
-                const requirementsStr = `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`;
-                const detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+        // SUPER APPROVAL PATCH
+        if (superApproved) {
+            const currTime = Date.now();
+            const expirationDate = data[userId].expiration ? new Date(data[userId].expiration) : null;
+            let isSnapsmithActive = expirationDate && expirationDate > new Date();
+            if (!isSnapsmithActive) {
+                // Give Snapsmith role as before
+                const newExpiry = new Date(currTime + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
+                data[userId].expiration = newExpiry.toISOString();
+                data[userId].superApproved = true;
+                data[userId].initialReactionCount = 0;
+                data[userId].snapsmithAchievedAt = currTime;
+                try {
+                    const guild = client.guilds.cache.values().next().value;
+                    const member = await guild.members.fetch(userId);
+                    await member.roles.add(SNAPSMITH_ROLE_ID);
+                    const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
 
-                const embed = new EmbedBuilder()
-                    .setColor(0xFAA61A)
-                    .setTitle('A new Snapsmith Emerges')
-                    .addFields(
-                        { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                        { name: 'Requirements Met', value: requirementsStr, inline: false },
-                        { name: 'Details', value: detailsStr, inline: false }
-                    )
-                    .setTimestamp();
+                    const requirementsStr = `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`;
+                    const detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
 
-                await snapsmithChannel.send({ embeds: [embed] });
-            } catch (e) {
-                logger.error(`Super approval role assignment failed for ${userId}: ${e.message}`);
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle('A new Snapsmith Emerges')
+                        .addFields(
+                            { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                            { name: 'Requirements Met', value: requirementsStr, inline: false },
+                            { name: 'Details', value: detailsStr, inline: false }
+                        )
+                        .setTimestamp();
+
+                    await snapsmithChannel.send({ embeds: [embed] });
+                } catch (e) {
+                    logger.error(`Super approval role assignment failed for ${userId}: ${e.message}`);
+                }
+            } else {
+                // Already has Snapsmith: add a day, up to MAX_BUFFER_DAYS
+                let maxExpiration = new Date(data[userId].snapsmithAchievedAt).getTime() + MAX_BUFFER_DAYS * 24 * 60 * 60 * 1000;
+                let newExpiration = expirationDate.getTime() + 24 * 60 * 60 * 1000;
+                if (newExpiration > maxExpiration) newExpiration = maxExpiration;
+                data[userId].expiration = new Date(newExpiration).toISOString();
+                try {
+                    const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
+                    const daysLeft = Math.max(0, Math.ceil((newExpiration - currTime) / (1000 * 60 * 60 * 24)));
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle('Super Approval Bonus')
+                        .addFields(
+                            { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                            { name: 'Details', value: `You already have Snapsmith status, but <@${SUPER_APPROVER_ID}> gave you a 🌟 Super Approval! You've earned **1 extra day** on your Snapsmith role. You now have **${daysLeft} days** remaining.`, inline: false }
+                        )
+                        .setTimestamp();
+                    await snapsmithChannel.send({ embeds: [embed] });
+                } catch (e) {
+                    logger.error(`Super approval bonus day failed for ${userId}: ${e.message}`);
+                }
             }
         }
     }
