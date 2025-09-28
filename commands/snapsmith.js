@@ -111,9 +111,9 @@ module.exports = {
         .setName('snapsmith')
         .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)'),
     async execute(interaction) {
+        let msg;
         try {
             const status = await getUserSnapsmithStatus(interaction.user.id);
-            let msg;
             if (!status) {
                 msg = `You have no Snapsmith activity yet. Submit your best in-game photos in <#${SHOWCASE_CHANNEL_ID}> to get started!`;
             } else {
@@ -137,16 +137,8 @@ module.exports = {
                 await interaction.reply({ content: msg, ephemeral: true });
             }
         } catch (err) {
+            // Only log error, DO NOT try to reply again if previous reply/editReply failed.
             console.error("Error in /snapsmith command:", err);
-            try {
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ content: "There was an error running /snapsmith." });
-                } else {
-                    await interaction.reply({ content: "There was an error running /snapsmith.", ephemeral: true });
-                }
-            } catch (e) {
-                console.error("Failed to respond after error:", e);
-            }
         }
     }
 };
