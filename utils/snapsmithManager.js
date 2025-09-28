@@ -88,10 +88,7 @@ async function syncCurrentSnapsmiths(client) {
 }
 
 /**
- * scanShowcase now accepts:
- *   - limit: number of messages to scan (default 100)
- *   - messageIds: array of message IDs to scan only those messages
- * If scanning same message again, will overwrite tally (no duplicates).
+ * scanShowcase now scans only messages posted in the last 30 days.
  */
 async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
     logger.debug(`scanShowcase called! limit=${limit} messageIds=${messageIds ? messageIds.join(',') : 'ALL'}`);
@@ -119,9 +116,29 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
             }
         }
     } else {
-        messages = await showcase.messages.fetch({ limit });
+        // Fetch all messages from the last 30 days
+        const THIRTY_DAYS_AGO = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        messages = new Map();
+        let lastId = undefined;
+        let done = false;
+
+        while (!done) {
+            let batch = await showcase.messages.fetch({ limit: 100, ...(lastId ? { before: lastId } : {}) });
+            if (!batch.size) break;
+
+            for (const [id, msg] of batch) {
+                if (msg.createdTimestamp < THIRTY_DAYS_AGO) {
+                    done = true;
+                    break;
+                }
+                messages.set(id, msg);
+            }
+
+            lastId = [...batch.keys()].pop();
+            if (batch.size < 100) break;
+        }
+        logger.debug(`Fetched ${messages.size} messages from showcase (from the last 30 days).`);
     }
-    logger.debug(`Fetched ${messages.size} messages from showcase.`);
 
     let messageCount = 0;
     let attachmentCount = 0;
@@ -180,7 +197,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                 await member.roles.add(SNAPSMITH_ROLE_ID);
                 const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
                 await snapsmithChannel.send(
-                    `<@${userId}> has received a **Super Approval** from <@${SUPER_APPROVER_ID}> and is awarded Snapsmith for 30 days! :star2:`
+                    `<@${userId}> has received a **Super Approval** from <@${SUPER_APPROVER_ID}> and is awarded Snapsmith for 30 days! 🌟`
                 );
                 logger.info(`Super approval awarded for ${userId}.`);
             } catch (e) {
@@ -190,7 +207,6 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
     }
 
     logger.info(`Processed ${messageCount} messages, found ${attachmentCount} with attachments.`);
-    // saveReactions already silences spam
     saveReactions(reactions);
     saveData(data);
     await evaluateRoles(client, data, reactions);
@@ -241,7 +257,7 @@ async function evaluateRoles(client, data, reactions) {
                     const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
                     let msg = `<@${userId}> has earned **${durationDays} days** of Snapsmith for receiving ${totalUniqueReactions} unique reactions this month!`;
                     if (userData.superApproved) {
-                        msg += ` (Includes Super Approval :star2:)`;
+                        msg += ` (Includes Super Approval 🌟)`;
                     }
                     await snapsmithChannel.send(msg);
                     logger.info(`Role/award message sent for ${userId}.`);
@@ -272,7 +288,7 @@ module.exports = {
     startPeriodicScan: function(client) {
         setInterval(() => {
             scanShowcase(client).catch(logger.error);
-        }, 3600 * 1000); // Scan every hour
+        }, 2 * 60 * 1000); // Scan every 2 minutes
     },
     syncCurrentSnapsmiths,
     scanShowcase
