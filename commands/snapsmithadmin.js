@@ -16,11 +16,27 @@ const {
 } = require('../utils/snapsmithManager');
 
 const ROLE_DURATION_DAYS = 30;
+const MAX_BUFFER_DAYS = 60;
 
 const data = new SlashCommandBuilder()
     .setName('snapsmithadmin')
     .setDescription('Admin tools for managing Snapsmith system')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    // Existing admin and utility subcommands ...
+    .addSubcommand(subcmd =>
+        subcmd.setName('setinitialcountall')
+            .setDescription('Set initialReactionCount to 25 for all current Snapsmiths')
+    )
+    .addSubcommand(subcmd =>
+        subcmd.setName('recalcall')
+            .setDescription('Recalculate additional days for all current Snapsmiths')
+    )
+    .addSubcommand(subcmd =>
+        subcmd.setName('check')
+            .setDescription('Show a diagnostic embed for a user')
+            .addUserOption(opt => opt.setName('user').setDescription('User to check').setRequired(true))
+    )
+    // ... original subcommands:
     .addSubcommand(subcmd =>
         subcmd.setName('addreaction')
             .setDescription('Manually add a unique user reaction to a photo')
@@ -109,7 +125,104 @@ async function execute(interaction) {
         let messageId = interaction.options.getString('messageid');
         let reply = "No action taken.";
 
-        if (sub === 'patchusers') {
+        // Set initialReactionCount to 25 for all current Snapsmiths
+        if (sub === 'setinitialcountall') {
+            let changed = 0;
+            for (const [userId, userData] of Object.entries(dataObj)) {
+                if (userData.expiration) {
+                    userData.initialReactionCount = 25;
+                    changed++;
+                }
+            }
+            saveData(dataObj);
+            reply = `Set initialReactionCount = 25 for ${changed} Snapsmith users.`;
+        }
+        // Recalculate for all
+        else if (sub === 'recalcall') {
+            let processed = 0;
+            for (const [userId, userData] of Object.entries(dataObj)) {
+                if (userData.expiration && userData.snapsmithAchievedAt) {
+                    recalculateExpiration(userId, reactionsObj, dataObj, month);
+                    processed++;
+                }
+            }
+            saveData(dataObj);
+            reply = `Recalculated days for ${processed} Snapsmith users.`;
+        }
+        // Diagnostic embed
+        else if (sub === 'check') {
+            if (!user) reply = "User required.";
+            else {
+                const userId = user.id;
+                const userData = dataObj[userId];
+                const userReactionsMonth = reactionsObj[userId]?.[month] || {};
+                let totalUniqueReactions = 0;
+                for (const reactorsArr of Object.values(userReactionsMonth)) {
+                    totalUniqueReactions += reactorsArr.length;
+                }
+
+                let timeLeft = null;
+                let roleActive = false;
+                let superApproved = false;
+                let expiration = null;
+                let daysQueued = 0;
+                let nextDayReactions = null;
+                let superReactionCount = 0;
+
+                if (userData) {
+                    if (userData.expiration) {
+                        const expirationDate = new Date(userData.expiration);
+                        if (expirationDate > new Date()) {
+                            roleActive = true;
+                            timeLeft = Math.ceil((expirationDate - new Date()) / (1000 * 60 * 60 * 24));
+                        }
+                        expiration = userData.expiration;
+                    }
+                    if (userData.superApproved) {
+                        superApproved = true;
+                    }
+                    if (expiration) {
+                        const expirationDate = new Date(expiration);
+                        daysQueued = Math.ceil((expirationDate - new Date()) / (1000 * 60 * 60 * 24));
+                        daysQueued = Math.min(daysQueued, MAX_BUFFER_DAYS);
+                    }
+                    // Count "super reactions" this month
+                    for (const reactorsArr of Object.values(userReactionsMonth)) {
+                        if (reactorsArr.includes(SUPER_APPROVER_ID)) superReactionCount++;
+                    }
+                    // Next day progress
+                    let initialCount = userData.initialReactionCount ?? (userData.superApproved ? 0 : REACTION_TARGET);
+                    let extraReactions = totalUniqueReactions - initialCount;
+                    let reactionsToNextDay = 3 - (extraReactions % 3);
+                    if (reactionsToNextDay === 0) reactionsToNextDay = 3;
+                    nextDayReactions = reactionsToNextDay;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setColor(0xFAA61A)
+                    .setTitle(`Snapsmith Status`)
+                    .addFields(
+                        { name: 'User', value: `<@${userId}>`, inline: true },
+                        { name: 'Role Status', value: roleActive
+                            ? (superApproved
+                                ? 'You currently have the Snapsmith role (**awarded via Super Approval**).'
+                                : 'You currently have the Snapsmith role.')
+                            : 'You do **not** currently have the Snapsmith role.', inline: false },
+                        { name: 'Time Left', value: `**${timeLeft ?? 0} days**`, inline: true },
+                        { name: 'Unique Reactions', value: `**${totalUniqueReactions}**`, inline: true },
+                        { name: 'Next Day Progress', value: roleActive ? `**${nextDayReactions}** more reactions until an additional day is added.` : 'N/A', inline: true },
+                        ...(superApproved ? [
+                            { name: 'Super Approval', value: `You received a 🌟 Super Approval from <@${SUPER_APPROVER_ID}>!`, inline: false }
+                        ] : []),
+                        { name: 'Super reactions this month', value: `**${superReactionCount}**`, inline: true },
+                        { name: 'Days queued', value: `**${daysQueued}** (max ${MAX_BUFFER_DAYS})`, inline: true }
+                    );
+                await interaction.reply({ embeds: [embed], ephemeral: true });
+                return;
+            }
+        }
+        // ...existing subcommands below...
+        else if (sub === 'patchusers') {
             const now = Date.now();
             let patched = 0;
             for (const [userId, userData] of Object.entries(dataObj)) {
@@ -141,7 +254,6 @@ async function execute(interaction) {
                 reply = 'No users needed patching.';
             }
         }
-
         else if (sub === 'recalc') {
             if (!user) reply = "User required.";
             else {
@@ -154,8 +266,6 @@ async function execute(interaction) {
                 }
             }
         }
-        // ...existing subcommands below...
-
         else if (sub === 'announce') {
             if (!user) reply = "User required.";
             else {
@@ -219,7 +329,6 @@ async function execute(interaction) {
         else if (sub === 'debug') {
             if (!user) reply = "User required.";
             else {
-                // Show raw stored data for the user
                 const userData = dataObj[user.id];
                 if (userData) {
                     reply = "Raw stored data for " + user.username + ":\n```json\n" + JSON.stringify(userData, null, 2) + "\n```";
