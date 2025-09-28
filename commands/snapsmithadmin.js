@@ -139,9 +139,7 @@ async function execute(interaction) {
                         .setTitle('A new Snapsmith Emerges')
                         .addFields(
                             { name: 'Congratulations', value: `<@${user.id}>`, inline: false },
-                            { name: '\u200B', value: '\u200B', inline: false },
                             { name: 'Requirements Met', value: requirementsStr, inline: false },
-                            { name: '\u200B', value: '\u200B', inline: false },
                             { name: 'Details', value: detailsStr, inline: false }
                         )
                         .setTimestamp();
@@ -158,13 +156,27 @@ async function execute(interaction) {
                 const limit = interaction.options.getInteger('limit') || 100;
                 const messageidsRaw = interaction.options.getString('messageids');
                 let messageIds = null;
-                if (messageidsRaw) messageIds = messageidsRaw.split(',').map(s => s.trim());
+                if (messageidsRaw && messageidsRaw.toLowerCase() !== "all") {
+                    messageIds = messageidsRaw.split(',').map(s => s.trim()).filter(Boolean);
+                }
                 await scanShowcase(interaction.client, { limit, messageIds });
                 reply = `Manual scan completed. Showcase posts and reactions have been checked (limit: ${limit}${messageIds ? ", messageIds: " + messageIds.join(',') : ""}).`;
                 console.log("Snapsmith showcase scan executed via admin command.");
             } catch (e) {
                 reply = `Manual scan failed: ${e.message}`;
                 console.error("Error in snapsmithadmin scan subcommand:", e);
+            }
+        }
+        else if (sub === 'debug') {
+            if (!user) reply = "User required.";
+            else {
+                // Show raw stored data for the user
+                const userData = dataObj[user.id];
+                if (userData) {
+                    reply = "Raw stored data for " + user.username + ":\n```json\n" + JSON.stringify(userData, null, 2) + "\n```";
+                } else {
+                    reply = "No data found for " + user.username + ".";
+                }
             }
         }
         else if (sub === 'forceremove') {
@@ -186,7 +198,7 @@ async function execute(interaction) {
                 }
             }
         }
-        // ...handle other subcommands here...
+        // ...other subcommands here...
 
         await interaction.editReply({ content: reply });
     } catch (err) {
