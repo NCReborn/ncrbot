@@ -10,8 +10,8 @@ const REACTION_TARGET     = 25;
 const ROLE_DURATION_DAYS  = 30;
 const EXTRA_DAY_REACTION_COUNT = 5; // <--- Change this value to set reactions per extra day!
 const MAX_BUFFER_DAYS     = 60;
-//const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
-const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
+const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
+//const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
