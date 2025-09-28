@@ -114,7 +114,8 @@ async function getUserSnapsmithStatus(userId) {
         daysQueued,
         expiration,
         superReactionCount,
-        nextDayReactions
+        nextDayReactions,
+        userMeta
     };
 }
 
@@ -125,13 +126,15 @@ module.exports = {
     async execute(interaction) {
         try {
             const status = await getUserSnapsmithStatus(interaction.user.id);
+            const user = interaction.user;
 
             let embed;
             if (!status) {
                 embed = new EmbedBuilder()
                     .setColor(0xFAA61A)
-                    .setTitle(`Snapsmith Status for <@${interaction.user.id}>`)
+                    .setTitle(`Snapsmith Status`)
                     .addFields(
+                        { name: 'User', value: `<@${user.id}>`, inline: true },
                         { name: 'Role Status', value: 'You do **not** currently have the Snapsmith role.', inline: false },
                         { name: 'Unique Reactions', value: `**0**`, inline: true },
                         { name: `Reactions remaining`, value: `**${REACTION_TARGET}** more needed to earn Snapsmith.`, inline: true },
@@ -141,8 +144,9 @@ module.exports = {
             } else if (!status.roleActive) {
                 embed = new EmbedBuilder()
                     .setColor(0xFAA61A)
-                    .setTitle(`Snapsmith Status for <@${interaction.user.id}>`)
+                    .setTitle(`Snapsmith Status`)
                     .addFields(
+                        { name: 'User', value: `<@${user.id}>`, inline: true },
                         { name: 'Role Status', value: 'You do **not** currently have the Snapsmith role.', inline: false },
                         { name: 'Unique Reactions', value: `**${status.totalUniqueReactions}**`, inline: true },
                         { name: `Reactions remaining`, value: `**${Math.max(REACTION_TARGET - status.totalUniqueReactions, 0)}** more needed to earn Snapsmith.`, inline: true },
@@ -155,8 +159,9 @@ module.exports = {
                 if (reactionsToNextDay === 0) reactionsToNextDay = 3;
                 embed = new EmbedBuilder()
                     .setColor(0xFAA61A)
-                    .setTitle(`Snapsmith Status for <@${interaction.user.id}>`)
+                    .setTitle(`Snapsmith Status`)
                     .addFields(
+                        { name: 'User', value: `<@${user.id}>`, inline: true },
                         { name: 'Role Status', value: 'You currently have the Snapsmith role.', inline: false },
                         { name: 'Time Left', value: `**${status.timeLeft} days**`, inline: true },
                         { name: 'Unique Reactions', value: `**${status.totalUniqueReactions}**`, inline: true },
@@ -169,8 +174,9 @@ module.exports = {
                 if (reactionsToNextDay === 0) reactionsToNextDay = 3;
                 embed = new EmbedBuilder()
                     .setColor(0xFAA61A)
-                    .setTitle(`Snapsmith Status for <@${interaction.user.id}>`)
+                    .setTitle(`Snapsmith Status`)
                     .addFields(
+                        { name: 'User', value: `<@${user.id}>`, inline: true },
                         { name: 'Role Status', value: 'You currently have the Snapsmith role (**awarded via Super Approval**).', inline: false },
                         { name: 'Time Left', value: `**${status.timeLeft} days**`, inline: true },
                         { name: 'Unique Reactions', value: `**${status.totalUniqueReactions}**`, inline: true },
