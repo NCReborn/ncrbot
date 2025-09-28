@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { ChannelType } = require('discord.js');
-const logger = require('./logger'); // Adjust path as needed
+const logger = require('../utils/logger'); // Adjust path as needed
 
 // CONFIG (Replace these with your actual IDs)
 const SHOWCASE_CHANNEL_ID = '1285797205927792782';
