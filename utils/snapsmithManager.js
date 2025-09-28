@@ -38,6 +38,45 @@ function getCurrentMonth() {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+function recalculateExpiration(userId, reactionsObj, dataObj, month) {
+    const userData = dataObj[userId];
+    const userReactionsMonth = reactionsObj[userId]?.[month] || {};
+    let totalUniqueReactions = 0;
+    for (const reactorsArr of Object.values(userReactionsMonth)) {
+        totalUniqueReactions += reactorsArr.length;
+    }
+
+    if (!userData || !userData.snapsmithAchievedAt) {
+        return { error: "User has not yet achieved Snapsmith, so cannot recalculate additional days." };
+    }
+
+    let initialCount = userData.initialReactionCount ?? (userData.superApproved ? 0 : REACTION_TARGET);
+    let extraReactions = totalUniqueReactions - initialCount;
+    let additionalDays = Math.max(0, Math.floor(extraReactions / 3));
+    let baseDays = ROLE_DURATION_DAYS;
+    let maxDays = MAX_BUFFER_DAYS;
+
+    let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
+        ? new Date(userData.snapsmithAchievedAt).getTime()
+        : userData.snapsmithAchievedAt;
+    let newExpiration = achievedTimestamp + (baseDays + additionalDays) * 24 * 60 * 60 * 1000;
+    let today = Date.now();
+
+    let actualDaysLeft = Math.max(0, Math.ceil((newExpiration - today) / (1000 * 60 * 60 * 24)));
+    if (actualDaysLeft > maxDays) actualDaysLeft = maxDays;
+
+    userData.expiration = new Date(newExpiration).toISOString();
+
+    return {
+        userId,
+        totalUniqueReactions,
+        additionalDays,
+        newExpiration: userData.expiration,
+        achieved: achievedTimestamp,
+        daysLeft: actualDaysLeft
+    };
+}
+
 async function syncCurrentSnapsmiths(client) {
     logger.debug('syncCurrentSnapsmiths called!');
     const data = loadData();
@@ -179,6 +218,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
             data[userId].superApproved = true;
             let totalUniqueReactions = Array.from(uniqueReactors).length;
             data[userId].initialReactionCount = totalUniqueReactions;
+            data[userId].snapsmithAchievedAt = Date.now();
             logger.info(`Attempting to award role to ${userId}`);
             try {
                 const guild = client.guilds.cache.values().next().value;
@@ -241,27 +281,36 @@ async function evaluateRoles(client, data, reactions) {
             newExpiration = new Date(now.getTime() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             needsAward = true;
             userData.initialReactionCount = totalUniqueReactions;
+            userData.snapsmithAchievedAt = Date.now();
             initialTrigger = true;
         }
         // Extra days after initial trigger
-        else if (currentExpiration && currentExpiration > now) {
+        else if (currentExpiration && currentExpiration > now && userData.snapsmithAchievedAt) {
             let initialCount = userData.initialReactionCount ?? (userData.superApproved ? 0 : REACTION_TARGET);
             let extraReactions = totalUniqueReactions - initialCount;
-            let extraDays = Math.floor(extraReactions / 3);
-            let currentDaysLeft = Math.ceil((currentExpiration - now) / (1000 * 60 * 60 * 24));
-            let newDaysTotal = currentDaysLeft + extraDays;
-            let maxDays = Math.min(newDaysTotal, MAX_BUFFER_DAYS);
-            let daysToAdd = maxDays - currentDaysLeft;
-            if (daysToAdd > 0) {
-                newExpiration = new Date(currentExpiration.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+            let extraDays = Math.max(0, Math.floor(extraReactions / 3));
+            let baseDays = ROLE_DURATION_DAYS;
+            let maxDays = MAX_BUFFER_DAYS;
+            let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
+                ? new Date(userData.snapsmithAchievedAt).getTime()
+                : userData.snapsmithAchievedAt;
+            let calculatedExpiration = achievedTimestamp + (baseDays + extraDays) * 24 * 60 * 60 * 1000;
+            let today = Date.now();
+            let actualDaysLeft = Math.max(0, Math.ceil((calculatedExpiration - today) / (1000 * 60 * 60 * 24)));
+            if (actualDaysLeft > maxDays) actualDaysLeft = maxDays;
+            if (Math.abs(new Date(userData.expiration).getTime() - calculatedExpiration) > 60 * 1000) {
+                newExpiration = new Date(calculatedExpiration);
                 needsAward = true;
             }
         }
 
         if (newExpiration) {
-            // Enforce max buffer days from now
-            const maxExpiration = new Date(now.getTime() + MAX_BUFFER_DAYS * 24 * 60 * 60 * 1000);
-            if (newExpiration > maxExpiration) newExpiration = maxExpiration;
+            // Enforce max buffer days from achievement
+            let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
+                ? new Date(userData.snapsmithAchievedAt).getTime()
+                : userData.snapsmithAchievedAt;
+            const maxExpiration = achievedTimestamp + MAX_BUFFER_DAYS * 24 * 60 * 60 * 1000;
+            if (newExpiration.getTime() > maxExpiration) newExpiration = new Date(maxExpiration);
         }
 
         if (needsAward && newExpiration) {
@@ -296,7 +345,7 @@ async function evaluateRoles(client, data, reactions) {
                         .setTimestamp();
                 } else {
                     // Extra day milestone
-                    let daysLeft = Math.ceil((newExpiration - now) / (1000 * 60 * 60 * 24));
+                    let daysLeft = Math.max(0, Math.ceil((newExpiration - now) / (1000 * 60 * 60 * 24)));
                     embed = new EmbedBuilder()
                         .setColor(0xFAA61A)
                         .setTitle(`<@${userId}> has earned an additional day!`)
@@ -325,6 +374,7 @@ async function evaluateRoles(client, data, reactions) {
             userData.expiration = null;
             userData.superApproved = false;
             userData.initialReactionCount = 0;
+            userData.snapsmithAchievedAt = null;
         }
     }
     saveData(data);
@@ -344,5 +394,10 @@ module.exports = {
     SNAPSMITH_CHANNEL_ID,
     REACTION_TARGET,
     SUPER_APPROVER_ID,
-    SHOWCASE_CHANNEL_ID
+    SHOWCASE_CHANNEL_ID,
+    recalculateExpiration,
+    loadData,
+    saveData,
+    loadReactions,
+    getCurrentMonth
 };
