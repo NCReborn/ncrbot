@@ -14,6 +14,7 @@ const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
 
 // Persistent data path
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
+const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
 
 function loadData() {
     if (fs.existsSync(DATA_PATH)) {
@@ -21,21 +22,26 @@ function loadData() {
     }
     return {};
 }
-
 function saveData(data) {
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
 }
-
-// Utilities
+function loadReactions() {
+    if (fs.existsSync(REACTION_DATA_PATH)) {
+        return JSON.parse(fs.readFileSync(REACTION_DATA_PATH, 'utf8'));
+    }
+    return {};
+}
+function saveReactions(data) {
+    fs.writeFileSync(REACTION_DATA_PATH, JSON.stringify(data, null, 2));
+}
 function getCurrentMonth() {
     const now = new Date();
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// Sync current Snapsmith role holders into the system (improved, with debug logs)
+// Sync current Snapsmith role holders into the system (unchanged)
 async function syncCurrentSnapsmiths(client) {
     const data = loadData();
-    // Use client.guilds.cache.values().next().value to reliably get the first guild
     const guild = client.guilds.cache.values().next().value;
     if (!guild) {
         console.log("No guild found for syncCurrentSnapsmiths.");
@@ -54,7 +60,6 @@ async function syncCurrentSnapsmiths(client) {
         return;
     }
 
-    // Force fetch all members for reliability
     await guild.members.fetch();
     const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
     console.log(`Found ${membersWithRole.size} members with Snapsmith role.`);
@@ -81,10 +86,11 @@ async function syncCurrentSnapsmiths(client) {
     }
 }
 
-// Main scan function
+// Main scan function: reactions now go to snapsmithreactions.json
 async function scanShowcase(client) {
     await syncCurrentSnapsmiths(client);
 
+    const reactions = loadReactions();
     const data = loadData();
     const showcase = await client.channels.fetch(SHOWCASE_CHANNEL_ID);
     const now = new Date();
@@ -97,9 +103,8 @@ async function scanShowcase(client) {
         if (!msg.attachments.size) continue;
 
         const userId = msg.author.id;
-        if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false };
-
-        if (!data[userId].months[month]) data[userId].months[month] = {};
+        if (!reactions[userId]) reactions[userId] = {};
+        if (!reactions[userId][month]) reactions[userId][month] = {};
 
         // Collect unique user IDs who reacted to this message (per photo)
         let uniqueReactors = new Set();
@@ -120,15 +125,17 @@ async function scanShowcase(client) {
                 }
             }
         }
-        // Store array of unique reactor user IDs for this message
-        data[userId].months[month][msg.id] = Array.from(uniqueReactors);
+        // Store array of unique reactor user IDs for this message in reactions file
+        reactions[userId][month][msg.id] = Array.from(uniqueReactors);
 
+        // Still update snapsmith.json for superApproved logic, etc.
+        if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false };
+        // Optionally, you can reference reactions in snapsmith.json if needed.
         // Super approval logic
         if (superApproved && !data[userId].superApproved) {
             const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             data[userId].expiration = newExpiry.toISOString();
             data[userId].superApproved = true;
-
             try {
                 const guild = client.guilds.cache.values().next().value;
                 const member = await guild.members.fetch(userId);
@@ -141,22 +148,23 @@ async function scanShowcase(client) {
         }
     }
 
+    saveReactions(reactions);
     saveData(data);
-    await evaluateRoles(client, data);
+    await evaluateRoles(client, data, reactions);
 }
 
-// Evaluate reactions and update roles
-async function evaluateRoles(client, data) {
+// Evaluate reactions and update roles (now reads from reactions file)
+async function evaluateRoles(client, data, reactions) {
     const guild = client.guilds.cache.values().next().value;
     const now = new Date();
     const month = getCurrentMonth();
 
     for (const [userId, userData] of Object.entries(data)) {
-        // Sum all unique user counts across all their images for the month
+        // Use reactions file for reaction count
         let totalUniqueReactions = 0;
-        const monthData = userData.months[month] || {};
-        for (const reactorsArr of Object.values(monthData)) {
-            totalUniqueReactions += reactorsArr.length; // Only count unique users per photo
+        const userReactionsMonth = reactions[userId]?.[month] || {};
+        for (const reactorsArr of Object.values(userReactionsMonth)) {
+            totalUniqueReactions += reactorsArr.length;
         }
 
         // Duration logic
@@ -218,5 +226,5 @@ module.exports = {
         }, 3600 * 1000); // Scan every hour
     },
     syncCurrentSnapsmiths,
-    scanShowcase // <-- now exported for admin command!
+    scanShowcase
 };
