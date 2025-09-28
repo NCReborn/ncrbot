@@ -213,9 +213,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                     .setTitle('A new Snapsmith Emerges')
                     .addFields(
                         { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                        { name: '\u200B', value: '\u200B', inline: false },
                         { name: 'Requirements Met', value: requirementsStr, inline: false },
-                        { name: '\u200B', value: '\u200B', inline: false },
                         { name: 'Details', value: detailsStr, inline: false }
                     )
                     .setTimestamp();
@@ -283,7 +281,7 @@ async function evaluateRoles(client, data, reactions) {
                         : `Received ${totalUniqueReactions} 🌟 stars from our community`;
 
                     const detailsStr = userData.superApproved
-                        ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from our super approver, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
+                        ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
                         : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
 
                     const embed = new EmbedBuilder()
@@ -291,9 +289,7 @@ async function evaluateRoles(client, data, reactions) {
                         .setTitle('A new Snapsmith Emerges')
                         .addFields(
                             { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                            { name: '\u200B', value: '\u200B', inline: false },
                             { name: 'Requirements Met', value: requirementsStr, inline: false },
-                            { name: '\u200B', value: '\u200B', inline: false },
                             { name: 'Details', value: detailsStr, inline: false }
                         )
                         .setTimestamp();
