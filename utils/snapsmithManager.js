@@ -33,6 +33,7 @@ function loadReactions() {
 }
 function saveReactions(data) {
     fs.writeFileSync(REACTION_DATA_PATH, JSON.stringify(data, null, 2));
+    // logger.debug('Reactions file saved. Current data: ' + JSON.stringify(data, null, 2)); // SILENCED
 }
 function getCurrentMonth() {
     const now = new Date();
@@ -189,8 +190,8 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
     }
 
     logger.info(`Processed ${messageCount} messages, found ${attachmentCount} with attachments.`);
+    // saveReactions already silences spam
     saveReactions(reactions);
-    logger.debug('Reactions file saved. Current data: ' + JSON.stringify(reactions, null, 2));
     saveData(data);
     await evaluateRoles(client, data, reactions);
     logger.info('scanShowcase finished.');
