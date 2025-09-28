@@ -159,6 +159,12 @@ module.exports = {
         }
 
         try {
+          // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+          // Fix: Defer reply immediately for all slash commands
+          // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.deferReply({ ephemeral: true });
+          }
           await command.execute(interaction);
 
           // --- Only update the #bot-controls channel topic after a status slash command ---
@@ -199,11 +205,15 @@ module.exports = {
               }
             }
           }
-        } catch {
+        } catch (err) {
           if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
+            try {
+              await interaction.followUp({ content: 'There was an error executing this command!', ephemeral: true });
+            } catch { /* ignore if already replied */ }
           } else {
-            await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+            try {
+              await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+            } catch { /* ignore if already replied */ }
           }
         }
       }
