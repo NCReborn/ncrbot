@@ -1,3 +1,101 @@
+// Add this function at the top of the file for easy logging control
+function debug(...args) {
+    if (process.env.SNAPSMITH_DEBUG === 'true') {
+        console.log('[SNAPSMITH DEBUG]', ...args);
+    }
+}
+
+async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
+    await syncCurrentSnapsmiths(client);
+
+    const reactions = loadReactions();
+    const data = loadData();
+    const showcase = await client.channels.fetch(SHOWCASE_CHANNEL_ID);
+    const month = getCurrentMonth();
+
+    if (!showcase || showcase.type !== ChannelType.GuildText) {
+        debug('Showcase channel not found or wrong type!');
+        return;
+    }
+
+    let messages;
+    if (Array.isArray(messageIds) && messageIds.length) {
+        messages = new Map();
+        for (const id of messageIds) {
+            try {
+                const msg = await showcase.messages.fetch(id);
+                if (msg) messages.set(id, msg);
+            } catch (e) {
+                debug(`Could not fetch message ${id}: ${e.message}`);
+            }
+        }
+    } else {
+        messages = await showcase.messages.fetch({ limit });
+    }
+    debug(`Fetched ${messages.size} messages from showcase.`);
+
+    for (const msg of messages.values()) {
+        if (!msg.attachments.size) continue; // Only scan images
+
+        const userId = msg.author.id;
+        if (!reactions[userId]) reactions[userId] = {};
+        if (!reactions[userId][month]) reactions[userId][month] = {};
+
+        let uniqueReactors = new Set();
+        let superApproved = false;
+
+        for (const reaction of msg.reactions.cache.values()) {
+            debug(`Message ${msg.id} -- Reaction emoji.name=${reaction.emoji.name}, emoji.id=${reaction.emoji.id}`);
+            const users = await reaction.users.fetch();
+            debug(`Message ${msg.id} -- Reaction users: ${Array.from(users.keys()).join(', ')}`);
+
+            users.forEach(user => {
+                if (user.id !== msg.author.id && !user.bot) {
+                    uniqueReactors.add(user.id);
+                }
+            });
+
+            const isStar2 = reaction.emoji.name === '✨' || reaction.emoji.id === '✨' || reaction.emoji.name === 'star2';
+            const hasSuperApprover = users.has(SUPER_APPROVER_ID);
+            debug(`Message ${msg.id} -- isStar2=${isStar2}, hasSuperApprover=${hasSuperApprover}`);
+
+            if (isStar2 && hasSuperApprover) {
+                debug(`SUPER APPROVAL DETECTED for user ${userId} on message ${msg.id}`);
+                superApproved = true;
+            }
+        }
+
+        reactions[userId][month][msg.id] = Array.from(uniqueReactors);
+
+        // Debug: show current superApproved state before assignment
+        debug(`User ${userId} pre-check: data.superApproved=${data[userId]?.superApproved}, superApproved=${superApproved}`);
+
+        if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false };
+        if (superApproved && !data[userId].superApproved) {
+            const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
+            data[userId].expiration = newExpiry.toISOString();
+            data[userId].superApproved = true;
+            debug(`Attempting to award role to ${userId}`);
+            try {
+                const guild = client.guilds.cache.values().next().value;
+                const member = await guild.members.fetch(userId);
+                await member.roles.add(SNAPSMITH_ROLE_ID);
+                const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
+                await snapsmithChannel.send(
+                    `<@${userId}> has received a **Super Approval** from <@${SUPER_APPROVER_ID}> and is awarded Snapsmith for 30 days! :star2:`
+                );
+                debug(`Super approval awarded for ${userId}.`);
+            } catch (e) {
+                debug(`Super approval role assignment failed for ${userId}: ${e.message}`);
+            }
+        }
+    }
+
+    saveReactions(reactions);
+    saveData(data);
+    await evaluateRoles(client, data, reactions);
+}
+
 const fs = require('fs');
 const path = require('path');
 const { ChannelType } = require('discord.js');
