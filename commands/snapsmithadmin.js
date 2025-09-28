@@ -115,7 +115,7 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
     try {
-        await interaction.deferReply({ ephemeral: true });
+        // DO NOT deferReply here! Your event handler already does it.
         const sub = interaction.options.getSubcommand();
         const dataObj = loadData();
         const reactionsObj = loadReactions();
