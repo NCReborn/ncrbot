@@ -146,8 +146,19 @@ async function execute(interaction) {
             let processed = 0;
             for (const [userId, userData] of Object.entries(dataObj)) {
                 if (userData.expiration) {
+                    // PATCH: Only set snapsmithAchievedAt if missing
                     if (!userData.snapsmithAchievedAt) {
-                        userData.snapsmithAchievedAt = new Date().toISOString();
+                        // Try to find earliest reaction for user
+                        const userReactions = reactionsObj[userId] || {};
+                        let earliestMonth = null;
+                        for (const mon of Object.keys(userReactions)) {
+                            if (!earliestMonth || mon < earliestMonth) earliestMonth = mon;
+                        }
+                        if (earliestMonth) {
+                            userData.snapsmithAchievedAt = new Date(earliestMonth + '-01T00:00:00.000Z').toISOString();
+                        } else {
+                            userData.snapsmithAchievedAt = new Date().toISOString();
+                        }
                     }
                     // Make sure initial count is correct for superApproved users
                     if (userData.superApproved) userData.initialReactionCount = 0;
