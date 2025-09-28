@@ -177,7 +177,6 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
             const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             data[userId].expiration = newExpiry.toISOString();
             data[userId].superApproved = true;
-            // Set initial reaction count for super approval
             let totalUniqueReactions = Array.from(uniqueReactors).length;
             data[userId].initialReactionCount = totalUniqueReactions;
             logger.info(`Attempting to award role to ${userId}`);
@@ -215,7 +214,6 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
     logger.info('scanShowcase finished.');
 }
 
-// --- PATCHED LOGIC ---
 async function evaluateRoles(client, data, reactions) {
     logger.debug('evaluateRoles called!');
     const guild = client.guilds.cache.values().next().value;
@@ -233,6 +231,7 @@ async function evaluateRoles(client, data, reactions) {
         const currentExpiration = userData.expiration ? new Date(userData.expiration) : null;
         let newExpiration = null;
         let needsAward = false;
+        let initialTrigger = false;
 
         // Initial trigger logic (award 30 days for Super Approval or reaching 25 reactions)
         if (
@@ -241,8 +240,8 @@ async function evaluateRoles(client, data, reactions) {
         ) {
             newExpiration = new Date(now.getTime() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             needsAward = true;
-            // Store initial reaction count for this month
             userData.initialReactionCount = totalUniqueReactions;
+            initialTrigger = true;
         }
         // Extra days after initial trigger
         else if (currentExpiration && currentExpiration > now) {
@@ -273,23 +272,40 @@ async function evaluateRoles(client, data, reactions) {
                 await member.roles.add(SNAPSMITH_ROLE_ID);
 
                 const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
-                const requirementsStr = userData.superApproved
-                    ? `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`
-                    : `Received ${totalUniqueReactions} 🌟 stars from our community`;
 
-                const detailsStr = userData.superApproved
-                    ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
-                    : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                // Which embed to send?
+                let embed;
+                if (initialTrigger) {
+                    // Initial Snapsmith award
+                    const requirementsStr = userData.superApproved
+                        ? `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`
+                        : `Received ${totalUniqueReactions} 🌟 stars from our community`;
 
-                const embed = new EmbedBuilder()
-                    .setColor(0xFAA61A)
-                    .setTitle('A new Snapsmith Emerges')
-                    .addFields(
-                        { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                        { name: 'Requirements Met', value: requirementsStr, inline: false },
-                        { name: 'Details', value: detailsStr, inline: false }
-                    )
-                    .setTimestamp();
+                    const detailsStr = userData.superApproved
+                        ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
+                        : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+
+                    embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle('A new Snapsmith Emerges')
+                        .addFields(
+                            { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                            { name: 'Requirements Met', value: requirementsStr, inline: false },
+                            { name: 'Details', value: detailsStr, inline: false }
+                        )
+                        .setTimestamp();
+                } else {
+                    // Extra day milestone
+                    let daysLeft = Math.ceil((newExpiration - now) / (1000 * 60 * 60 * 24));
+                    embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle(`<@${userId}> has earned an additional day!`)
+                        .addFields(
+                            { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                            { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another 3 reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}>. Your current balance is **${daysLeft} days**. Keep the amazing submissions coming, choom!`, inline: false }
+                        )
+                        .setTimestamp();
+                }
 
                 await snapsmithChannel.send({ embeds: [embed] });
                 logger.info(`Role/award embed sent for ${userId}.`);
