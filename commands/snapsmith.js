@@ -111,27 +111,38 @@ module.exports = {
         .setName('snapsmith')
         .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)'),
     async execute(interaction) {
-        const status = await getUserSnapsmithStatus(interaction.user.id);
-        let msg;
-        if (!status) {
-            msg = `You have no Snapsmith activity yet. Submit your best in-game photos in <#${SHOWCASE_CHANNEL_ID}> to get started!`;
-        } else {
-            msg = `**Snapsmith Status for <@${interaction.user.id}>**\n`;
-            msg += status.roleActive
-                ? `- You currently have the Snapsmith role.\n- Time left: **${status.timeLeft} days**\n`
-                : `- You do not currently have the Snapsmith role.\n`;
+        try {
+            const status = await getUserSnapsmithStatus(interaction.user.id);
+            let msg;
+            if (!status) {
+                msg = `You have no Snapsmith activity yet. Submit your best in-game photos in <#${SHOWCASE_CHANNEL_ID}> to get started!`;
+            } else {
+                msg = `**Snapsmith Status for <@${interaction.user.id}>**\n`;
+                msg += status.roleActive
+                    ? `- You currently have the Snapsmith role.\n- Time left: **${status.timeLeft} days**\n`
+                    : `- You do not currently have the Snapsmith role.\n`;
 
-            msg += `- Unique reactions this month (unique reactors per post summed): **${status.totalUniqueReactions}**\n`;
-            msg += `- You need **${Math.max(REACTION_TARGET - status.totalUniqueReactions, 0)}** more unique reactions this month to earn Snapsmith.\n`;
+                msg += `- Unique reactions this month (unique reactors per post summed): **${status.totalUniqueReactions}**\n`;
+                msg += `- You need **${Math.max(REACTION_TARGET - status.totalUniqueReactions, 0)}** more unique reactions this month to earn Snapsmith.\n`;
 
-            msg += status.superApproved
-                ? `- You received a :star2: Super Approval from <@${SUPER_APPROVER_ID}> this month!\n`
-                : "";
-            msg += `- Super reactions from <@${SUPER_APPROVER_ID}> this month: **${status.superReactionCount}**\n`;
-            msg += `- Days queued (total): **${status.daysQueued}** (max ${MAX_BUFFER_DAYS})\n`;
+                msg += status.superApproved
+                    ? `- You received a :star2: Super Approval from <@${SUPER_APPROVER_ID}> this month!\n`
+                    : "";
+                msg += `- Super reactions from <@${SUPER_APPROVER_ID}> this month: **${status.superReactionCount}**\n`;
+                msg += `- Days queued (total): **${status.daysQueued}** (max ${MAX_BUFFER_DAYS})\n`;
+            }
+
+            // Only reply ONCE per interaction, and use flags for ephemeral!
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ content: msg, flags: 64 });
+            }
+        } catch (err) {
+            // Only log errors, never throw
+            console.error("Error in /snapsmith command:", err);
+            // Only reply if not already responded
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ content: "There was an error running /snapsmith.", flags: 64 });
+            }
         }
-
-        // Only reply ONCE per interaction, and use flags for ephemeral!
-        await interaction.reply({ content: msg, flags: 64 });
     }
 };
