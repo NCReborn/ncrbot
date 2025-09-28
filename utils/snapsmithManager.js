@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { ChannelType } = require('discord.js');
+const { ChannelType, EmbedBuilder } = require('discord.js');
 const logger = require('./logger'); // Adjust path as needed
 
 // CONFIG (Replace these with your actual IDs)
@@ -196,10 +196,25 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                 const member = await guild.members.fetch(userId);
                 await member.roles.add(SNAPSMITH_ROLE_ID);
                 const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
-                await snapsmithChannel.send(
-                    `<@${userId}> has received a **Super Approval** from <@${SUPER_APPROVER_ID}> and is awarded Snapsmith for 30 days! 🌟`
-                );
-                logger.info(`Super approval awarded for ${userId}.`);
+
+                // AWARD EMBED
+                const requirementsStr = `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`;
+                const detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from our super approver, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+
+                const embed = new EmbedBuilder()
+                    .setColor(0xFAA61A)
+                    .setTitle('A new Snapsmith Emerges')
+                    .addFields(
+                        { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                        { name: '\u200B', value: '\u200B', inline: false },
+                        { name: 'Requirements Met', value: requirementsStr, inline: false },
+                        { name: '\u200B', value: '\u200B', inline: false },
+                        { name: 'Details', value: detailsStr, inline: false }
+                    )
+                    .setTimestamp();
+
+                await snapsmithChannel.send({ embeds: [embed] });
+                logger.info(`Role/award embed sent for ${userId}.`);
             } catch (e) {
                 logger.error(`Super approval role assignment failed for ${userId}: ${e.message}`);
             }
@@ -255,12 +270,29 @@ async function evaluateRoles(client, data, reactions) {
                     await member.roles.add(SNAPSMITH_ROLE_ID);
 
                     const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
-                    let msg = `<@${userId}> has earned **${durationDays} days** of Snapsmith for receiving ${totalUniqueReactions} unique reactions this month!`;
-                    if (userData.superApproved) {
-                        msg += ` (Includes Super Approval 🌟)`;
-                    }
-                    await snapsmithChannel.send(msg);
-                    logger.info(`Role/award message sent for ${userId}.`);
+                    // AWARD EMBED
+                    const requirementsStr = userData.superApproved
+                        ? `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`
+                        : `Received ${totalUniqueReactions} 🌟 stars from our community`;
+
+                    const detailsStr = userData.superApproved
+                        ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from our super approver, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
+                        : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle('A new Snapsmith Emerges')
+                        .addFields(
+                            { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                            { name: '\u200B', value: '\u200B', inline: false },
+                            { name: 'Requirements Met', value: requirementsStr, inline: false },
+                            { name: '\u200B', value: '\u200B', inline: false },
+                            { name: 'Details', value: detailsStr, inline: false }
+                        )
+                        .setTimestamp();
+
+                    await snapsmithChannel.send({ embeds: [embed] });
+                    logger.info(`Role/award embed sent for ${userId}.`);
                 } catch (e) {
                     logger.error(`Failed to add role/send award for ${userId}: ${e.message}`);
                 }
@@ -294,5 +326,8 @@ module.exports = {
     syncCurrentSnapsmiths,
     scanShowcase,
     SNAPSMITH_ROLE_ID,
-    SNAPSMITH_CHANNEL_ID
+    SNAPSMITH_CHANNEL_ID,
+    REACTION_TARGET,
+    SUPER_APPROVER_ID,
+    SHOWCASE_CHANNEL_ID
 };
