@@ -206,7 +206,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
 
                 // AWARD EMBED
                 const requirementsStr = `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`;
-                const detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                const detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> for the next 30 days, as a symbol of your amazing photomode skills.`;
 
                 const embed = new EmbedBuilder()
                     .setColor(0xFAA61A)
@@ -282,7 +282,7 @@ async function evaluateRoles(client, data, reactions) {
 
                     const detailsStr = userData.superApproved
                         ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
-                        : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                        : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> for the next 30 days, as a symbol of your amazing photomode skills.`;
 
                     const embed = new EmbedBuilder()
                         .setColor(0xFAA61A)
