@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
-const { SNAPSMITH_ROLE_ID, SNAPSMITH_CHANNEL_ID, REACTION_TARGET, SUPER_APPROVER_ID, SHOWCASE_CHANNEL_ID } = require('../utils/snapsmithManager');
+const { SNAPSMITH_ROLE_ID, SNAPSMITH_CHANNEL_ID, REACTION_TARGET, SUPER_APPROVER_ID, SHOWCASE_CHANNEL_ID, scanShowcase } = require('../utils/snapsmithManager');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const ROLE_DURATION_DAYS = 30;
@@ -98,7 +98,7 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
     try {
-        await interaction.deferReply({ ephemeral: true }); // Ensures you can safely editReply later
+        await interaction.deferReply({ ephemeral: true });
 
         const sub = interaction.options.getSubcommand();
         const dataObj = loadData();
@@ -116,7 +116,6 @@ async function execute(interaction) {
                 try {
                     const channel = await interaction.guild.channels.fetch(SNAPSMITH_CHANNEL_ID);
 
-                    // Prepare requirements text
                     let requirementsStr;
                     if (superapproved) {
                         requirementsStr = `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`;
@@ -126,7 +125,6 @@ async function execute(interaction) {
                         requirementsStr = `Requirements not met or not specified`;
                     }
 
-                    // Prepare details text
                     let detailsStr;
                     if (superapproved) {
                         detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from our super approver, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
@@ -136,7 +134,6 @@ async function execute(interaction) {
                         detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have not met the minimum requirements.`;
                     }
 
-                    // Create the embed
                     const embed = new EmbedBuilder()
                         .setColor(0xFAA61A)
                         .setTitle('A new Snapsmith Emerges')
@@ -156,8 +153,20 @@ async function execute(interaction) {
                 }
             }
         }
-
-        // ...rest of your subcommands unchanged...
+        else if (sub === 'scan') {
+            try {
+                const limit = interaction.options.getInteger('limit') || 100;
+                const messageidsRaw = interaction.options.getString('messageids');
+                let messageIds = null;
+                if (messageidsRaw) messageIds = messageidsRaw.split(',').map(s => s.trim());
+                await scanShowcase(interaction.client, { limit, messageIds });
+                reply = `Manual scan completed. Showcase posts and reactions have been checked (limit: ${limit}${messageIds ? ", messageIds: " + messageIds.join(',') : ""}).`;
+                console.log("Snapsmith showcase scan executed via admin command.");
+            } catch (e) {
+                reply = `Manual scan failed: ${e.message}`;
+                console.error("Error in snapsmithadmin scan subcommand:", e);
+            }
+        }
         else if (sub === 'forceremove') {
             if (!user) reply = "User required.";
             else {
@@ -177,7 +186,7 @@ async function execute(interaction) {
                 }
             }
         }
-        // ...etc for other subcommands...
+        // ...other subcommands here...
 
         await interaction.editReply({ content: reply });
     } catch (err) {
