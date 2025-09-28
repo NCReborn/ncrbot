@@ -1,14 +1,11 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
-const { SNAPSMITH_ROLE_ID, SNAPSMITH_CHANNEL_ID } = require('../utils/snapsmithManager');
+const { SNAPSMITH_ROLE_ID, SNAPSMITH_CHANNEL_ID, REACTION_TARGET, SUPER_APPROVER_ID, SHOWCASE_CHANNEL_ID } = require('../utils/snapsmithManager');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const ROLE_DURATION_DAYS = 30;
-const REACTION_TARGET = 25;
 const MAX_BUFFER_DAYS = 60;
-//const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
-const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
 
 function loadData() {
     if (fs.existsSync(DATA_PATH)) {
@@ -101,10 +98,7 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
     try {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            await interaction.editReply({ content: 'You do not have permission to use this command.' });
-            return;
-        }
+        await interaction.deferReply({ ephemeral: true }); // Ensures you can safely editReply later
 
         const sub = interaction.options.getSubcommand();
         const dataObj = loadData();
@@ -113,11 +107,58 @@ async function execute(interaction) {
         let messageId = interaction.options.getString('messageid');
         let reply = "No action taken.";
 
-        // ... your command logic goes here, unchanged ...
-        // (See previous versions for all your subcommand implementations)
+        if (sub === 'announce') {
+            if (!user) reply = "User required.";
+            else {
+                const days = interaction.options.getInteger('days');
+                const reactions = interaction.options.getInteger('reactions');
+                const superapproved = interaction.options.getBoolean('superapproved');
+                try {
+                    const channel = await interaction.guild.channels.fetch(SNAPSMITH_CHANNEL_ID);
 
-        // For brevity, here is the most critical fix for forceremove:
-        if (sub === 'forceremove') {
+                    // Prepare requirements text
+                    let requirementsStr;
+                    if (superapproved) {
+                        requirementsStr = `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`;
+                    } else if (typeof reactions === 'number' && reactions >= REACTION_TARGET) {
+                        requirementsStr = `Received ${reactions} 🌟 stars from our community`;
+                    } else {
+                        requirementsStr = `Requirements not met or not specified`;
+                    }
+
+                    // Prepare details text
+                    let detailsStr;
+                    if (superapproved) {
+                        detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from our super approver, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                    } else if (typeof reactions === 'number' && reactions >= REACTION_TARGET) {
+                        detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${reactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                    } else {
+                        detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have not met the minimum requirements.`;
+                    }
+
+                    // Create the embed
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle('A new Snapsmith Emerges')
+                        .addFields(
+                            { name: 'Congratulations', value: `<@${user.id}>`, inline: false },
+                            { name: '\u200B', value: '\u200B', inline: false },
+                            { name: 'Requirements Met', value: requirementsStr, inline: false },
+                            { name: '\u200B', value: '\u200B', inline: false },
+                            { name: 'Details', value: detailsStr, inline: false }
+                        )
+                        .setTimestamp();
+
+                    await channel.send({ embeds: [embed] });
+                    reply = `Announced Snapsmith winner for ${user}.`;
+                } catch (e) {
+                    reply = `Failed to announce in channel: ${e.message}`;
+                }
+            }
+        }
+
+        // ...rest of your subcommands unchanged...
+        else if (sub === 'forceremove') {
             if (!user) reply = "User required.";
             else {
                 if (dataObj[user.id]) {
@@ -126,7 +167,7 @@ async function execute(interaction) {
                     saveData(dataObj);
                     try {
                         const member = await interaction.guild.members.fetch(user.id);
-                        await member.roles.remove(SNAPSMITH_ROLE_ID); // uses correct imported constant
+                        await member.roles.remove(SNAPSMITH_ROLE_ID);
                         reply = `Force-removed Snapsmith role from ${user}.`;
                     } catch (e) {
                         reply = `Force-removed in system, but could not remove Discord role: ${e.message}`;
@@ -136,8 +177,7 @@ async function execute(interaction) {
                 }
             }
         }
-
-        // ...rest of subcommands...
+        // ...etc for other subcommands...
 
         await interaction.editReply({ content: reply });
     } catch (err) {
