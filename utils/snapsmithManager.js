@@ -237,7 +237,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                     const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
 
                     const requirementsStr = `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`;
-                    const detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                    const detailsStr = `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a Snapsmith.`;
 
                     const embed = new EmbedBuilder()
                         .setColor(0xFAA61A)
@@ -268,7 +268,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                         .setTitle('Super Approval Bonus')
                         .addFields(
                             { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                            { name: 'Details', value: `You already have Snapsmith status, but <@${SUPER_APPROVER_ID}> gave you a 🌟 Super Approval!\n\n**You have received 1 extra day on your Snapsmith role thanks to Veinz's Super Approval!**\nYou now have **${daysLeft} days** remaining.`, inline: false }
+                            { name: 'Details', value: `You already have Snapsmith status, but <@${SUPER_APPROVER_ID}> gave you a 🌟 Super Approval!\n\n**You have received 1 extra day on your Snapsmith timer!**`, inline: false }
                         )
                         .setTimestamp();
                     await snapsmithChannel.send({ embeds: [embed] });
@@ -304,7 +304,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                     .setTitle(`${msg.author.username} has earned an additional day!`)
                     .addFields(
                         { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                        { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another ${EXTRA_DAY_REACTION_COUNT} reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}>. Your current balance is **${daysLeft} days**. Keep the amazing submissions coming, choom!`, inline: false }
+                        { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another ${EXTRA_DAY_REACTION_COUNT} reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}> timer!`, inline: false }
                     )
                     .setTimestamp();
                 await snapsmithChannel.send({ embeds: [embed] });
@@ -319,6 +319,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
     await evaluateRoles(client, data, reactions);
 }
 
+// PATCHED: Only update expiration if recalculated value is greater than the previous
 async function evaluateRoles(client, data, reactions) {
     const guild = client.guilds.cache.values().next().value;
     const now = new Date();
@@ -362,96 +363,89 @@ async function evaluateRoles(client, data, reactions) {
         let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
         let milestoneDays = Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT);
 
-        // If milestoneDays is higher than recorded, update and award
+        // PATCH: Only update reactionMilestoneDays if milestoneDays is greater
         if (milestoneDays > userData.reactionMilestoneDays && userData.snapsmithAchievedAt) {
             userData.reactionMilestoneDays = milestoneDays;
             needsAward = true;
         }
 
-        if (
-            (userData.superApproved && (!currentExpiration || currentExpiration < now)) ||
-            (!userData.superApproved && totalUniqueReactionsThisMonth >= REACTION_TARGET && (!currentExpiration || currentExpiration < now))
-        ) {
-            newExpiration = new Date(now.getTime() + (ROLE_DURATION_DAYS + userData.reactionMilestoneDays + superApprovalBonusDays) * 24 * 60 * 60 * 1000);
-            needsAward = true;
-            userData.initialReactionCount = totalUniqueReactionsThisMonth;
-            userData.snapsmithAchievedAt = Date.now();
-            initialTrigger = true;
-        }
-        else if (currentExpiration && currentExpiration > now && userData.snapsmithAchievedAt) {
-            let baseDays = ROLE_DURATION_DAYS;
-            let maxDays = MAX_BUFFER_DAYS;
-            let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
-                ? new Date(userData.snapsmithAchievedAt).getTime()
-                : userData.snapsmithAchievedAt;
-            let calculatedExpiration = achievedTimestamp + (baseDays + userData.reactionMilestoneDays + superApprovalBonusDays) * 24 * 60 * 60 * 1000;
-            let today = Date.now();
-            let actualDaysLeft = Math.max(0, Math.ceil((calculatedExpiration - today) / (1000 * 60 * 60 * 24)));
-            if (actualDaysLeft > maxDays) actualDaysLeft = maxDays;
-            if (Math.abs(new Date(userData.expiration).getTime() - calculatedExpiration) > 60 * 1000) {
+        let baseDays = ROLE_DURATION_DAYS;
+        let maxDays = MAX_BUFFER_DAYS;
+        let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
+            ? new Date(userData.snapsmithAchievedAt).getTime()
+            : userData.snapsmithAchievedAt;
+        let calculatedExpiration = achievedTimestamp + (baseDays + userData.reactionMilestoneDays + superApprovalBonusDays) * 24 * 60 * 60 * 1000;
+
+        // PATCH: Only update expiration if new calculated expiration is greater than current expiration
+        if (currentExpiration) {
+            if (calculatedExpiration > currentExpiration.getTime()) {
                 newExpiration = new Date(calculatedExpiration);
                 needsAward = true;
             }
+        } else if (userData.snapsmithAchievedAt) {
+            newExpiration = new Date(calculatedExpiration);
+            needsAward = true;
         }
 
+        // cap by MAX_BUFFER_DAYS
         if (newExpiration) {
-            let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
-                ? new Date(userData.snapsmithAchievedAt).getTime()
-                : userData.snapsmithAchievedAt;
-            const maxExpiration = achievedTimestamp + MAX_BUFFER_DAYS * 24 * 60 * 60 * 1000;
+            const maxExpiration = achievedTimestamp + maxDays * 24 * 60 * 60 * 1000;
             if (newExpiration.getTime() > maxExpiration) newExpiration = new Date(maxExpiration);
         }
 
         if (needsAward && newExpiration) {
-            userData.expiration = newExpiration.toISOString();
+            // PATCH: Only update if it's more days than before
+            if (!currentExpiration || newExpiration > currentExpiration) {
+                userData.expiration = newExpiration.toISOString();
 
-            try {
-                const member = await guild.members.fetch(userId);
-                await member.roles.add(SNAPSMITH_ROLE_ID);
+                try {
+                    const member = await guild.members.fetch(userId);
+                    await member.roles.add(SNAPSMITH_ROLE_ID);
 
-                const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
+                    const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
 
-                let embed;
-                if (initialTrigger) {
-                    const requirementsStr = userData.superApproved
-                        ? `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`
-                        : `Received ${totalUniqueReactionsThisMonth} 🌟 stars from our community`;
+                    let embed;
+                    if (initialTrigger) {
+                        const requirementsStr = userData.superApproved
+                            ? `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`
+                            : `Received ${totalUniqueReactionsThisMonth} 🌟 stars from our community`;
 
-                    const detailsStr = userData.superApproved
-                        ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
-                        : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactionsThisMonth} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                        const detailsStr = userData.superApproved
+                            ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a Snapsmith.`
+                            : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactionsThisMonth} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a Snapsmith.`;
 
-                    embed = new EmbedBuilder()
-                        .setColor(0xFAA61A)
-                        .setTitle('A new Snapsmith Emerges')
-                        .addFields(
-                            { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                            { name: 'Requirements Met', value: requirementsStr, inline: false },
-                            { name: 'Details', value: detailsStr, inline: false }
-                        )
-                        .setTimestamp();
-                } else {
-                    let daysLeft = Math.max(0, Math.ceil((newExpiration - now) / (1000 * 60 * 60 * 24)));
-                    let usernameDisplay = `<@${userId}>`;
-                    try {
-                        const userObj = await guild.members.fetch(userId).then(m => m.user).catch(() => null);
-                        if (userObj) {
-                            usernameDisplay = userObj.username;
-                        }
-                    } catch (e) {}
-                    embed = new EmbedBuilder()
-                        .setColor(0xFAA61A)
-                        .setTitle(`${usernameDisplay} has earned an additional day!`)
-                        .addFields(
-                            { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                            { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another ${EXTRA_DAY_REACTION_COUNT} reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}>. Your current balance is **${daysLeft} days**. Keep the amazing submissions coming, choom!`, inline: false }
-                        )
-                        .setTimestamp();
+                        embed = new EmbedBuilder()
+                            .setColor(0xFAA61A)
+                            .setTitle('A new Snapsmith Emerges')
+                            .addFields(
+                                { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                                { name: 'Requirements Met', value: requirementsStr, inline: false },
+                                { name: 'Details', value: detailsStr, inline: false }
+                            )
+                            .setTimestamp();
+                    } else {
+                        let daysLeft = Math.max(0, Math.ceil((newExpiration - now) / (1000 * 60 * 60 * 24)));
+                        let usernameDisplay = `<@${userId}>`;
+                        try {
+                            const userObj = await guild.members.fetch(userId).then(m => m.user).catch(() => null);
+                            if (userObj) {
+                                usernameDisplay = userObj.username;
+                            }
+                        } catch (e) {}
+                        embed = new EmbedBuilder()
+                            .setColor(0xFAA61A)
+                            .setTitle(`${usernameDisplay} has earned an additional day!`)
+                            .addFields(
+                                { name: 'Congratulations', value: `<@${userId}>`, inline: false },
+                                { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another ${EXTRA_DAY_REACTION_COUNT} reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}> timer!`, inline: false }
+                            )
+                            .setTimestamp();
+                    }
+
+                    await snapsmithChannel.send({ embeds: [embed] });
+                } catch (e) {
+                    logger.error(`Failed to add role/send award for ${userId}: ${e.message}`);
                 }
-
-                await snapsmithChannel.send({ embeds: [embed] });
-            } catch (e) {
-                logger.error(`Failed to add role/send award for ${userId}: ${e.message}`);
             }
         }
 
