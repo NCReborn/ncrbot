@@ -6,6 +6,7 @@ const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreaction
 const META_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
+const EXTRA_DAY_REACTION_COUNT = 5; // <--- CHANGE THIS VALUE TO CHANGE REACTIONS PER EXTRA DAY
 const MAX_BUFFER_DAYS = 60;
 //const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
 const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
@@ -43,10 +44,12 @@ function countSuperReactions(userId, month) {
 
 function getNextDayReactions(meta, totalUniqueReactions) {
     if (meta.superApproved) {
-        return 3 - (totalUniqueReactions % 3) === 0 ? 3 : 3 - (totalUniqueReactions % 3);
+        let remainder = totalUniqueReactions % EXTRA_DAY_REACTION_COUNT;
+        return remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
     } else if (totalUniqueReactions >= REACTION_TARGET) {
         let extra = totalUniqueReactions - REACTION_TARGET;
-        return 3 - (extra % 3) === 0 ? 3 : 3 - (extra % 3);
+        let remainder = extra % EXTRA_DAY_REACTION_COUNT;
+        return remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
     }
     return null;
 }
@@ -154,8 +157,8 @@ module.exports = {
                     );
             } else if (status.roleActive && !status.superApproved) {
                 let extra = status.totalUniqueReactions - REACTION_TARGET;
-                let reactionsToNextDay = 3 - ((extra > 0 ? extra : 0) % 3);
-                if (reactionsToNextDay === 0) reactionsToNextDay = 3;
+                let reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - ((extra > 0 ? extra : 0) % EXTRA_DAY_REACTION_COUNT);
+                if (reactionsToNextDay === 0) reactionsToNextDay = EXTRA_DAY_REACTION_COUNT;
                 embed = new EmbedBuilder()
                     .setColor(0xFAA61A)
                     .setTitle(`Snapsmith Status`)
@@ -169,8 +172,8 @@ module.exports = {
                         { name: 'Days queued', value: `**${status.daysQueued}** (max ${MAX_BUFFER_DAYS})`, inline: true }
                     );
             } else if (status.roleActive && status.superApproved) {
-                let reactionsToNextDay = 3 - (status.totalUniqueReactions % 3);
-                if (reactionsToNextDay === 0) reactionsToNextDay = 3;
+                let remainder = status.totalUniqueReactions % EXTRA_DAY_REACTION_COUNT;
+                let reactionsToNextDay = remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
                 embed = new EmbedBuilder()
                     .setColor(0xFAA61A)
                     .setTitle(`Snapsmith Status`)
