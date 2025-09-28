@@ -288,7 +288,7 @@ module.exports = {
     startPeriodicScan: function(client) {
         setInterval(() => {
             scanShowcase(client).catch(logger.error);
-        }, 2 * 60 * 1000); // Scan every 2 minutes
+        }, 3600 * 1000); // Scan every hour
     },
     syncCurrentSnapsmiths,
     scanShowcase
