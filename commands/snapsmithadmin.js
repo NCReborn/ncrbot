@@ -4,6 +4,7 @@ const fs = require('fs');
 const { SNAPSMITH_ROLE_ID, SNAPSMITH_CHANNEL_ID, REACTION_TARGET, SUPER_APPROVER_ID, SHOWCASE_CHANNEL_ID, scanShowcase } = require('../utils/snapsmithManager');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
+const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
 const ROLE_DURATION_DAYS = 30;
 const MAX_BUFFER_DAYS = 60;
 
@@ -13,11 +14,15 @@ function loadData() {
     }
     return {};
 }
-
 function saveData(data) {
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
 }
-
+function loadReactions() {
+    if (fs.existsSync(REACTION_DATA_PATH)) {
+        return JSON.parse(fs.readFileSync(REACTION_DATA_PATH, 'utf8'));
+    }
+    return {};
+}
 function getCurrentMonth() {
     const now = new Date();
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -94,20 +99,60 @@ const data = new SlashCommandBuilder()
             .setDescription('Manually force a check and scan showcase for reactions')
             .addIntegerOption(opt => opt.setName('limit').setDescription('Number of messages to scan').setRequired(false))
             .addStringOption(opt => opt.setName('messageids').setDescription('Comma separated message IDs to scan').setRequired(false))
+    )
+    .addSubcommand(subcmd =>
+        subcmd.setName('recalc')
+            .setDescription('Recalculate additional days for a user based on latest reactions')
+            .addUserOption(opt => opt.setName('user').setDescription('User to recalculate').setRequired(true))
     );
 
 async function execute(interaction) {
     try {
-        // DO NOT deferReply or reply here -- already handled in the event handler!
-
         const sub = interaction.options.getSubcommand();
         const dataObj = loadData();
+        const reactionsObj = loadReactions();
         const month = getCurrentMonth();
         let user = interaction.options.getUser('user');
         let messageId = interaction.options.getString('messageid');
         let reply = "No action taken.";
 
-        if (sub === 'announce') {
+        if (sub === 'recalc') {
+            if (!user) reply = "User required.";
+            else {
+                const userData = dataObj[user.id];
+                const userReactionsMonth = reactionsObj[user.id]?.[month] || {};
+                let totalUniqueReactions = 0;
+                for (const reactorsArr of Object.values(userReactionsMonth)) {
+                    totalUniqueReactions += reactorsArr.length;
+                }
+
+                let initialCount = userData?.initialReactionCount ?? (userData?.superApproved ? 0 : REACTION_TARGET);
+                let extraReactions = totalUniqueReactions - initialCount;
+                let extraDays = extraReactions > 0 ? Math.floor(extraReactions / 3) : 0;
+                let currentExpiration = userData?.expiration ? new Date(userData.expiration) : null;
+                let now = new Date();
+                let daysLeft = currentExpiration && currentExpiration > now ? Math.ceil((currentExpiration - now) / (1000 * 60 * 60 * 24)) : 0;
+
+                let actualAdditionalDays = Math.min(extraDays, MAX_BUFFER_DAYS - ROLE_DURATION_DAYS);
+                if (userData) {
+                    // Only recalc additional days, do not touch initial award
+                    let newExpiration = null;
+                    if (daysLeft < ROLE_DURATION_DAYS + actualAdditionalDays) {
+                        newExpiration = new Date(now.getTime() + (ROLE_DURATION_DAYS + actualAdditionalDays) * 24 * 60 * 60 * 1000);
+                        userData.expiration = newExpiration.toISOString();
+                        saveData(dataObj);
+                        reply = `Recalculated: <@${user.id}> now has ${ROLE_DURATION_DAYS + actualAdditionalDays} days (${actualAdditionalDays} additional days for ${extraReactions} extra reactions).`;
+                    } else {
+                        reply = `<@${user.id}> already has ${daysLeft} days. No recalculation needed.`;
+                    }
+                } else {
+                    reply = "No data found for " + user.username + ".";
+                }
+            }
+        }
+        // ...existing subcommands below...
+
+        else if (sub === 'announce') {
             if (!user) reply = "User required.";
             else {
                 const days = interaction.options.getInteger('days');
