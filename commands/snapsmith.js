@@ -77,26 +77,12 @@ async function getUserSnapsmithStatus(userId) {
         }
     }
 
+    // PATCH: sum all unique reactions for all months for the user, regardless of achievement date (sanity fix)
     let totalUniqueReactions = 0;
-
-    if (roleActive && userMeta && userMeta.snapsmithAchievedAt) {
-        // Sum all reactions since achievement
-        const achievementDate = new Date(userMeta.snapsmithAchievedAt);
-        const userReactions = reactions[userId] || {};
-        for (const [mon, posts] of Object.entries(userReactions)) {
-            const monDate = new Date(mon + '-01T00:00:00.000Z');
-            if (monDate >= achievementDate) {
-                for (const reactorsArr of Object.values(posts)) {
-                    totalUniqueReactions += reactorsArr.length;
-                }
-            }
-        }
-    } else {
-        // If not a snapsmith yet, just show current month
-        if (reactions[userId] && reactions[userId][month]) {
-            for (const reactorsArr of Object.values(reactions[userId][month])) {
-                totalUniqueReactions += reactorsArr.length;
-            }
+    const userReactions = reactions[userId] || {};
+    for (const monthObj of Object.values(userReactions)) {
+        for (const reactorsArr of Object.values(monthObj)) {
+            totalUniqueReactions += reactorsArr.length;
         }
     }
 
