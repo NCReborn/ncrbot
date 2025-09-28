@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { ChannelType } = require('discord.js');
-const logger = require('./logger'); // Adjust path if needed
+const logger = require('./logger'); // Adjust path as needed
 
 // CONFIG (Replace these with your actual IDs)
 const SHOWCASE_CHANNEL_ID = '1285797205927792782';
@@ -147,7 +147,13 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                 }
             });
 
-            const isStar2 = reaction.emoji.name === '✨' || reaction.emoji.id === '✨' || reaction.emoji.name === 'star2';
+            // Accept both ✨ (sparkles) and 🌟 (glowing star) for super approval
+            const isStar2 = (
+                reaction.emoji.name === '✨' ||
+                reaction.emoji.name === '🌟' ||
+                reaction.emoji.name === 'star2' ||
+                reaction.emoji.id === '✨'
+            );
             const hasSuperApprover = users.has(SUPER_APPROVER_ID);
             logger.debug(`Message ${msg.id} -- isStar2=${isStar2}, hasSuperApprover=${hasSuperApprover}`);
 
