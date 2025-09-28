@@ -97,6 +97,8 @@ module.exports = {
             await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
             return;
         }
+        await interaction.deferReply({ ephemeral: true }); // Defer for all admin commands
+
         const sub = interaction.options.getSubcommand();
         const data = loadData();
         const month = getCurrentMonth();
@@ -294,6 +296,6 @@ module.exports = {
             }
         }
 
-        await interaction.reply({ content: reply, ephemeral: true });
+        await interaction.editReply({ content: reply });
     }
 };
