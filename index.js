@@ -160,10 +160,18 @@ client.on('interactionCreate', async interaction => {
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
   try {
+    // REMOVE the following line if you want your commands to handle reply/editReply themselves!
+    // await interaction.deferReply({ ephemeral: true });
+
     await command.execute(interaction);
   } catch (error) {
     logger.error(`Error executing command ${interaction.commandName}: ${error}`);
-    await interaction.reply({ content: 'There was an error executing that command.', ephemeral: true });
+    // Only reply if not already replied or deferred!
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.reply({ content: 'There was an error executing that command.', flags: 64 });
+    } else {
+      await interaction.editReply({ content: 'There was an error executing that command.' });
+    }
   }
 });
 
