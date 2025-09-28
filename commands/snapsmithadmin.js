@@ -7,6 +7,7 @@ const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
 const MAX_BUFFER_DAYS = 60;
 const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
+const SNAPSMITH_CHANNEL_ID = '1406275196133965834';
 
 function loadData() {
     if (fs.existsSync(DATA_PATH)) {
@@ -82,6 +83,14 @@ module.exports = {
             subcmd.setName('purge')
                 .setDescription('Purge data older than N months')
                 .addIntegerOption(opt => opt.setName('months').setDescription('Months to keep').setRequired(true))
+        )
+        .addSubcommand(subcmd =>
+            subcmd.setName('announce')
+                .setDescription('Manually announce a Snapsmith winner')
+                .addUserOption(opt => opt.setName('user').setDescription('Winner to announce').setRequired(true))
+                .addIntegerOption(opt => opt.setName('days').setDescription('Days awarded').setRequired(true))
+                .addIntegerOption(opt => opt.setName('reactions').setDescription('Unique reactions (optional)').setRequired(false))
+                .addBooleanOption(opt => opt.setName('superapproved').setDescription('Was Super Approved?').setRequired(false))
         ),
     async execute(interaction) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -219,7 +228,6 @@ module.exports = {
         }
 
         if (sub === 'syncroles') {
-            // Use manager's function dynamically
             try {
                 const { syncCurrentSnapsmiths } = require('../utils/snapsmithManager');
                 await syncCurrentSnapsmiths(interaction.client);
@@ -261,6 +269,28 @@ module.exports = {
                 }
                 saveData(data);
                 reply = `Purged data for ${purged} month(s) older than last ${months} months.`;
+            }
+        }
+
+        if (sub === 'announce') {
+            if (!user) reply = "User required.";
+            else {
+                const days = interaction.options.getInteger('days');
+                const reactions = interaction.options.getInteger('reactions');
+                const superapproved = interaction.options.getBoolean('superapproved');
+                try {
+                    const channel = await interaction.guild.channels.fetch(SNAPSMITH_CHANNEL_ID);
+                    let msg = `<@${user.id}> has been manually announced as a Snapsmith winner! 🎉\n`;
+                    msg += `Awarded: **${days} days** of Snapsmith.\n`;
+                    if (typeof reactions === 'number')
+                        msg += `Unique reactions: **${reactions}**\n`;
+                    if (superapproved)
+                        msg += `Super Approval: :star2: included!\n`;
+                    await channel.send(msg);
+                    reply = `Announced Snapsmith winner for ${user}.`;
+                } catch (e) {
+                    reply = `Failed to announce in channel: ${e.message}`;
+                }
             }
         }
 
