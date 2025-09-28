@@ -115,7 +115,7 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
     try {
-        await interaction.deferReply({ ephemeral: true }); // Always defer first!
+        await interaction.deferReply({ ephemeral: true });
         const sub = interaction.options.getSubcommand();
         const dataObj = loadData();
         const reactionsObj = loadReactions();
@@ -133,8 +133,7 @@ async function execute(interaction) {
                 }
             }
             saveData(dataObj);
-            reply = `Set initialReactionCount = 25 for ${changed} Snapsmith users.`;
-            await interaction.editReply({ content: reply });
+            await interaction.editReply({ content: `Set initialReactionCount = 25 for ${changed} Snapsmith users.` });
         }
         else if (sub === 'recalcall') {
             let processed = 0;
@@ -145,8 +144,7 @@ async function execute(interaction) {
                 }
             }
             saveData(dataObj);
-            reply = `Recalculated days for ${processed} Snapsmith users.`;
-            await interaction.editReply({ content: reply });
+            await interaction.editReply({ content: `Recalculated days for ${processed} Snapsmith users.` });
         }
         else if (sub === 'check') {
             if (!user) {
@@ -278,10 +276,24 @@ async function execute(interaction) {
                 }
             }
         }
-        // For brevity, other admin subcommands can be implemented below.
-        // Just ensure every reply is via editReply and only called ONCE per interaction.
-
-        // Example stub for any other subcommand:
+        else if (sub === 'scan') {
+            try {
+                const limit = interaction.options.getInteger('limit') || 100;
+                const messageidsRaw = interaction.options.getString('messageids');
+                let messageIds = null;
+                if (messageidsRaw && messageidsRaw.toLowerCase() !== "all") {
+                    messageIds = messageidsRaw.split(',').map(s => s.trim()).filter(Boolean);
+                }
+                await scanShowcase(interaction.client, { limit, messageIds });
+                reply = `Manual scan completed. Showcase posts and reactions have been checked (limit: ${limit}${messageIds ? ", messageIds: " + messageIds.join(',') : ""}).`;
+                console.log("Snapsmith showcase scan executed via admin command.");
+            } catch (e) {
+                reply = `Manual scan failed: ${e.message}`;
+                console.error("Error in snapsmithadmin scan subcommand:", e);
+            }
+            await interaction.editReply({ content: reply });
+        }
+        // For brevity, you can add the implementation for other subcommands as before, just ensure you only use editReply ONCE per interaction.
         else {
             await interaction.editReply({ content: reply });
         }
