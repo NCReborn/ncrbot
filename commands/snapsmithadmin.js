@@ -151,20 +151,9 @@ async function execute(interaction) {
                     }
                     // Make sure initial count is correct for superApproved users
                     if (userData.superApproved) userData.initialReactionCount = 0;
-                    let totalUniqueReactions = 0;
-                    const userReactions = reactionsObj[userId] || {};
-                    for (const monthObj of Object.values(userReactions)) {
-                        for (const reactorsArr of Object.values(monthObj)) {
-                            totalUniqueReactions += reactorsArr.length;
-                        }
-                    }
-                    let initialCount = userData.initialReactionCount ?? REACTION_TARGET;
-                    let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
-                    let milestoneDays = totalUniqueReactions >= initialCount ? Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT) : 0;
-                    userData.reactionMilestoneDays = milestoneDays;
-
-                    // Use recalculateExpiration to update everything else
+                    // Use recalculateExpiration to update all logic (milestoneDays, bonusDays, expiration)
                     const result = recalculateExpiration(userId, reactionsObj, dataObj, month);
+                    userData.reactionMilestoneDays = result.milestoneDays;
                     userData.superApprovalBonusDays = result.superApprovalBonusDays;
                     userData.expiration = result.newExpiration;
                     processed++;
