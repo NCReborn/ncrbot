@@ -111,6 +111,13 @@ const data = new SlashCommandBuilder()
     .addSubcommand(subcmd =>
         subcmd.setName('patchusers')
             .setDescription('Patch old Snapsmith users with missing achievement date and initial reactions')
+    )
+    // Add setachieved subcommand for manually setting achievement date:
+    .addSubcommand(subcmd =>
+        subcmd.setName('setachieved')
+            .setDescription('Manually set Snapsmith achievement date for a user')
+            .addUserOption(opt => opt.setName('user').setDescription('User').setRequired(true))
+            .addStringOption(opt => opt.setName('date').setDescription('YYYY-MM-DD').setRequired(true))
     );
 
 async function execute(interaction) {
@@ -292,6 +299,28 @@ async function execute(interaction) {
                 console.error("Error in snapsmithadmin scan subcommand:", e);
             }
             await interaction.editReply({ content: reply });
+        }
+        else if (sub === 'setachieved') {
+            if (!user) {
+                await interaction.editReply({ content: "User required." });
+            } else {
+                const dateStr = interaction.options.getString('date');
+                let dateObj;
+                try {
+                    dateObj = new Date(dateStr + "T00:00:00.000Z");
+                    if (isNaN(dateObj.getTime())) throw new Error("Invalid date.");
+                } catch {
+                    await interaction.editReply({ content: "Invalid date format. Use YYYY-MM-DD." });
+                    return;
+                }
+                if (!dataObj[user.id]) {
+                    await interaction.editReply({ content: "User not found in data." });
+                    return;
+                }
+                dataObj[user.id].snapsmithAchievedAt = dateObj.toISOString();
+                saveData(dataObj);
+                await interaction.editReply({ content: `Set snapsmithAchievedAt for ${user} to ${dateObj.toISOString()}` });
+            }
         }
         // For brevity, you can add the implementation for other subcommands as before, just ensure you only use editReply ONCE per interaction.
         else {
