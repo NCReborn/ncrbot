@@ -88,7 +88,7 @@ async function syncCurrentSnapsmiths(client) {
 }
 
 /**
- * scanShowcase now scans only messages posted in the last 30 days.
+ * scanShowcase now scans only messages posted in the last 30 days or specific messageIds.
  */
 async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
     logger.debug(`scanShowcase called! limit=${limit} messageIds=${messageIds ? messageIds.join(',') : 'ALL'}`);
@@ -106,6 +106,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
 
     let messages;
     if (Array.isArray(messageIds) && messageIds.length) {
+        // Only fetch the specified message IDs
         messages = new Map();
         for (const id of messageIds) {
             try {
@@ -115,6 +116,12 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                 logger.warn(`Could not fetch message ${id}: ${e.message}`);
             }
         }
+        logger.debug(`Fetched ${messages.size} messages by messageIds.`);
+    } else if (limit > 0) {
+        // Fetch only 'limit' messages from the last 30 days
+        let batch = await showcase.messages.fetch({ limit });
+        messages = batch;
+        logger.debug(`Fetched ${messages.size} messages from showcase (limit: ${limit}).`);
     } else {
         // Fetch all messages from the last 30 days
         const THIRTY_DAYS_AGO = Date.now() - (30 * 24 * 60 * 60 * 1000);
