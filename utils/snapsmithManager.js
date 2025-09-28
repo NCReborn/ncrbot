@@ -85,14 +85,19 @@ async function syncCurrentSnapsmiths(client) {
     }
 }
 
-async function scanShowcase(client) {
-    console.log('[SCAN DEBUG] scanShowcase called!');
+/**
+ * scanShowcase now accepts:
+ *   - limit: number of messages to scan (default 100)
+ *   - messageIds: array of message IDs to scan only those messages
+ * If scanning same message again, will overwrite tally (no duplicates).
+ */
+async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
+    console.log(`[SCAN DEBUG] scanShowcase called! limit=${limit} messageIds=${messageIds ? messageIds.join(',') : 'ALL'}`);
     await syncCurrentSnapsmiths(client);
 
     const reactions = loadReactions();
     const data = loadData();
     const showcase = await client.channels.fetch(SHOWCASE_CHANNEL_ID);
-    const now = new Date();
     const month = getCurrentMonth();
 
     if (!showcase || showcase.type !== ChannelType.GuildText) {
@@ -100,17 +105,27 @@ async function scanShowcase(client) {
         return;
     }
 
-    const messages = await showcase.messages.fetch({ limit: 100 });
+    let messages;
+    if (Array.isArray(messageIds) && messageIds.length) {
+        messages = new Map();
+        for (const id of messageIds) {
+            try {
+                const msg = await showcase.messages.fetch(id);
+                if (msg) messages.set(id, msg);
+            } catch (e) {
+                console.log(`[SCAN DEBUG] Could not fetch message ${id}: ${e.message}`);
+            }
+        }
+    } else {
+        messages = await showcase.messages.fetch({ limit });
+    }
     console.log(`[SCAN DEBUG] Fetched ${messages.size} messages from showcase.`);
 
     let messageCount = 0;
     let attachmentCount = 0;
     for (const msg of messages.values()) {
         messageCount++;
-        if (!msg.attachments.size) {
-            // No images, skip
-            continue;
-        }
+        if (!msg.attachments.size) continue; // Only scan images
         attachmentCount++;
 
         const userId = msg.author.id;
@@ -122,7 +137,6 @@ async function scanShowcase(client) {
 
         for (const reaction of msg.reactions.cache.values()) {
             const users = await reaction.users.fetch();
-            console.log(`[SCAN DEBUG] Reaction ${reaction.emoji.name} on msg ${msg.id}: Users:`, Array.from(users.values()).map(u => u.id));
             users.forEach(user => {
                 if (user.id !== msg.author.id && !user.bot) {
                     uniqueReactors.add(user.id);
@@ -138,12 +152,13 @@ async function scanShowcase(client) {
             }
         }
 
-        // Debug log: what did we see?
-        console.log(`[SCAN DEBUG] Message ${msg.id} by ${userId}: ${uniqueReactors.size} unique reactors:`, Array.from(uniqueReactors));
-
+        // Overwrite previous reaction tally for this message (no duplicates)
         reactions[userId][month][msg.id] = Array.from(uniqueReactors);
 
-        // Still update snapsmith.json for superApproved logic, etc.
+        // Debug log
+        console.log(`[SCAN DEBUG] Message ${msg.id} by ${userId}: ${uniqueReactors.size} unique reactors:`, Array.from(uniqueReactors));
+
+        // Super approval logic (unchanged)
         if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false };
         if (superApproved && !data[userId].superApproved) {
             const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
@@ -202,13 +217,14 @@ async function evaluateRoles(client, data, reactions) {
         }
         durationDays = Math.min(durationDays, MAX_BUFFER_DAYS);
 
-        if (durationDays > 0) {
-            const currentExpiration = userData.expiration ? new Date(userData.expiration) : null;
-            const newExpiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        const currentExpiration = userData.expiration ? new Date(userData.expiration) : null;
+        const newExpiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-            if (!currentExpiration || currentExpiration < newExpiry) {
-                userData.expiration = newExpiry.toISOString();
+        // Only send message if NOT already awarded for this period
+        if (durationDays > 0 && (!currentExpiration || currentExpiration < newExpiry)) {
+            userData.expiration = newExpiry.toISOString();
 
+            if (!currentExpiration || currentExpiration < now) {
                 try {
                     const member = await guild.members.fetch(userId);
                     await member.roles.add(SNAPSMITH_ROLE_ID);
