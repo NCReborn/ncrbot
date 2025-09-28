@@ -38,16 +38,25 @@ function getCurrentMonth() {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+// --- PATCH: Rolling extra days logic ---
 function recalculateExpiration(userId, reactionsObj, dataObj, month) {
     const userData = dataObj[userId];
-    const userReactionsMonth = reactionsObj[userId]?.[month] || {};
-    let totalUniqueReactions = 0;
-    for (const reactorsArr of Object.values(userReactionsMonth)) {
-        totalUniqueReactions += reactorsArr.length;
-    }
-
     if (!userData || !userData.snapsmithAchievedAt) {
         return { error: "User has not yet achieved Snapsmith, so cannot recalculate additional days." };
+    }
+    // Sum all reactions from months after achievement
+    let totalUniqueReactions = 0;
+    const userReactions = reactionsObj[userId] || {};
+    const achievementDate = new Date(userData.snapsmithAchievedAt);
+
+    for (const [mon, posts] of Object.entries(userReactions)) {
+        // Only count months after achievement
+        const monDate = new Date(mon + '-01T00:00:00.000Z');
+        if (monDate >= achievementDate) {
+            for (const reactorsArr of Object.values(posts)) {
+                totalUniqueReactions += reactorsArr.length;
+            }
+        }
     }
 
     let initialCount = userData.initialReactionCount ?? (userData.superApproved ? 0 : REACTION_TARGET);
@@ -261,26 +270,40 @@ async function evaluateRoles(client, data, reactions) {
     const month = getCurrentMonth();
 
     for (const [userId, userData] of Object.entries(data)) {
+        // --- PATCH: For extra days, sum reactions since achievement ---
         let totalUniqueReactions = 0;
-        const userReactionsMonth = reactions[userId]?.[month] || {};
-        for (const reactorsArr of Object.values(userReactionsMonth)) {
-            totalUniqueReactions += reactorsArr.length;
+        const userReactions = reactions[userId] || {};
+        const achievementDate = userData && userData.snapsmithAchievedAt ? new Date(userData.snapsmithAchievedAt) : null;
+        if (achievementDate) {
+            for (const [mon, posts] of Object.entries(userReactions)) {
+                const monDate = new Date(mon + '-01T00:00:00.000Z');
+                if (monDate >= achievementDate) {
+                    for (const reactorsArr of Object.values(posts)) {
+                        totalUniqueReactions += reactorsArr.length;
+                    }
+                }
+            }
         }
-        logger.debug(`User ${userId}: ${totalUniqueReactions} unique reactions this month.`);
+
+        // But for initial trigger, still use this month!
+        const userReactionsMonth = reactions[userId]?.[month] || {};
+        let totalUniqueReactionsThisMonth = 0;
+        for (const reactorsArr of Object.values(userReactionsMonth)) {
+            totalUniqueReactionsThisMonth += reactorsArr.length;
+        }
 
         const currentExpiration = userData.expiration ? new Date(userData.expiration) : null;
         let newExpiration = null;
         let needsAward = false;
         let initialTrigger = false;
 
-        // Initial trigger logic (award 30 days for Super Approval or reaching 25 reactions)
         if (
             (userData.superApproved && (!currentExpiration || currentExpiration < now)) ||
-            (!userData.superApproved && totalUniqueReactions >= REACTION_TARGET && (!currentExpiration || currentExpiration < now))
+            (!userData.superApproved && totalUniqueReactionsThisMonth >= REACTION_TARGET && (!currentExpiration || currentExpiration < now))
         ) {
             newExpiration = new Date(now.getTime() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             needsAward = true;
-            userData.initialReactionCount = totalUniqueReactions;
+            userData.initialReactionCount = totalUniqueReactionsThisMonth;
             userData.snapsmithAchievedAt = Date.now();
             initialTrigger = true;
         }
@@ -321,17 +344,15 @@ async function evaluateRoles(client, data, reactions) {
 
                 const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
 
-                // Which embed to send?
                 let embed;
                 if (initialTrigger) {
-                    // Initial Snapsmith award
                     const requirementsStr = userData.superApproved
                         ? `Received a Super Approval 🌟 from <@${SUPER_APPROVER_ID}>`
-                        : `Received ${totalUniqueReactions} 🌟 stars from our community`;
+                        : `Received ${totalUniqueReactionsThisMonth} 🌟 stars from our community`;
 
                     const detailsStr = userData.superApproved
                         ? `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received a super approval star from <@${SUPER_APPROVER_ID}>, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`
-                        : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactions} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
+                        : `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received ${totalUniqueReactionsThisMonth} or more 🌟 stars from our community, we now bestow upon you the role <@&${SNAPSMITH_ROLE_ID}> as a symbol of your amazing photomode skills.`;
 
                     embed = new EmbedBuilder()
                         .setColor(0xFAA61A)
@@ -343,18 +364,14 @@ async function evaluateRoles(client, data, reactions) {
                         )
                         .setTimestamp();
                 } else {
-                    // Extra day milestone
                     let daysLeft = Math.max(0, Math.ceil((newExpiration - now) / (1000 * 60 * 60 * 24)));
-                    // Fetch user for display name
                     let usernameDisplay = `<@${userId}>`;
                     try {
                         const userObj = await guild.members.fetch(userId).then(m => m.user).catch(() => null);
                         if (userObj) {
                             usernameDisplay = userObj.username;
                         }
-                    } catch (e) {
-                        // fallback remains
-                    }
+                    } catch (e) {}
                     embed = new EmbedBuilder()
                         .setColor(0xFAA61A)
                         .setTitle(`${usernameDisplay} has earned an additional day!`)
