@@ -10,6 +10,7 @@ const MAX_BUFFER_DAYS = 60;
 const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
 const SNAPSMITH_CHANNEL_ID = '1406275196133965834';
 
+// No debug output, only error logs if something fails
 function loadData() {
     if (fs.existsSync(DATA_PATH)) {
         return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
@@ -208,7 +209,8 @@ async function execute(interaction) {
             if (!user) reply = "User required.";
             else {
                 if (data[user.id]) {
-                    reply = `Data for ${user}:\n\`\`\`json\n${JSON.stringify(data[user.id], null, 2)}\n\`\`\``;
+                    // Only show a compact summary, not full object
+                    reply = `Data for ${user}:\nExpiration: ${data[user.id].expiration}\nSuperApproved: ${data[user.id].superApproved}\nMonths: ${Object.keys(data[user.id].months).length}`;
                 } else {
                     reply = "User not found in data.";
                 }
@@ -297,7 +299,7 @@ async function execute(interaction) {
 
         await interaction.editReply({ content: reply });
     } catch (err) {
-        // Only log; don't reply again!
+        // Only log errors, no debug data or object dumps
         console.error("Error in snapsmithadmin command:", err);
     }
 }
