@@ -305,7 +305,6 @@ async function evaluateRoles(client, data, reactions) {
         }
 
         if (newExpiration) {
-            // Enforce max buffer days from achievement
             let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
                 ? new Date(userData.snapsmithAchievedAt).getTime()
                 : userData.snapsmithAchievedAt;
@@ -346,9 +345,19 @@ async function evaluateRoles(client, data, reactions) {
                 } else {
                     // Extra day milestone
                     let daysLeft = Math.max(0, Math.ceil((newExpiration - now) / (1000 * 60 * 60 * 24)));
+                    // Fetch user for display name
+                    let usernameDisplay = `<@${userId}>`;
+                    try {
+                        const userObj = await guild.members.fetch(userId).then(m => m.user).catch(() => null);
+                        if (userObj) {
+                            usernameDisplay = userObj.username;
+                        }
+                    } catch (e) {
+                        // fallback remains
+                    }
                     embed = new EmbedBuilder()
                         .setColor(0xFAA61A)
-                        .setTitle(`<@${userId}> has earned an additional day!`)
+                        .setTitle(`${usernameDisplay} has earned an additional day!`)
                         .addFields(
                             { name: 'Congratulations', value: `<@${userId}>`, inline: false },
                             { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another 3 reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}>. Your current balance is **${daysLeft} days**. Keep the amazing submissions coming, choom!`, inline: false }
