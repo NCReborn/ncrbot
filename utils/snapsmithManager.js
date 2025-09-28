@@ -8,6 +8,7 @@ const SNAPSMITH_CHANNEL_ID = '1406275196133965834';
 const SNAPSMITH_ROLE_ID   = '1374841261898469378';
 const REACTION_TARGET     = 25;
 const ROLE_DURATION_DAYS  = 30;
+const EXTRA_DAY_REACTION_COUNT = 5; // <--- Change this value to set reactions per extra day!
 const MAX_BUFFER_DAYS     = 60;
 //const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
 const SUPER_APPROVER_ID = '680928073587359902'; // mquiny
@@ -63,7 +64,7 @@ function recalculateExpiration(userId, reactionsObj, dataObj, month) {
     let initialCount = userData.superApproved ? 0 : (userData.initialReactionCount ?? REACTION_TARGET);
 
     let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
-    let additionalDays = Math.floor(extraReactions / 3);
+    let additionalDays = Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT);
     let baseDays = ROLE_DURATION_DAYS;
     let maxDays = MAX_BUFFER_DAYS;
 
@@ -214,7 +215,6 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
             data[userId].expiration = newExpiry.toISOString();
             data[userId].superApproved = true;
             let totalUniqueReactions = Array.from(uniqueReactors).length;
-            // PATCH: For superApproved, set initialReactionCount to 0
             data[userId].initialReactionCount = 0;
             data[userId].snapsmithAchievedAt = Date.now();
             try {
@@ -297,7 +297,7 @@ async function evaluateRoles(client, data, reactions) {
         else if (currentExpiration && currentExpiration > now && userData.snapsmithAchievedAt) {
             let initialCount = userData.superApproved ? 0 : (userData.initialReactionCount ?? REACTION_TARGET);
             let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
-            let extraDays = Math.floor(extraReactions / 3);
+            let extraDays = Math.floor(extraReactions / EXTRA_DAY_REACTION_COUNT);
             let baseDays = ROLE_DURATION_DAYS;
             let maxDays = MAX_BUFFER_DAYS;
             let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
@@ -363,7 +363,7 @@ async function evaluateRoles(client, data, reactions) {
                         .setTitle(`${usernameDisplay} has earned an additional day!`)
                         .addFields(
                             { name: 'Congratulations', value: `<@${userId}>`, inline: false },
-                            { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another 3 reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}>. Your current balance is **${daysLeft} days**. Keep the amazing submissions coming, choom!`, inline: false }
+                            { name: 'Details', value: `Your submissions in <#${SHOWCASE_CHANNEL_ID}> have received another ${EXTRA_DAY_REACTION_COUNT} reactions, you have earned another day onto your <@&${SNAPSMITH_ROLE_ID}>. Your current balance is **${daysLeft} days**. Keep the amazing submissions coming, choom!`, inline: false }
                         )
                         .setTimestamp();
                 }
