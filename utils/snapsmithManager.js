@@ -50,8 +50,8 @@ function recalculateExpiration(userId, reactionsObj, dataObj, month) {
     const achievementDate = new Date(userData.snapsmithAchievedAt);
 
     for (const [mon, posts] of Object.entries(userReactions)) {
-        // Only count months after achievement
         const monDate = new Date(mon + '-01T00:00:00.000Z');
+        // PATCH: Include the achievement month itself (>=, not >)
         if (monDate >= achievementDate) {
             for (const reactorsArr of Object.values(posts)) {
                 totalUniqueReactions += reactorsArr.length;
@@ -277,15 +277,23 @@ async function evaluateRoles(client, data, reactions) {
         if (achievementDate) {
             for (const [mon, posts] of Object.entries(userReactions)) {
                 const monDate = new Date(mon + '-01T00:00:00.000Z');
+                // PATCH: Include the achievement month itself (>=, not >)
                 if (monDate >= achievementDate) {
                     for (const reactorsArr of Object.values(posts)) {
                         totalUniqueReactions += reactorsArr.length;
                     }
                 }
             }
+        } else {
+            // If not yet achieved, sum current month only
+            const userReactionsMonth = userReactions[month] || {};
+            for (const reactorsArr of Object.values(userReactionsMonth)) {
+                totalUniqueReactions += reactorsArr.length;
+            }
         }
 
-        // But for initial trigger, still use this month!
+        // ...rest of function unchanged...
+
         const userReactionsMonth = reactions[userId]?.[month] || {};
         let totalUniqueReactionsThisMonth = 0;
         for (const reactorsArr of Object.values(userReactionsMonth)) {
@@ -307,7 +315,6 @@ async function evaluateRoles(client, data, reactions) {
             userData.snapsmithAchievedAt = Date.now();
             initialTrigger = true;
         }
-        // Extra days after initial trigger
         else if (currentExpiration && currentExpiration > now && userData.snapsmithAchievedAt) {
             let initialCount = userData.initialReactionCount ?? (userData.superApproved ? 0 : REACTION_TARGET);
             let extraReactions = totalUniqueReactions - initialCount;
