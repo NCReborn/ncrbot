@@ -31,8 +31,48 @@ function getCurrentMonth() {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+// Sync current Snapsmith role holders into the system
+async function syncCurrentSnapsmiths(client) {
+    const data = loadData();
+    const guild = client.guilds.cache.first();
+    if (!guild) return;
+
+    let role;
+    try {
+        role = await guild.roles.fetch(SNAPSMITH_ROLE_ID);
+    } catch (e) {
+        return;
+    }
+    if (!role) return;
+
+    let membersWithRole;
+    try {
+        membersWithRole = await role.members;
+        membersWithRole = [...membersWithRole.values()];
+    } catch (e) {
+        await guild.members.fetch();
+        membersWithRole = [...guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID)).values()];
+    }
+
+    const now = new Date();
+    for (const member of membersWithRole) {
+        const userId = member.id;
+        if (!data[userId]) {
+            data[userId] = {
+                months: {},
+                expiration: new Date(now.getTime() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+                superApproved: false
+            };
+        }
+    }
+
+    saveData(data);
+}
+
 // Main scan function
 async function scanShowcase(client) {
+    await syncCurrentSnapsmiths(client);
+
     const data = loadData();
     const showcase = await client.channels.fetch(SHOWCASE_CHANNEL_ID);
     const now = new Date();
@@ -49,6 +89,7 @@ async function scanShowcase(client) {
 
         if (!data[userId].months[month]) data[userId].months[month] = {};
 
+        // Collect unique user IDs who reacted to this message (per photo)
         let uniqueReactors = new Set();
         let superApproved = false;
         for (const reaction of msg.reactions.cache.values()) {
@@ -67,11 +108,10 @@ async function scanShowcase(client) {
                 }
             }
         }
-        // Store array of unique reactor IDs for this message
+        // Store array of unique reactor user IDs for this message
         data[userId].months[month][msg.id] = Array.from(uniqueReactors);
 
         // Super approval logic
-        // Only grant if not already super approved for this month
         if (superApproved && !data[userId].superApproved) {
             const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             data[userId].expiration = newExpiry.toISOString();
@@ -100,37 +140,27 @@ async function evaluateRoles(client, data) {
     const month = getCurrentMonth();
 
     for (const [userId, userData] of Object.entries(data)) {
-        // Aggregate all unique reactor IDs for all their images this month
-        let monthlyUniqueReactors = new Set();
+        // Sum all unique user counts across all their images for the month
+        let totalUniqueReactions = 0;
         const monthData = userData.months[month] || {};
         for (const reactorsArr of Object.values(monthData)) {
-            reactorsArr.forEach(id => monthlyUniqueReactors.add(id));
+            totalUniqueReactions += reactorsArr.length; // Only count unique users per photo
         }
-        const totalUniqueReactors = monthlyUniqueReactors.size;
 
-        // Determine if super approval has happened for this month
+        // Duration logic
         let durationDays = 0;
         if (userData.superApproved) {
-            durationDays += ROLE_DURATION_DAYS; // 30 days for super approval
+            durationDays += ROLE_DURATION_DAYS;
         }
-        // If they've received further unique reactions, count those
-        // Only reactions above the initial 5 from super approval count!
-        if (totalUniqueReactors >= REACTION_TARGET) {
-            // If already super approved, count extra reactions above 5 (since super approval doesn't count as a "reaction" milestone)
-            // But you want every 25 unique reactions (5 + 20 = 25 triggers full 60 days)
-            // So, after super approval, give them extra 30 days for every full 25 unique reactions
-            // If not super approved, handle as normal
+        if (totalUniqueReactions >= REACTION_TARGET) {
             let additionalMilestones = 0;
             if (userData.superApproved) {
-                // Already got 30 days, so only count extra reactions towards more duration
-                additionalMilestones = Math.floor((totalUniqueReactors - 5) / REACTION_TARGET);
+                additionalMilestones = Math.floor((totalUniqueReactions - 5) / REACTION_TARGET);
             } else {
-                additionalMilestones = Math.floor(totalUniqueReactors / REACTION_TARGET);
+                additionalMilestones = Math.floor(totalUniqueReactions / REACTION_TARGET);
             }
             durationDays += Math.min(additionalMilestones * ROLE_DURATION_DAYS, MAX_BUFFER_DAYS - durationDays);
         }
-
-        // Cap at 60 days
         durationDays = Math.min(durationDays, MAX_BUFFER_DAYS);
 
         // Calculate new expiration
@@ -146,7 +176,7 @@ async function evaluateRoles(client, data) {
                     await member.roles.add(SNAPSMITH_ROLE_ID);
 
                     const snapsmithChannel = await client.channels.fetch(SNAPSMITH_CHANNEL_ID);
-                    let msg = `<@${userId}> has earned **${durationDays} days** of Snapsmith for receiving ${totalUniqueReactors} unique reactions this month!`;
+                    let msg = `<@${userId}> has earned **${durationDays} days** of Snapsmith for receiving ${totalUniqueReactions} unique reactions this month!`;
                     if (userData.superApproved) {
                         msg += ` (Includes Super Approval :star2:)`;
                     }
