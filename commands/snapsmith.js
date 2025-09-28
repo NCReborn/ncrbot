@@ -2,7 +2,8 @@ const { SlashCommandBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
+const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
+const META_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
 const MAX_BUFFER_DAYS = 60;
@@ -13,47 +14,60 @@ function getCurrentMonth() {
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-function loadData() {
-    if (fs.existsSync(DATA_PATH)) {
-        return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+function loadReactions() {
+    if (fs.existsSync(REACTION_DATA_PATH)) {
+        return JSON.parse(fs.readFileSync(REACTION_DATA_PATH, 'utf8'));
+    }
+    return {};
+}
+function loadMeta() {
+    if (fs.existsSync(META_DATA_PATH)) {
+        return JSON.parse(fs.readFileSync(META_DATA_PATH, 'utf8'));
     }
     return {};
 }
 
 async function getUserSnapsmithStatus(userId) {
-    const data = loadData();
+    const reactions = loadReactions();
+    const meta = loadMeta();
     const now = new Date();
     const month = getCurrentMonth();
-    const userData = data[userId];
 
-    if (!userData) return null;
-
-    // Sum all unique user counts across all images for the month
+    // Tally reactions
     let totalUniqueReactions = 0;
-    const monthData = userData.months[month] || {};
-    for (const reactorsArr of Object.values(monthData)) {
-        totalUniqueReactions += reactorsArr.length;
+    if (reactions[userId] && reactions[userId][month]) {
+        for (const reactorsArr of Object.values(reactions[userId][month])) {
+            totalUniqueReactions += reactorsArr.length;
+        }
     }
 
-    // Role status
+    // Metadata (role status, expiration, superApproved)
+    const userMeta = meta[userId];
     let roleActive = false;
     let timeLeft = null;
-    if (userData.expiration) {
-        const expirationDate = new Date(userData.expiration);
-        if (expirationDate > now) {
-            roleActive = true;
-            const msLeft = expirationDate - now;
-            const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
-            timeLeft = daysLeft;
+    let superApproved = false;
+    let expiration = null;
+
+    if (userMeta) {
+        if (userMeta.expiration) {
+            const expirationDate = new Date(userMeta.expiration);
+            if (expirationDate > now) {
+                roleActive = true;
+                timeLeft = Math.ceil((expirationDate - now) / (1000 * 60 * 60 * 24));
+            }
+            expiration = userMeta.expiration;
+        }
+        if (userMeta.superApproved) {
+            superApproved = true;
         }
     }
 
     // Calculate how many days queued
     let daysQueued = 0;
-    if (userData.superApproved) daysQueued += ROLE_DURATION_DAYS;
+    if (superApproved) daysQueued += ROLE_DURATION_DAYS;
     if (totalUniqueReactions >= REACTION_TARGET) {
         let additionalMilestones = 0;
-        if (userData.superApproved) {
+        if (superApproved) {
             additionalMilestones = Math.floor((totalUniqueReactions - 5) / REACTION_TARGET);
         } else {
             additionalMilestones = Math.floor(totalUniqueReactions / REACTION_TARGET);
@@ -62,13 +76,16 @@ async function getUserSnapsmithStatus(userId) {
     }
     daysQueued = Math.min(daysQueued, MAX_BUFFER_DAYS);
 
+    // If no reactions and no meta, show nothing
+    if (totalUniqueReactions === 0 && !userMeta) return null;
+
     return {
         roleActive,
         timeLeft,
         totalUniqueReactions,
-        superApproved: !!userData.superApproved,
+        superApproved,
         daysQueued,
-        expiration: userData.expiration
+        expiration
     };
 }
 
