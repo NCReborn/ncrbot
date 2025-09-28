@@ -142,37 +142,39 @@ async function execute(interaction) {
             saveData(dataObj);
             await interaction.editReply({ content: `Set initialReactionCount = 25 for ${changed} Snapsmith users.` });
         }
-        else if (sub === 'recalcall') {
-            let processed = 0;
-            for (const [userId, userData] of Object.entries(dataObj)) {
-                if (userData.expiration) {
-                    // PATCH: Only set snapsmithAchievedAt if missing
-                    if (!userData.snapsmithAchievedAt) {
-                        // Try to find earliest reaction for user
-                        const userReactions = reactionsObj[userId] || {};
-                        let earliestMonth = null;
-                        for (const mon of Object.keys(userReactions)) {
-                            if (!earliestMonth || mon < earliestMonth) earliestMonth = mon;
-                        }
-                        if (earliestMonth) {
-                            userData.snapsmithAchievedAt = new Date(earliestMonth + '-01T00:00:00.000Z').toISOString();
-                        } else {
-                            userData.snapsmithAchievedAt = new Date().toISOString();
-                        }
-                    }
-                    // Make sure initial count is correct for superApproved users
-                    if (userData.superApproved) userData.initialReactionCount = 0;
-                    // Use recalculateExpiration to update all logic (milestoneDays, bonusDays, expiration)
-                    const result = recalculateExpiration(userId, reactionsObj, dataObj, month);
-                    userData.reactionMilestoneDays = result.milestoneDays;
-                    userData.superApprovalBonusDays = result.superApprovalBonusDays;
-                    userData.expiration = result.newExpiration;
-                    processed++;
+else if (sub === 'recalcall') {
+    let processed = 0;
+    for (const [userId, userData] of Object.entries(dataObj)) {
+        if (userData.expiration) {
+            // Only set snapsmithAchievedAt if missing
+            if (!userData.snapsmithAchievedAt) {
+                const userReactions = reactionsObj[userId] || {};
+                let earliestMonth = null;
+                for (const mon of Object.keys(userReactions)) {
+                    if (!earliestMonth || mon < earliestMonth) earliestMonth = mon;
+                }
+                if (earliestMonth) {
+                    userData.snapsmithAchievedAt = new Date(earliestMonth + '-01T00:00:00.000Z').toISOString();
+                } else {
+                    userData.snapsmithAchievedAt = new Date().toISOString();
                 }
             }
-            saveData(dataObj);
-            await interaction.editReply({ content: `Recalculated days for ${processed} Snapsmith users.` });
+            // Make sure initial count is correct for superApproved users
+            if (userData.superApproved) userData.initialReactionCount = 0;
+            // Use recalculateExpiration to update all logic (milestoneDays, bonusDays, expiration)
+            const result = recalculateExpiration(userId, reactionsObj, dataObj, month);
+            // PATCH: Only update if milestoneDays or expiration have changed
+            userData.reactionMilestoneDays = result.milestoneDays;
+            userData.superApprovalBonusDays = result.superApprovalBonusDays;
+            userData.expiration = result.newExpiration;
+            // Add debug logging!
+            console.log(`[recalcall] User ${userId}: superApproved=${userData.superApproved}, achievedAt=${userData.snapsmithAchievedAt}, reactions=${result.totalUniqueReactions}, milestoneDays=${result.milestoneDays}, expiration=${result.newExpiration}`);
+            processed++;
         }
+    }
+    saveData(dataObj);
+    await interaction.editReply({ content: `Recalculated days for ${processed} Snapsmith users.` });
+}
         else if (sub === 'check') {
             if (!user) {
                 await interaction.editReply({ content: "User required." });
