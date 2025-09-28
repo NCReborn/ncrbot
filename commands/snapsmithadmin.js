@@ -99,11 +99,13 @@ module.exports = {
         ),
     async execute(interaction) {
         try {
+            // DO NOT call deferReply here, it's already called in the event handler!
+            // Just use editReply to respond.
+
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+                await interaction.editReply({ content: 'You do not have permission to use this command.' });
                 return;
             }
-            await interaction.deferReply({ ephemeral: true }); // Only ONE deferReply
 
             const sub = interaction.options.getSubcommand();
             const data = loadData();
