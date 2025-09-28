@@ -59,9 +59,11 @@ function recalculateExpiration(userId, reactionsObj, dataObj, month) {
         }
     }
 
-    let initialCount = userData.initialReactionCount ?? (userData.superApproved ? 0 : REACTION_TARGET);
-    let extraReactions = totalUniqueReactions - initialCount;
-    let additionalDays = Math.max(0, Math.floor(extraReactions / 3));
+    // --- PATCH: For superApproved, initialReactionCount should be 0 ---
+    let initialCount = userData.superApproved ? 0 : (userData.initialReactionCount ?? REACTION_TARGET);
+
+    let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
+    let additionalDays = Math.floor(extraReactions / 3);
     let baseDays = ROLE_DURATION_DAYS;
     let maxDays = MAX_BUFFER_DAYS;
 
@@ -87,7 +89,6 @@ function recalculateExpiration(userId, reactionsObj, dataObj, month) {
 }
 
 async function syncCurrentSnapsmiths(client) {
-    logger.debug('syncCurrentSnapsmiths called!');
     const data = loadData();
     const guild = client.guilds.cache.values().next().value;
     if (!guild) {
@@ -107,7 +108,6 @@ async function syncCurrentSnapsmiths(client) {
     }
     await guild.members.fetch();
     const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
-    logger.debug(`Found ${membersWithRole.size} members with Snapsmith role.`);
     const now = new Date();
     let updated = false;
     for (const member of membersWithRole.values()) {
@@ -124,14 +124,10 @@ async function syncCurrentSnapsmiths(client) {
     }
     if (updated) {
         saveData(data);
-        logger.info("Snapsmith data updated and saved.");
-    } else {
-        logger.debug("No new Snapsmiths to add to data.");
     }
 }
 
 async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
-    logger.debug(`scanShowcase called! limit=${limit} messageIds=${messageIds ? messageIds.join(',') : 'ALL'}`);
     await syncCurrentSnapsmiths(client);
 
     const reactions = loadReactions();
@@ -155,11 +151,9 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                 logger.warn(`Could not fetch message ${id}: ${e.message}`);
             }
         }
-        logger.debug(`Fetched ${messages.size} messages by messageIds.`);
     } else if (limit > 0) {
         let batch = await showcase.messages.fetch({ limit });
         messages = batch;
-        logger.debug(`Fetched ${messages.size} messages from showcase (limit: ${limit}).`);
     } else {
         const THIRTY_DAYS_AGO = Date.now() - (30 * 24 * 60 * 60 * 1000);
         messages = new Map();
@@ -178,7 +172,6 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
             lastId = [...batch.keys()].pop();
             if (batch.size < 100) break;
         }
-        logger.debug(`Fetched ${messages.size} messages from showcase (from the last 30 days).`);
     }
 
     let messageCount = 0;
@@ -196,9 +189,7 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
         let superApproved = false;
 
         for (const reaction of msg.reactions.cache.values()) {
-            logger.debug(`Message ${msg.id} -- Reaction emoji.name=${reaction.emoji.name}, emoji.id=${reaction.emoji.id}`);
             const users = await reaction.users.fetch();
-            logger.debug(`Message ${msg.id} -- Reaction users: ${Array.from(users.keys()).join(', ')}`);
             users.forEach(user => {
                 if (user.id !== msg.author.id && !user.bot) {
                     uniqueReactors.add(user.id);
@@ -211,24 +202,21 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                 reaction.emoji.id === '✨'
             );
             const hasSuperApprover = users.has(SUPER_APPROVER_ID);
-            logger.debug(`Message ${msg.id} -- isStar2=${isStar2}, hasSuperApprover=${hasSuperApprover}`);
             if (isStar2 && hasSuperApprover) {
-                logger.info(`SUPER APPROVAL DETECTED for user ${userId} on message ${msg.id}`);
                 superApproved = true;
             }
         }
         reactions[userId][month][msg.id] = Array.from(uniqueReactors);
 
-        logger.debug(`User ${userId} pre-check: data.superApproved=${data[userId]?.superApproved}, superApproved=${superApproved}`);
         if (!data[userId]) data[userId] = { months: {}, expiration: null, superApproved: false, initialReactionCount: 0 };
         if (superApproved && !data[userId].superApproved) {
             const newExpiry = new Date(Date.now() + ROLE_DURATION_DAYS * 24 * 60 * 60 * 1000);
             data[userId].expiration = newExpiry.toISOString();
             data[userId].superApproved = true;
             let totalUniqueReactions = Array.from(uniqueReactors).length;
-            data[userId].initialReactionCount = totalUniqueReactions;
+            // PATCH: For superApproved, set initialReactionCount to 0
+            data[userId].initialReactionCount = 0;
             data[userId].snapsmithAchievedAt = Date.now();
-            logger.info(`Attempting to award role to ${userId}`);
             try {
                 const guild = client.guilds.cache.values().next().value;
                 const member = await guild.members.fetch(userId);
@@ -249,35 +237,29 @@ async function scanShowcase(client, { limit = 100, messageIds = null } = {}) {
                     .setTimestamp();
 
                 await snapsmithChannel.send({ embeds: [embed] });
-                logger.info(`Role/award embed sent for ${userId}.`);
             } catch (e) {
                 logger.error(`Super approval role assignment failed for ${userId}: ${e.message}`);
             }
         }
     }
 
-    logger.info(`Processed ${messageCount} messages, found ${attachmentCount} with attachments.`);
     saveReactions(reactions);
     saveData(data);
     await evaluateRoles(client, data, reactions);
-    logger.info('scanShowcase finished.');
 }
 
 async function evaluateRoles(client, data, reactions) {
-    logger.debug('evaluateRoles called!');
     const guild = client.guilds.cache.values().next().value;
     const now = new Date();
     const month = getCurrentMonth();
 
     for (const [userId, userData] of Object.entries(data)) {
-        // --- PATCH: For extra days, sum reactions since achievement ---
         let totalUniqueReactions = 0;
         const userReactions = reactions[userId] || {};
         const achievementDate = userData && userData.snapsmithAchievedAt ? new Date(userData.snapsmithAchievedAt) : null;
         if (achievementDate) {
             for (const [mon, posts] of Object.entries(userReactions)) {
                 const monDate = new Date(mon + '-01T00:00:00.000Z');
-                // PATCH: Include the achievement month itself (>=, not >)
                 if (monDate >= achievementDate) {
                     for (const reactorsArr of Object.values(posts)) {
                         totalUniqueReactions += reactorsArr.length;
@@ -285,14 +267,11 @@ async function evaluateRoles(client, data, reactions) {
                 }
             }
         } else {
-            // If not yet achieved, sum current month only
             const userReactionsMonth = userReactions[month] || {};
             for (const reactorsArr of Object.values(userReactionsMonth)) {
                 totalUniqueReactions += reactorsArr.length;
             }
         }
-
-        // ...rest of function unchanged...
 
         const userReactionsMonth = reactions[userId]?.[month] || {};
         let totalUniqueReactionsThisMonth = 0;
@@ -316,9 +295,9 @@ async function evaluateRoles(client, data, reactions) {
             initialTrigger = true;
         }
         else if (currentExpiration && currentExpiration > now && userData.snapsmithAchievedAt) {
-            let initialCount = userData.initialReactionCount ?? (userData.superApproved ? 0 : REACTION_TARGET);
-            let extraReactions = totalUniqueReactions - initialCount;
-            let extraDays = Math.max(0, Math.floor(extraReactions / 3));
+            let initialCount = userData.superApproved ? 0 : (userData.initialReactionCount ?? REACTION_TARGET);
+            let extraReactions = Math.max(0, totalUniqueReactions - initialCount);
+            let extraDays = Math.floor(extraReactions / 3);
             let baseDays = ROLE_DURATION_DAYS;
             let maxDays = MAX_BUFFER_DAYS;
             let achievedTimestamp = typeof userData.snapsmithAchievedAt === 'string'
@@ -390,7 +369,6 @@ async function evaluateRoles(client, data, reactions) {
                 }
 
                 await snapsmithChannel.send({ embeds: [embed] });
-                logger.info(`Role/award embed sent for ${userId}.`);
             } catch (e) {
                 logger.error(`Failed to add role/send award for ${userId}: ${e.message}`);
             }
@@ -400,7 +378,6 @@ async function evaluateRoles(client, data, reactions) {
             try {
                 const member = await guild.members.fetch(userId);
                 await member.roles.remove(SNAPSMITH_ROLE_ID);
-                logger.info(`Removed Snapsmith role for expired user ${userId}.`);
             } catch (e) {
                 logger.error(`Failed to remove role for expired user ${userId}: ${e.message}`);
             }
@@ -411,13 +388,11 @@ async function evaluateRoles(client, data, reactions) {
         }
     }
     saveData(data);
-    logger.info('evaluateRoles finished.');
 }
 
 module.exports = {
     startPeriodicScan: function(client) {
         setInterval(() => {
-            logger.info('Periodic scanShowcase scheduled at ' + new Date().toISOString());
             scanShowcase(client).catch(logger.error);
         }, 3600 * 1000); // Scan every hour
     },
