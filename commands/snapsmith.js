@@ -130,15 +130,22 @@ module.exports = {
                 msg += `- Days queued (total): **${status.daysQueued}** (max ${MAX_BUFFER_DAYS})\n`;
             }
 
-            // Only use editReply, since interaction is already deferred in your handler
-            await interaction.editReply({ content: msg });
+            // Use editReply if deferred, reply if not
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ content: msg });
+            } else {
+                await interaction.reply({ content: msg, ephemeral: true });
+            }
         } catch (err) {
             console.error("Error in /snapsmith command:", err);
             try {
-                await interaction.editReply({ content: "There was an error running /snapsmith." });
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: "There was an error running /snapsmith." });
+                } else {
+                    await interaction.reply({ content: "There was an error running /snapsmith.", ephemeral: true });
+                }
             } catch (e) {
-                // If even editReply fails, just log
-                console.error("Failed to editReply after error:", e);
+                console.error("Failed to respond after error:", e);
             }
         }
     }
