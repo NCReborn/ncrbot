@@ -52,11 +52,6 @@ module.exports = {
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, count);
 
-            if (sorted.length === 0) {
-                await interaction.reply({ content: "No Snapsmith data found.", ephemeral: true });
-                return;
-            }
-
             let desc = '';
             for (let i = 0; i < sorted.length; i++) {
                 const [userId, total] = sorted[i];
@@ -66,12 +61,18 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor(0xFAA61A)
                 .setTitle(`Snapsmith Top ${count}`)
-                .setDescription(desc);
+                .setDescription(desc.length > 0 ? desc : "No Snapsmith data found.");
 
-            await interaction.reply({ embeds: [embed], ephemeral: false });
+            // Only reply once
+            await interaction.reply({ embeds: [embed] }); // ephemeral removed
+
         } catch (err) {
             console.error("Error in /snapsmithtop command:", err);
-            await interaction.reply({ content: "There was an error executing this command!", ephemeral: true });
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: "There was an error executing this command!", flags: 64 });
+            } else {
+                await interaction.reply({ content: "There was an error executing this command!", flags: 64 });
+            }
         }
     }
 };
