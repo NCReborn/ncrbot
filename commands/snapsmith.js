@@ -8,6 +8,7 @@ const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
 const MAX_BUFFER_DAYS = 60;
 const SUPER_APPROVER_ID = '278359162860077056'; // zVeinz
+const SHOWCASE_CHANNEL_ID = '1285797205927792782';
 
 function getCurrentMonth() {
     const now = new Date();
@@ -25,6 +26,18 @@ function loadMeta() {
         return JSON.parse(fs.readFileSync(META_DATA_PATH, 'utf8'));
     }
     return {};
+}
+
+function countSuperReactions(userId, month) {
+    // Looks for :star2: reactions from SUPER_APPROVER_ID
+    const reactions = loadReactions();
+    let count = 0;
+    if (reactions[userId] && reactions[userId][month]) {
+        for (const reactorsArr of Object.values(reactions[userId][month])) {
+            if (reactorsArr.includes(SUPER_APPROVER_ID)) count++;
+        }
+    }
+    return count;
 }
 
 async function getUserSnapsmithStatus(userId) {
@@ -76,6 +89,9 @@ async function getUserSnapsmithStatus(userId) {
     }
     daysQueued = Math.min(daysQueued, MAX_BUFFER_DAYS);
 
+    // Count superreactions from Veinz this month
+    const superReactionCount = countSuperReactions(userId, month);
+
     // If no reactions and no meta, show nothing
     if (totalUniqueReactions === 0 && !userMeta) return null;
 
@@ -85,7 +101,8 @@ async function getUserSnapsmithStatus(userId) {
         totalUniqueReactions,
         superApproved,
         daysQueued,
-        expiration
+        expiration,
+        superReactionCount
     };
 }
 
@@ -97,7 +114,7 @@ module.exports = {
         const status = await getUserSnapsmithStatus(interaction.user.id);
         if (!status) {
             await interaction.reply({
-                content: "You have no Snapsmith activity yet. Submit your best in-game photos in <#1285797205927792782> to get started!",
+                content: `You have no Snapsmith activity yet. Submit your best in-game photos in <#${SHOWCASE_CHANNEL_ID}> to get started!`,
                 ephemeral: true
             });
             return;
@@ -109,10 +126,13 @@ module.exports = {
             : `- You do not currently have the Snapsmith role.\n`;
 
         msg += `- Unique reactions this month (unique reactors per post summed): **${status.totalUniqueReactions}**\n`;
+        msg += `- You need **${Math.max(REACTION_TARGET - status.totalUniqueReactions, 0)}** more unique reactions this month to earn Snapsmith.\n`;
+
         msg += status.superApproved
             ? `- You received a :star2: Super Approval from <@${SUPER_APPROVER_ID}> this month!\n`
             : "";
-        msg += `- Days queued (total): **${status.daysQueued}** (max 60)\n`;
+        msg += `- Super reactions from <@${SUPER_APPROVER_ID}> this month: **${status.superReactionCount}**\n`;
+        msg += `- Days queued (total): **${status.daysQueued}** (max ${MAX_BUFFER_DAYS})\n`;
 
         await interaction.reply({ content: msg, ephemeral: true });
     }
