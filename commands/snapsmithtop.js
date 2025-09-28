@@ -3,13 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
-const SHOWCASE_CHANNEL_ID = '1285797205927792782';
-const MAX_ENTRIES = 10; // Number of top users to display
-
-function getCurrentMonth() {
-    const now = new Date();
-    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-}
+const META_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
 
 function loadReactions() {
     if (fs.existsSync(REACTION_DATA_PATH)) {
@@ -18,56 +12,66 @@ function loadReactions() {
     return {};
 }
 
-function getLeaderboard(reactions, month) {
-    const leaderboard = [];
-    for (const [userId, months] of Object.entries(reactions)) {
-        const userMonthData = months[month];
-        if (!userMonthData) continue;
-        let totalReactions = 0;
-        for (const reactorsArr of Object.values(userMonthData)) {
-            totalReactions += reactorsArr.length;
-        }
-        leaderboard.push({ userId, totalReactions });
+function loadMeta() {
+    if (fs.existsSync(META_DATA_PATH)) {
+        return JSON.parse(fs.readFileSync(META_DATA_PATH, 'utf8'));
     }
-    // Sort by most reactions
-    leaderboard.sort((a, b) => b.totalReactions - a.totalReactions);
-    return leaderboard.slice(0, MAX_ENTRIES);
+    return {};
 }
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('snapsmithtop')
-        .setDescription('Show the Snapsmith leaderboard for most unique reactions this month'),
+        .setDescription('Show top users by unique reactions')
+        .addIntegerOption(opt =>
+            opt.setName('count')
+                .setDescription('Number of top users to show')
+                .setRequired(false)
+        ),
     async execute(interaction) {
-        const reactions = loadReactions();
-        const month = getCurrentMonth();
-        const leaderboard = getLeaderboard(reactions, month);
+        try {
+            const reactions = loadReactions();
+            const meta = loadMeta();
+            const count = interaction.options.getInteger('count') ?? 10;
 
-        if (leaderboard.length === 0) {
+            // Build a map of userId -> totalUniqueReactions
+            const totals = {};
+            for (const userId of Object.keys(reactions)) {
+                let totalUniqueReactions = 0;
+                const userReactions = reactions[userId] || {};
+                for (const monthObj of Object.values(userReactions)) {
+                    for (const reactorsArr of Object.values(monthObj)) {
+                        totalUniqueReactions += reactorsArr.length;
+                    }
+                }
+                totals[userId] = totalUniqueReactions;
+            }
+
+            // Sort by totalUniqueReactions
+            const sorted = Object.entries(totals)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, count);
+
+            if (sorted.length === 0) {
+                await interaction.reply({ content: "No Snapsmith data found.", ephemeral: true });
+                return;
+            }
+
+            let desc = '';
+            for (let i = 0; i < sorted.length; i++) {
+                const [userId, total] = sorted[i];
+                desc += `**${i + 1}. <@${userId}>** — ${total} reactions\n`;
+            }
+
             const embed = new EmbedBuilder()
                 .setColor(0xFAA61A)
-                .setTitle('Snapsmith Leaderboard')
-                .setDescription('No leaderboard data found for this month. Submit your photos in <#' + SHOWCASE_CHANNEL_ID + '> to get started!')
-                .setFooter({ text: 'Leaderboard resets monthly. Keep posting amazing shots in #showcase!' });
-            await interaction.reply({ embeds: [embed], ephemeral: true });
-            return;
+                .setTitle(`Snapsmith Top ${count}`)
+                .setDescription(desc);
+
+            await interaction.reply({ embeds: [embed], ephemeral: false });
+        } catch (err) {
+            console.error("Error in /snapsmithtop command:", err);
+            await interaction.reply({ content: "There was an error executing this command!", ephemeral: true });
         }
-
-        const userStrings = await Promise.all(leaderboard.map(async (entry, idx) => {
-            try {
-                const user = await interaction.client.users.fetch(entry.userId);
-                return `**${idx + 1}.** <@${entry.userId}> (${user.username}) - **${entry.totalReactions}** unique reactions`;
-            } catch {
-                return `**${idx + 1}.** <@${entry.userId}> - **${entry.totalReactions}** unique reactions`;
-            }
-        }));
-
-        const embed = new EmbedBuilder()
-            .setColor(0xFAA61A)
-            .setTitle('Snapsmith Leaderboard')
-            .setDescription(`Top ${userStrings.length} chooms with the most unique photo reactions this month:\n\n${userStrings.join('\n')}`)
-            .setFooter({ text: 'Leaderboard resets monthly. Keep posting amazing shots in #showcase!' });
-
-        await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 };
