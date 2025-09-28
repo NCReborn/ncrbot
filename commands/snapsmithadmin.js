@@ -98,7 +98,7 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
     try {
-        await interaction.deferReply({ ephemeral: true });
+        // DO NOT deferReply or reply here -- already handled in the event handler!
 
         const sub = interaction.options.getSubcommand();
         const dataObj = loadData();
@@ -186,7 +186,7 @@ async function execute(interaction) {
                 }
             }
         }
-        // ...other subcommands here...
+        // ...handle other subcommands here...
 
         await interaction.editReply({ content: reply });
     } catch (err) {
