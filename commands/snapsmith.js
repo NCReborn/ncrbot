@@ -2,7 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
+const DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
 const ROLE_DURATION_DAYS = 30;
 const REACTION_TARGET = 25;
 const MAX_BUFFER_DAYS = 60;
