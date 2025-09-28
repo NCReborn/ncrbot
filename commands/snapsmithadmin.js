@@ -15,6 +15,8 @@ const {
     getCurrentMonth
 } = require('../utils/snapsmithManager');
 
+const ROLE_DURATION_DAYS = 30;
+
 const data = new SlashCommandBuilder()
     .setName('snapsmithadmin')
     .setDescription('Admin tools for managing Snapsmith system')
@@ -91,6 +93,10 @@ const data = new SlashCommandBuilder()
         subcmd.setName('recalc')
             .setDescription('Recalculate additional days for a user based on latest reactions')
             .addUserOption(opt => opt.setName('user').setDescription('User to recalculate').setRequired(true))
+    )
+    .addSubcommand(subcmd =>
+        subcmd.setName('patchusers')
+            .setDescription('Patch old Snapsmith users with missing achievement date and initial reactions')
     );
 
 async function execute(interaction) {
@@ -103,7 +109,40 @@ async function execute(interaction) {
         let messageId = interaction.options.getString('messageid');
         let reply = "No action taken.";
 
-        if (sub === 'recalc') {
+        if (sub === 'patchusers') {
+            const now = Date.now();
+            let patched = 0;
+            for (const [userId, userData] of Object.entries(dataObj)) {
+                if (userData.expiration && !userData.snapsmithAchievedAt) {
+                    const expirationDate = new Date(userData.expiration);
+                    const daysLeft = Math.max(0, Math.ceil((expirationDate - now) / (1000 * 60 * 60 * 24)));
+                    const achievedAt = new Date(expirationDate.getTime() - daysLeft * 24 * 60 * 60 * 1000);
+                    userData.snapsmithAchievedAt = achievedAt.toISOString();
+
+                    // Compute initialReactionCount
+                    let initialReactionCount = REACTION_TARGET;
+                    const userReactionsMonth = reactionsObj[userId]?.[month] || {};
+                    let totalUniqueReactions = 0;
+                    for (const reactorsArr of Object.values(userReactionsMonth)) {
+                        totalUniqueReactions += reactorsArr.length;
+                    }
+                    if (totalUniqueReactions > 0) {
+                        initialReactionCount = totalUniqueReactions;
+                    }
+                    userData.initialReactionCount = initialReactionCount;
+
+                    patched++;
+                }
+            }
+            if (patched > 0) {
+                saveData(dataObj);
+                reply = `Patched ${patched} users. Updated snapsmith.json.`;
+            } else {
+                reply = 'No users needed patching.';
+            }
+        }
+
+        else if (sub === 'recalc') {
             if (!user) reply = "User required.";
             else {
                 const result = recalculateExpiration(user.id, reactionsObj, dataObj, month);
