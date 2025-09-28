@@ -287,9 +287,12 @@ async function evaluateRoles(client, data, reactions) {
 module.exports = {
     startPeriodicScan: function(client) {
         setInterval(() => {
+            logger.info('Periodic scanShowcase scheduled at ' + new Date().toISOString());
             scanShowcase(client).catch(logger.error);
         }, 3600 * 1000); // Scan every hour
     },
     syncCurrentSnapsmiths,
-    scanShowcase
+    scanShowcase,
+    SNAPSMITH_ROLE_ID,
+    SNAPSMITH_CHANNEL_ID
 };
