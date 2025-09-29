@@ -482,7 +482,7 @@ async function evaluateRoles(client, data, reactions) {
   //      setInterval(() => {
   //          scanShowcase(client).catch(logger.error);
    //     }, 3600 * 1000); // Scan every hour
-  //  },
+   },
     syncCurrentSnapsmiths,
     scanShowcase,
     SNAPSMITH_ROLE_ID,
