@@ -150,8 +150,8 @@ client.once('clientReady', async () => {
 });
 
 // --- Snapsmith Manager: Start periodic scan ---
-const { startPeriodicScan } = require('./utils/snapsmithManager');
-startPeriodicScan(client); //<-- UNCOMMENT THIS AFTER MANUAL TESTS
+//const { startPeriodicScan } = require('./utils/snapsmithManager');
+//startPeriodicScan(client); //<-- UNCOMMENT THIS AFTER MANUAL TESTS
 
 // --- DO NOT HANDLE SLASH COMMANDS HERE ---
 // All slash command handling is now in events/interactionCreate.js
