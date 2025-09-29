@@ -477,12 +477,12 @@ async function evaluateRoles(client, data, reactions) {
     saveData(data);
 }
 
-module.exports = {
-    startPeriodicScan: function(client) {
-        setInterval(() => {
-            scanShowcase(client).catch(logger.error);
-        }, 3600 * 1000); // Scan every hour
-    },
+//module.exports = {
+  //  startPeriodicScan: function(client) {
+  //      setInterval(() => {
+  //          scanShowcase(client).catch(logger.error);
+   //     }, 3600 * 1000); // Scan every hour
+  //  },
     syncCurrentSnapsmiths,
     scanShowcase,
     SNAPSMITH_ROLE_ID,
