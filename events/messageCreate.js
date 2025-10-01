@@ -38,7 +38,7 @@ module.exports = {
           await message.channel.send({ embeds });
 
           if (hasErrors) {
-            await message.react('❌');
+            await message.react('⚠️');
           } else {
             await message.react('✅');
           }

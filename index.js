@@ -151,28 +151,7 @@ client.once('ready', async () => {
 });
 
 // --- Snapsmith Manager: Start periodic scan ---
- const { startPeriodicScan } = require('./utils/snapsmithManager');
- startPeriodicScan(client); //<-- UNCOMMENT THIS AFTER MANUAL TESTS
-
-// --- Slash command handler ---
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-  try {
-    // REMOVE the following line if you want your commands to handle reply/editReply themselves!
-    // await interaction.deferReply({ ephemeral: true });
-
-    await command.execute(interaction);
-  } catch (error) {
-    logger.error(`Error executing command ${interaction.commandName}: ${error}`);
-    // Only reply if not already replied or deferred!
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: 'There was an error executing that command.', flags: 64 });
-    } else {
-      await interaction.editReply({ content: 'There was an error executing that command.' });
-    }
-  }
-});
+const { startPeriodicScan } = require('./utils/snapsmithManager');
+startPeriodicScan(client); //<-- UNCOMMENT THIS AFTER MANUAL TESTS
 
 client.login(BOT_TOKEN);
