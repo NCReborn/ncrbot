@@ -23,11 +23,15 @@ module.exports = {
 
             let nextDayText;
             if (!status.isActive) {
+                // Not a Snapsmith: show progress towards 30
                 nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
+            } else if (stats.total < REACTION_TARGET) {
+                // Has the role (manual/super), but not enough reactions: show how many still needed
+                nextDayText = `${REACTION_TARGET - stats.total} more reactions needed to reach normal Snapsmith threshold.`;
             } else {
+                // Has the role and enough reactions
                 const extra = stats.total - REACTION_TARGET;
-                const validExtra = extra > 0 ? extra : 0;
-                const remainder = validExtra % EXTRA_DAY_REACTION_COUNT;
+                const remainder = extra % EXTRA_DAY_REACTION_COUNT;
                 const toNext = remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
                 nextDayText = `${toNext} more reactions until an additional day is added.`;
             }
