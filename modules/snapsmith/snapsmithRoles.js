@@ -1,6 +1,6 @@
 // Snapsmith Roles: Handles Snapsmith role assignment, expiry calculation, and removal
 
-const { loadUserData, saveUserData } = require('./snapsmithStorage');
+const { loadUserData, saveUserData } = require('./snapsmith/snapsmithStorage');
 const SNAPSMITH_ROLE_ID = '1374841261898469378'; // Set to your real role ID
 const ROLE_DURATION_DAYS = 30;
 const EXTRA_DAY_REACTION_COUNT = 10; // Each 10 reactions adds a day
