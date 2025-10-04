@@ -7,7 +7,7 @@ const { loadUserData } = require('../modules/snapsmith/Storage');
 const SNAPSMITH_ROLE_ID = snapsmithRoles.SNAPSMITH_ROLE_ID;
 const EXTRA_DAY_REACTION_COUNT = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
 const MAX_BUFFER_DAYS = snapsmithRoles.MAX_BUFFER_DAYS;
-const REACTION_TARGET = 30;
+const REACTION_TARGET = snapsmithRoles.BASE_REACTIONS; // Use dynamic value
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -19,11 +19,9 @@ module.exports = {
         ),
     async execute(interaction) {
         try {
-            // Use the selected user if provided, otherwise default to the command user
             const targetUser = interaction.options.getUser?.('user') || interaction.user;
             const userId = targetUser.id;
 
-            // Fetch GuildMember for username/displayName if available
             let usernameDisplay = `<@${userId}>`;
             if (interaction.guild) {
                 try {
@@ -39,17 +37,20 @@ module.exports = {
             const status = snapsmithRoles.getSnapsmithStatus(userId);
             const stats = snapsmithTracker.getUserReactionStats(userId);
             const userData = loadUserData();
-            const milestoneDays = userData[userId]?.reactionMilestoneDays ?? 0;
             const superApprovalBonusDays = userData[userId]?.superApprovalBonusDays ?? 0;
             const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
 
-            const nextMilestoneReactions = (milestoneDays + 1) * EXTRA_DAY_REACTION_COUNT;
-            const reactionsToNextDay = nextMilestoneReactions - stats.total;
+            // Calculate milestone days from actual reactions
+            const milestoneDays = status.isActive
+                ? Math.max(0, Math.floor((stats.total - REACTION_TARGET) / EXTRA_DAY_REACTION_COUNT))
+                : 0;
 
-            let nextDayText;
+            let nextDayText = '';
             if (!status.isActive) {
                 nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
             } else {
+                const nextMilestoneReactions = REACTION_TARGET + ((milestoneDays + 1) * EXTRA_DAY_REACTION_COUNT);
+                const reactionsToNextDay = nextMilestoneReactions - stats.total;
                 nextDayText = `${Math.max(reactionsToNextDay, 0)} more reactions until an additional day is added.`;
             }
 
