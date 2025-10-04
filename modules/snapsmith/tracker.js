@@ -1,45 +1,63 @@
-// Snapsmith Tracker: Tracks reactions, unique reactors, and handles decay logic
+const { saveReactionData, loadReactionData } = require('./Storage');
 
-const { loadReactionData, saveReactionData } = require('./Storage');
-const REACTION_DECAY_DAYS = 7; // Number of days to track reactions for each post
+const REACTION_DECAY_DAYS = 7;
 
 /**
  * Track a new showcase post.
- * @param {Discord.Message} post - Discord message object representing the showcase post
+ * @param {object} message - Discord message object
  */
-function trackShowcasePost(post) {
+function trackShowcasePost(message) {
     const reactions = loadReactionData();
-    const { id: messageId, author } = post;
-    const userId = author.id;
+    const userId = message.author.id;
+    const messageId = message.id;
     const now = Date.now();
 
-    // Initialize user and message in reactions data
     if (!reactions[userId]) reactions[userId] = {};
-    reactions[userId][messageId] = {
-        reactors: [],
-        created: now, // timestamp for decay
-    };
-
-    saveReactionData(reactions);
+    if (!reactions[userId][messageId]) {
+        reactions[userId][messageId] = {
+            reactors: [],
+            created: now,
+        };
+        saveReactionData(reactions);
+    }
 }
 
 /**
  * Add a unique reaction to a showcase post.
+ * Ensures the post entry exists; creates it if missing (using authorId if provided).
  * @param {string} messageId - Discord message ID of the showcase post
  * @param {string} reactorId - Discord user ID who reacted
+ * @param {string|null} authorId - Discord user ID of showcase post author (optional, used if entry missing)
  */
-function addReaction(messageId, reactorId) {
+function addReaction(messageId, reactorId, authorId = null) {
     const reactions = loadReactionData();
+    let found = false;
+
+    // Try to find the post under any user
     for (const userId in reactions) {
         if (reactions[userId][messageId]) {
+            found = true;
             const entry = reactions[userId][messageId];
             if (!entry.reactors.includes(reactorId)) {
                 entry.reactors.push(reactorId);
                 saveReactionData(reactions);
                 return true;
             }
+            return false; // Already reacted
         }
     }
+
+    // If not found, create entry under authorId if provided
+    if (!found && authorId) {
+        if (!reactions[authorId]) reactions[authorId] = {};
+        reactions[authorId][messageId] = {
+            reactors: [reactorId],
+            created: Date.now(),
+        };
+        saveReactionData(reactions);
+        return true;
+    }
+
     return false;
 }
 
@@ -89,7 +107,6 @@ function applyDecay() {
         for (const messageId in reactions[userId]) {
             const entry = reactions[userId][messageId];
             if (entry.created < cutoff) {
-                // Optionally, could remove the entry entirely, or clear reactors
                 entry.reactors = [];
             }
         }
