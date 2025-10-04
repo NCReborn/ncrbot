@@ -22,11 +22,12 @@ module.exports = {
             const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
 
             let nextDayText;
-            if (stats.total < REACTION_TARGET) {
-                nextDayText = `${REACTION_TARGET - stats.total} more reactions needed to earn Snapsmith.`;
+            if (!status.isActive) {
+                nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
             } else {
                 const extra = stats.total - REACTION_TARGET;
-                const remainder = extra % EXTRA_DAY_REACTION_COUNT;
+                const validExtra = extra > 0 ? extra : 0;
+                const remainder = validExtra % EXTRA_DAY_REACTION_COUNT;
                 const toNext = remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
                 nextDayText = `${toNext} more reactions until an additional day is added.`;
             }
