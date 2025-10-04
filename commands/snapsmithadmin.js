@@ -299,43 +299,41 @@ async function execute(interaction) {
                         );
                 }
                 await interaction.editReply({ embeds: [embed] });
-            }
-                    await interaction.editReply({ embeds: [embed] });
-                } else if (sub === 'leaderboard') {
-                    const count = interaction.options.getInteger('count') ?? 10;
-                    const currentSnapsmithIds = Object.entries(userData)
-                        .filter(([userId, meta]) => snapsmithRoles.getSnapsmithStatus(userId).isActive)
-                        .map(([userId]) => userId);
+            } else if (sub === 'leaderboard') {
+                const count = interaction.options.getInteger('count') ?? 10;
+                const currentSnapsmithIds = Object.entries(userData)
+                    .filter(([userId, meta]) => snapsmithRoles.getSnapsmithStatus(userId).isActive)
+                    .map(([userId]) => userId);
 
-                    const reactionCounts = currentSnapsmithIds.map(userId => ({
-                        userId,
-                        total: snapsmithTracker.getUserReactionStats(userId).total,
-                        daysLeft: snapsmithRoles.getSnapsmithStatus(userId).daysLeft
-                    }));
+                const reactionCounts = currentSnapsmithIds.map(userId => ({
+                    userId,
+                    total: snapsmithTracker.getUserReactionStats(userId).total,
+                    daysLeft: snapsmithRoles.getSnapsmithStatus(userId).daysLeft
+                }));
 
-                    reactionCounts.sort((a, b) => b.total - a.total);
-                    const top = reactionCounts.slice(0, count);
+                reactionCounts.sort((a, b) => b.total - a.total);
+                const top = reactionCounts.slice(0, count);
 
-                    let desc = '';
-                    for (let i = 0; i < top.length; i++) {
-                        desc += `**${i + 1}. <@${top[i].userId}>** — ${top[i].total} reactions, ${top[i].daysLeft} days left\n`;
-                    }
-
-                    const embed = new EmbedBuilder()
-                        .setColor(0xFAA61A)
-                        .setTitle(`Snapsmith Top ${count}`)
-                        .setDescription(desc.length > 0 ? desc : "No current Snapsmith role holders found.");
-
-                    await interaction.editReply({ embeds: [embed] });
-                } else if (sub === 'log') {
-                    await interaction.editReply({ content: 'Role change logging not implemented yet.' });
-                } else if (sub === 'audit') {
-                    if (!user) return interaction.editReply({ content: "User required." });
-                    await interaction.editReply({ content: 'User audit not implemented yet.' });
-                } else if (sub === 'healthcheck') {
-                    await interaction.editReply({ content: 'Health check not implemented yet.' });
+                let desc = '';
+                for (let i = 0; i < top.length; i++) {
+                    desc += `**${i + 1}. <@${top[i].userId}>** — ${top[i].total} reactions, ${top[i].daysLeft} days left\n`;
                 }
+
+                const embed = new EmbedBuilder()
+                    .setColor(0xFAA61A)
+                    .setTitle(`Snapsmith Top ${count}`)
+                    .setDescription(desc.length > 0 ? desc : "No current Snapsmith role holders found.");
+
+                await interaction.editReply({ embeds: [embed] });
+            } else if (sub === 'log') {
+                await interaction.editReply({ content: 'Role change logging not implemented yet.' });
+            } else if (sub === 'audit') {
+                if (!user) return interaction.editReply({ content: "User required." });
+                await interaction.editReply({ content: 'User audit not implemented yet.' });
+            } else if (sub === 'healthcheck') {
+                await interaction.editReply({ content: 'Health check not implemented yet.' });
             }
+        }
         // USER GROUP
         else if (group === 'user') {
             if (sub === 'forcegive') {
@@ -447,11 +445,10 @@ async function execute(interaction) {
                 snapsmithStorage.saveUserData(userData);
                 await interaction.editReply({ content: `Force granted Snapsmith to ${granted} eligible users.` });
             } else if (sub === 'syncroles') {
-                // Scan guild members, find those with the Snapsmith role, add/update them in userData
                 const EXPIRATION_DAYS = 30;
                 const now = Date.now();
                 const guild = interaction.guild;
-                await guild.members.fetch(); // Ensure members are cached
+                await guild.members.fetch();
                 const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
                 let added = 0;
                 for (const member of membersWithRole.values()) {
