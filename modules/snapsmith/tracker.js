@@ -1,5 +1,5 @@
 const { saveReactionData, loadReactionData } = require('./Storage');
-const { addSnapsmithDays } = require('./Roles');
+const { addSnapsmithDays, updateSnapsmithDays } = require('./Roles');
 const { loadUserData, saveUserData } = require('./Storage');
 const { announceExtraDay } = require('./announcer');
 
@@ -55,8 +55,18 @@ async function addReaction(messageId, reactorId, authorId = null, client = null)
                     .reduce((acc, entry) => acc + entry.reactors.length, 0);
 
                 // Milestone tracking: only award new days if milestoneDays increased
-                const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
                 const userData = loadUserData();
+                // If an existing snapsmith, pre-set reactionMilestoneDays to 3 if missing
+                if (
+                    userData[author] &&
+                    userData[author].expiration &&
+                    (userData[author].reactionMilestoneDays === undefined || userData[author].reactionMilestoneDays < 3)
+                ) {
+                    userData[author].reactionMilestoneDays = 3;
+                    saveUserData(userData);
+                }
+
+                const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
                 const alreadyAwarded = userData[author]?.reactionMilestoneDays || 0;
 
                 if (milestoneDays > alreadyAwarded) {
@@ -87,8 +97,18 @@ async function addReaction(messageId, reactorId, authorId = null, client = null)
         const totalReactions = Object.values(reactions[authorId])
             .reduce((acc, entry) => acc + entry.reactors.length, 0);
 
-        const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
         const userData = loadUserData();
+        // If an existing snapsmith, pre-set reactionMilestoneDays to 3 if missing
+        if (
+            userData[authorId] &&
+            userData[authorId].expiration &&
+            (userData[authorId].reactionMilestoneDays === undefined || userData[authorId].reactionMilestoneDays < 3)
+        ) {
+            userData[authorId].reactionMilestoneDays = 3;
+            saveUserData(userData);
+        }
+
+        const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
         const alreadyAwarded = userData[authorId]?.reactionMilestoneDays || 0;
 
         if (milestoneDays > alreadyAwarded) {
@@ -122,6 +142,34 @@ function removeReaction(messageId, reactorId) {
         }
     }
     return false;
+}
+
+/**
+ * Remove all reactions and tracking for a showcase post.
+ * Also recalculates user's buffer days.
+ * @param {string} messageId - Discord message ID of the showcase post
+ * @param {string} authorId - Discord user ID of showcase post author
+ */
+function removeShowcasePost(messageId, authorId) {
+    const reactions = loadReactionData();
+    let removed = false;
+    if (reactions[authorId] && reactions[authorId][messageId]) {
+        delete reactions[authorId][messageId];
+        removed = true;
+        saveReactionData(reactions);
+
+        // Recalculate milestone days and expiry
+        const totalReactions = Object.values(reactions[authorId])
+            .reduce((acc, entry) => acc + entry.reactors.length, 0);
+
+        const userData = loadUserData();
+        const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
+        userData[authorId].reactionMilestoneDays = milestoneDays;
+        saveUserData(userData);
+
+        updateSnapsmithDays(authorId, totalReactions);
+    }
+    return removed;
 }
 
 /**
@@ -197,6 +245,7 @@ module.exports = {
     getUniqueReactors,
     applyDecay,
     getUserReactionStats,
+    removeShowcasePost,
     BASE_REACTIONS,
     EXTRA_DAY_REACTIONS,
     MAX_DAYS,
