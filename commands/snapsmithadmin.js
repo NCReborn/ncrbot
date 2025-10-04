@@ -238,65 +238,68 @@ async function execute(interaction) {
             }
         }
         // INFO GROUP
- if (group === 'info') {
-                if (sub === 'status') {
-                    if (!user) return interaction.editReply({ content: "User required." });
-                    const userId = user.id;
-                    const status = snapsmithRoles.getSnapsmithStatus(userId);
-                    const stats = snapsmithTracker.getUserReactionStats(userId);
-                    const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
+        if (group === 'info') {
+            if (sub === 'status') {
+                if (!user) return interaction.editReply({ content: "User required." });
+                const userId = user.id;
+                const status = snapsmithRoles.getSnapsmithStatus(userId);
+                const stats = snapsmithTracker.getUserReactionStats(userId);
+                const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
 
-                    let nextDayText;
-                    if (stats.total < REACTION_TARGET) {
-                        nextDayText = `${REACTION_TARGET - stats.total} more reactions needed to earn Snapsmith.`;
-                    } else {
-                        const extra = stats.total - REACTION_TARGET;
-                        const remainder = extra % EXTRA_DAY_REACTION_COUNT;
-                        const toNext = remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
-                        nextDayText = `${toNext} more reactions until an additional day is added.`;
-                    }
+                let nextDayText;
+                if (!status.isActive) {
+                    nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
+                } else {
+                    const extra = stats.total - REACTION_TARGET;
+                    const validExtra = extra > 0 ? extra : 0;
+                    const remainder = validExtra % EXTRA_DAY_REACTION_COUNT;
+                    const toNext = remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
+                    nextDayText = `${toNext} more reactions until an additional day is added.`;
+                }
 
-                    let embed;
-                    if (!status.isActive) {
-                        embed = new EmbedBuilder()
-                            .setColor(0xFAA61A)
-                            .setTitle(`Snapsmith Status`)
-                            .addFields(
-                                { name: 'User', value: `<@${userId}>`, inline: true },
-                                { name: 'Role Status', value: `You do **not** currently have the <@&${SNAPSMITH_ROLE_ID}> role.`, inline: false },
-                                { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
-                                { name: `Reactions remaining`, value: `**${Math.max(REACTION_TARGET - stats.total, 0)}** more needed to earn Snapsmith.`, inline: true },
-                                { name: 'Super reactions this month', value: `**0**`, inline: true },
-                                { name: 'Days queued', value: `**0** (max ${MAX_BUFFER_DAYS})`, inline: true }
-                            );
-                    } else if (status.isActive && !superApproved) {
-                        embed = new EmbedBuilder()
-                            .setColor(0xFAA61A)
-                            .setTitle(`Snapsmith Status`)
-                            .addFields(
-                                { name: 'User', value: `<@${userId}>`, inline: true },
-                                { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role.`, inline: false },
-                                { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
-                                { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
-                                { name: 'Next Day Progress', value: nextDayText, inline: true },
-                                { name: 'Super reactions this month', value: `**0**`, inline: true },
-                                { name: 'Days queued', value: `**${status.daysLeft}** (max ${MAX_BUFFER_DAYS})`, inline: true }
-                            );
-                    } else if (status.isActive && superApproved) {
-                        embed = new EmbedBuilder()
-                            .setColor(0xFAA61A)
-                            .setTitle(`Snapsmith Status`)
-                            .addFields(
-                                { name: 'User', value: `<@${userId}>`, inline: true },
-                                { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role (**awarded via Super Approval**).`, inline: false },
-                                { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
-                                { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
-                                { name: 'Next Day Progress', value: nextDayText, inline: true },
-                                { name: 'Super Approval', value: `You received a 🌟 Super Approval from a super approver!`, inline: false },
-                                { name: 'Super reactions this month', value: `**1**`, inline: true },
-                                { name: 'Days queued', value: `**${status.daysLeft}** (max ${MAX_BUFFER_DAYS})`, inline: true }
-                            );
-                    }
+                let embed;
+                if (!status.isActive) {
+                    embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle(`Snapsmith Status`)
+                        .addFields(
+                            { name: 'User', value: `<@${userId}>`, inline: true },
+                            { name: 'Role Status', value: `You do **not** currently have the <@&${SNAPSMITH_ROLE_ID}> role.`, inline: false },
+                            { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
+                            { name: `Reactions remaining`, value: `**${Math.max(REACTION_TARGET - stats.total, 0)}** more needed to earn Snapsmith.`, inline: true },
+                            { name: 'Super reactions this month', value: `**0**`, inline: true },
+                            { name: 'Days queued', value: `**0** (max ${MAX_BUFFER_DAYS})`, inline: true }
+                        );
+                } else if (status.isActive && !superApproved) {
+                    embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle(`Snapsmith Status`)
+                        .addFields(
+                            { name: 'User', value: `<@${userId}>`, inline: true },
+                            { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role.`, inline: false },
+                            { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
+                            { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
+                            { name: 'Next Day Progress', value: nextDayText, inline: true },
+                            { name: 'Super reactions this month', value: `**0**`, inline: true },
+                            { name: 'Days queued', value: `**${status.daysLeft}** (max ${MAX_BUFFER_DAYS})`, inline: true }
+                        );
+                } else if (status.isActive && superApproved) {
+                    embed = new EmbedBuilder()
+                        .setColor(0xFAA61A)
+                        .setTitle(`Snapsmith Status`)
+                        .addFields(
+                            { name: 'User', value: `<@${userId}>`, inline: true },
+                            { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role (**awarded via Super Approval**).`, inline: false },
+                            { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
+                            { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
+                            { name: 'Next Day Progress', value: nextDayText, inline: true },
+                            { name: 'Super Approval', value: `You received a 🌟 Super Approval from a super approver!`, inline: false },
+                            { name: 'Super reactions this month', value: `**1**`, inline: true },
+                            { name: 'Days queued', value: `**${status.daysLeft}** (max ${MAX_BUFFER_DAYS})`, inline: true }
+                        );
+                }
+                await interaction.editReply({ embeds: [embed] });
+            }
                     await interaction.editReply({ embeds: [embed] });
                 } else if (sub === 'leaderboard') {
                     const count = interaction.options.getInteger('count') ?? 10;
