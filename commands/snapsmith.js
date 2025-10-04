@@ -7,7 +7,7 @@ const { loadUserData } = require('../modules/snapsmith/Storage');
 const SNAPSMITH_ROLE_ID = snapsmithRoles.SNAPSMITH_ROLE_ID;
 const EXTRA_DAY_REACTION_COUNT = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
 const MAX_BUFFER_DAYS = snapsmithRoles.MAX_BUFFER_DAYS;
-const REACTION_TARGET = snapsmithRoles.BASE_REACTIONS; // Use dynamic value
+const REACTION_TARGET = snapsmithRoles.BASE_REACTIONS;
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -40,18 +40,24 @@ module.exports = {
             const superApprovalBonusDays = userData[userId]?.superApprovalBonusDays ?? 0;
             const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
 
-            // Calculate milestone days from actual reactions
-            const milestoneDays = status.isActive
-                ? Math.max(0, Math.floor((stats.total - REACTION_TARGET) / EXTRA_DAY_REACTION_COUNT))
-                : 0;
+            // Calculate milestone days from actual reactions (never negative)
+            const milestoneDays = stats.total < REACTION_TARGET
+                ? 0
+                : Math.floor((stats.total - REACTION_TARGET) / EXTRA_DAY_REACTION_COUNT);
 
             let nextDayText = '';
             if (!status.isActive) {
                 nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
             } else {
-                const nextMilestoneReactions = REACTION_TARGET + ((milestoneDays + 1) * EXTRA_DAY_REACTION_COUNT);
-                const reactionsToNextDay = nextMilestoneReactions - stats.total;
-                nextDayText = `${Math.max(reactionsToNextDay, 0)} more reactions until an additional day is added.`;
+                // If they haven't hit initial milestone for extra days yet:
+                if (stats.total < REACTION_TARGET) {
+                    nextDayText = `${REACTION_TARGET - stats.total} more reactions needed to earn the first extra day.`;
+                } else {
+                    // Calculate how many reactions toward next extra day
+                    const reactionsSinceMilestone = stats.total - REACTION_TARGET;
+                    const reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - (reactionsSinceMilestone % EXTRA_DAY_REACTION_COUNT);
+                    nextDayText = `${reactionsToNextDay} more reactions until an additional day is added.`;
+                }
             }
 
             let embed;
