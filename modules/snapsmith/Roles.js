@@ -49,8 +49,30 @@ async function removeSnapsmith(member) {
 }
 
 /**
- * Add days to Snapsmith expiry (bonus/reaction milestones).
+ * Directly add days to Snapsmith expiry (for milestones and super approvals).
  * Enforces MAX_BUFFER_DAYS.
+ * @param {string} userId
+ * @param {number} days
+ */
+function addSnapsmithDays(userId, days = 1) {
+    const userData = loadUserData();
+    if (!userData[userId] || !userData[userId].expiration) return;
+    const currentExpiry = new Date(userData[userId].expiration).getTime();
+    const now = Date.now();
+    // If already expired, start from now
+    const base = Math.max(currentExpiry, now);
+    let newExpiry = base + days * 24 * 60 * 60 * 1000;
+
+    // Don't exceed MAX_BUFFER_DAYS from now
+    const maxExpiry = now + MAX_BUFFER_DAYS * 24 * 60 * 60 * 1000;
+    if (newExpiry > maxExpiry) newExpiry = maxExpiry;
+
+    userData[userId].expiration = new Date(newExpiry).toISOString();
+    saveUserData(userData);
+}
+
+/**
+ * Recalculate Snapsmith days based on total reactions (not usually needed for milestones).
  * @param {string} userId
  * @param {number} totalReactions
  */
@@ -58,7 +80,6 @@ function updateSnapsmithDays(userId, totalReactions) {
     const userData = loadUserData();
     if (!userData[userId] || !userData[userId].snapsmithAchievedAt) return;
 
-    // Each additional 10 reactions grants 1 extra day, capped at 60 total days
     let days = BASE_REACTIONS;
     if (totalReactions > BASE_REACTIONS) {
         days += Math.floor((totalReactions - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
@@ -115,7 +136,8 @@ async function expireSnapsmiths(guild) {
 module.exports = {
     grantSnapsmith,
     removeSnapsmith,
-    updateSnapsmithDays,
+    addSnapsmithDays,      // <-- Make sure this is exported!
+    updateSnapsmithDays,   // (optional, for recalculation)
     getSnapsmithStatus,
     expireSnapsmiths,
     SNAPSMITH_ROLE_ID,
