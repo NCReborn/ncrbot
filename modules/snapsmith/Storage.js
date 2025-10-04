@@ -1,52 +1,48 @@
-// Snapsmith Storage: Handles reading/writing Snapsmith reaction and user data
-
 const fs = require('fs');
 const path = require('path');
 
-const REACTION_DATA_PATH = path.join(__dirname, '..', '..', 'data', 'snapsmithreactions.json');
 const USER_DATA_PATH = path.join(__dirname, '..', '..', 'data', 'snapsmith.json');
+const REACTION_DATA_PATH = path.join(__dirname, '..', '..', 'data', 'snapsmithreactions.json');
 
-/**
- * Load all Snapsmith reaction data.
- * @returns {object} Parsed reaction data
- */
-function loadReactionData() {
-    if (fs.existsSync(REACTION_DATA_PATH)) {
-        return JSON.parse(fs.readFileSync(REACTION_DATA_PATH, 'utf8'));
-    }
-    return {};
-}
-
-/**
- * Save all Snapsmith reaction data.
- * @param {object} data - Reaction data object to save
- */
-function saveReactionData(data) {
-    fs.writeFileSync(REACTION_DATA_PATH, JSON.stringify(data, null, 2));
-}
-
-/**
- * Load all Snapsmith user meta data.
- * @returns {object} Parsed user meta data
- */
 function loadUserData() {
-    if (fs.existsSync(USER_DATA_PATH)) {
+    try {
+        if (!fs.existsSync(USER_DATA_PATH)) return {};
         return JSON.parse(fs.readFileSync(USER_DATA_PATH, 'utf8'));
+    } catch {
+        return {};
     }
-    return {};
 }
 
-/**
- * Save all Snapsmith user meta data.
- * @param {object} data - User meta data object to save
- */
 function saveUserData(data) {
-    fs.writeFileSync(USER_DATA_PATH, JSON.stringify(data, null, 2));
+    try {
+        fs.writeFileSync(USER_DATA_PATH, JSON.stringify(data, null, 2));
+    } catch (err) {
+        console.error(`Error saving Snapsmith user data: ${err}`);
+    }
+}
+
+function loadReactionData() {
+    try {
+        if (!fs.existsSync(REACTION_DATA_PATH)) return {};
+        return JSON.parse(fs.readFileSync(REACTION_DATA_PATH, 'utf8'));
+    } catch {
+        return {};
+    }
+}
+
+function saveReactionData(data) {
+    try {
+        fs.writeFileSync(REACTION_DATA_PATH, JSON.stringify(data, null, 2));
+    } catch (err) {
+        console.error(`Error saving Snapsmith reaction data: ${err}`);
+    }
 }
 
 module.exports = {
-    loadReactionData,
-    saveReactionData,
     loadUserData,
     saveUserData,
+    loadReactionData,
+    saveReactionData,
+    USER_DATA_PATH,
+    REACTION_DATA_PATH,
 };
