@@ -463,6 +463,30 @@ async function execute(interaction) {
                 snapsmithStorage.saveUserData(userData);
                 await interaction.editReply({ content: `Synced ${added} Snapsmith role holders into system.` });
             }
+           else if (group === 'bulk' && sub === 'syncroles') {
+    // Scan guild members, find those with the Snapsmith role, add/update them in userData
+    const EXPIRATION_DAYS = 30;
+    const now = Date.now();
+    const guild = interaction.guild;
+    await guild.members.fetch(); // Ensure members are cached
+    const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
+    let added = 0;
+    for (const member of membersWithRole.values()) {
+        const userId = member.id;
+        userData[userId] = {
+            ...userData[userId], // preserve fields if present
+            snapsmithAchievedAt: now,
+            expiration: new Date(now + EXPIRATION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+            initialReactionCount: 30,
+            reactionMilestoneDays: 0,
+            superApprovalBonusDays: 0,
+            superApproved: false,
+        };
+        added++;
+    }
+    snapsmithStorage.saveUserData(userData);
+    await interaction.editReply({ content: `Synced ${added} Snapsmith role holders into system and set their expiry to 30 days from now.` });
+} 
         }
         // ANNOUNCE GROUP
         else if (group === 'announce') {
