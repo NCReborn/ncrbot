@@ -1,5 +1,6 @@
 const { saveReactionData, loadReactionData } = require('./Storage');
 const { addSnapsmithDays } = require('./Roles');
+const { loadUserData, saveUserData } = require('./Storage');
 const { announceExtraDay } = require('./announcer');
 
 const BASE_REACTIONS = 30;
@@ -48,15 +49,23 @@ async function addReaction(messageId, reactorId, authorId = null, client = null)
                 entry.reactors.push(reactorId);
                 saveReactionData(reactions);
 
-                // PATCH: count total reactions for this user and check milestone
-                const totalReactions = Object.values(reactions[userId])
+                // PATCH: Milestone logic -- always award milestone days to post author!
+                const author = authorId || userId;
+                const totalReactions = Object.values(reactions[author])
                     .reduce((acc, entry) => acc + entry.reactors.length, 0);
 
-                // If total is a new milestone (10, 20, 30, ...) and > 0, add a day and announce
-                if (totalReactions > 0 && totalReactions % EXTRA_DAY_REACTIONS === 0) {
-                    addSnapsmithDays(userId, 1);
+                // Milestone tracking: only award new days if milestoneDays increased
+                const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
+                const userData = loadUserData();
+                const alreadyAwarded = userData[author]?.reactionMilestoneDays || 0;
+
+                if (milestoneDays > alreadyAwarded) {
+                    addSnapsmithDays(author, milestoneDays - alreadyAwarded);
+                    userData[author] = userData[author] || {};
+                    userData[author].reactionMilestoneDays = milestoneDays;
+                    saveUserData(userData);
                     if (client) {
-                        await announceExtraDay(client, userId, 1);
+                        await announceExtraDay(client, author, milestoneDays - alreadyAwarded);
                     }
                 }
                 return true;
@@ -74,14 +83,21 @@ async function addReaction(messageId, reactorId, authorId = null, client = null)
         };
         saveReactionData(reactions);
 
-        // PATCH: count total reactions for this user and check milestone
+        // PATCH: Milestone logic -- always award milestone days to post author!
         const totalReactions = Object.values(reactions[authorId])
             .reduce((acc, entry) => acc + entry.reactors.length, 0);
 
-        if (totalReactions > 0 && totalReactions % EXTRA_DAY_REACTIONS === 0) {
-            addSnapsmithDays(authorId, 1);
+        const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
+        const userData = loadUserData();
+        const alreadyAwarded = userData[authorId]?.reactionMilestoneDays || 0;
+
+        if (milestoneDays > alreadyAwarded) {
+            addSnapsmithDays(authorId, milestoneDays - alreadyAwarded);
+            userData[authorId] = userData[authorId] || {};
+            userData[authorId].reactionMilestoneDays = milestoneDays;
+            saveUserData(userData);
             if (client) {
-                await announceExtraDay(client, authorId, 1);
+                await announceExtraDay(client, authorId, milestoneDays - alreadyAwarded);
             }
         }
         return true;
