@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const snapsmithRoles = require('../modules/snapsmith/Roles');
 const snapsmithTracker = require('../modules/snapsmith/tracker');
 const snapsmithStorage = require('../modules/snapsmith/Storage'); 
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('snapsmithtop')
@@ -15,8 +16,10 @@ module.exports = {
         try {
             const count = interaction.options.getInteger('count') ?? 10;
 
+            // Load user data using correct storage import
+            const userData = snapsmithStorage.loadUserData();
+
             // Get all user IDs with active Snapsmith role
-            const userData = require('../modules/snapsmith/storage').loadUserData();
             const currentSnapsmithIds = Object.entries(userData)
                 .filter(([userId, meta]) => snapsmithRoles.getSnapsmithStatus(userId).isActive)
                 .map(([userId]) => userId);
