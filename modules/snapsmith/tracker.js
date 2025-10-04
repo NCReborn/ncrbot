@@ -143,6 +143,8 @@ function syncAllMilestoneDays() {
     const userData = loadUserData();
     const reactions = loadReactionData();
     let changed = 0;
+    const { addSnapsmithDays } = require('./Roles'); // Make sure this line is present!
+
     for (const userId in userData) {
         let total = 0;
         if (reactions[userId]) {
@@ -162,6 +164,13 @@ function syncAllMilestoneDays() {
             const milestoneDays = total < initial
                 ? 0
                 : Math.floor((total - initial) / EXTRA_DAY_REACTION_COUNT);
+
+            // Calculate missing days
+            const missingDays = milestoneDays - (userData[userId].reactionMilestoneDays ?? 0);
+            if (missingDays > 0) {
+                addSnapsmithDays(userId, missingDays);
+            }
+
             if (userData[userId].reactionMilestoneDays !== milestoneDays) {
                 userData[userId].reactionMilestoneDays = milestoneDays;
                 changed++;
