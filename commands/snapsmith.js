@@ -35,7 +35,7 @@ module.exports = {
                     .setTitle(`Snapsmith Status`)
                     .addFields(
                         { name: 'User', value: `<@${userId}>`, inline: true },
-                        { name: 'Role Status', value: `You do **not** currently have the Snapsmith role. (Role ID: ${SNAPSMITH_ROLE_ID})`, inline: false },
+                        { name: 'Role Status', value: `You do **not** currently have the <@&${SNAPSMITH_ROLE_ID}> role.`, inline: false },
                         { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
                         { name: `Reactions remaining`, value: `**${Math.max(REACTION_TARGET - stats.total, 0)}** more needed to earn Snapsmith.`, inline: true },
                         { name: 'Super reactions this month', value: `**0**`, inline: true },
@@ -47,7 +47,7 @@ module.exports = {
                     .setTitle(`Snapsmith Status`)
                     .addFields(
                         { name: 'User', value: `<@${userId}>`, inline: true },
-                        { name: 'Role Status', value: `You currently have the Snapsmith role. (Role ID: ${SNAPSMITH_ROLE_ID})`, inline: false },
+                        { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role (**awarded via Super Approval**).`, inline: false },
                         { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
                         { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
                         { name: 'Next Day Progress', value: `**${reactionsToNextDay}** more reactions until an additional day is added.`, inline: true },
@@ -60,7 +60,7 @@ module.exports = {
                     .setTitle(`Snapsmith Status`)
                     .addFields(
                         { name: 'User', value: `<@${userId}>`, inline: true },
-                        { name: 'Role Status', value: `You currently have the Snapsmith role (**awarded via Super Approval**). (Role ID: ${SNAPSMITH_ROLE_ID})`, inline: false },
+                        { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role (**awarded via Super Approval**).`, inline: false },
                         { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
                         { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
                         { name: 'Next Day Progress', value: `**${reactionsToNextDay}** more reactions until an additional day is added.`, inline: true },
