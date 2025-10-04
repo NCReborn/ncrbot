@@ -6,13 +6,6 @@ const snapsmithAnnouncer = require('../modules/snapsmith/announcer');
 const snapsmithStorage = require('../modules/snapsmith/Storage');
 
 const SNAPSMITH_ROLE_ID = snapsmithRoles.SNAPSMITH_ROLE_ID;
-const ROLE_DURATION_DAYS = snapsmithRoles.ROLE_DURATION_DAYS;
-const EXTRA_DAY_REACTION_COUNT = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
-const MAX_BUFFER_DAYS = snapsmithRoles.MAX_BUFFER_DAYS;
-
-let REACTION_TARGET = snapsmithRoles.ROLE_DURATION_DAYS;
-let EXTRA_DAY_REACTION_TARGET = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
-let MAX_BUFFER_DAYS_MUTABLE = snapsmithRoles.MAX_BUFFER_DAYS;
 
 const data = new SlashCommandBuilder()
     .setName('snapsmithadmin')
@@ -30,6 +23,10 @@ const data = new SlashCommandBuilder()
                     .addIntegerOption(opt => opt.setName('maxbuffer').setDescription('Max buffer days').setRequired(false))
             )
             .addSubcommand(subcmd =>
+                subcmd.setName('syncmilestonedays')
+                    .setDescription('Sync all users reactionMilestoneDays from actual reactions')
+            )
+            .addSubcommand(subcmd =>
                 subcmd.setName('superapprover')
                     .setDescription('View, add, or remove super approver IDs')
                     .addStringOption(opt => opt.setName('action').setDescription('view/add/remove').setRequired(true))
@@ -45,7 +42,7 @@ const data = new SlashCommandBuilder()
                     .addAttachmentOption(opt => opt.setName('json').setDescription('JSON file').setRequired(true))
             )
     )
-    // USER GROUP (only keep listed subcommands)
+    // USER GROUP
     .addSubcommandGroup(group =>
         group.setName('user')
             .setDescription('Per-user management')
@@ -138,18 +135,21 @@ async function execute(interaction) {
             if (sub === 'setmilestones') {
                 let changed = [];
                 if (interaction.options.getInteger('reactiontarget')) {
-                    REACTION_TARGET = interaction.options.getInteger('reactiontarget');
-                    changed.push(`REACTION_TARGET set to ${REACTION_TARGET}`);
+                    snapsmithRoles.BASE_REACTIONS = interaction.options.getInteger('reactiontarget');
+                    changed.push(`REACTION_TARGET set to ${snapsmithRoles.BASE_REACTIONS}`);
                 }
                 if (interaction.options.getInteger('extraday')) {
-                    EXTRA_DAY_REACTION_TARGET = interaction.options.getInteger('extraday');
-                    changed.push(`EXTRA_DAY_REACTION_COUNT set to ${EXTRA_DAY_REACTION_TARGET}`);
+                    snapsmithRoles.EXTRA_DAY_REACTION_COUNT = interaction.options.getInteger('extraday');
+                    changed.push(`EXTRA_DAY_REACTION_COUNT set to ${snapsmithRoles.EXTRA_DAY_REACTION_COUNT}`);
                 }
                 if (interaction.options.getInteger('maxbuffer')) {
-                    MAX_BUFFER_DAYS_MUTABLE = interaction.options.getInteger('maxbuffer');
-                    changed.push(`MAX_BUFFER_DAYS set to ${MAX_BUFFER_DAYS_MUTABLE}`);
+                    snapsmithRoles.MAX_BUFFER_DAYS = interaction.options.getInteger('maxbuffer');
+                    changed.push(`MAX_BUFFER_DAYS set to ${snapsmithRoles.MAX_BUFFER_DAYS}`);
                 }
                 await interaction.editReply({ content: changed.length ? changed.join('\n') : 'No config values changed.' });
+            } else if (sub === 'syncmilestonedays') {
+                const changed = snapsmithTracker.syncAllMilestoneDays();
+                await interaction.editReply({ content: `Synced milestone days for ${changed} users.` });
             } else if (sub === 'superapprover') {
                 const action = interaction.options.getString('action');
                 const id = interaction.options.getString('id');
@@ -196,7 +196,7 @@ async function execute(interaction) {
         else if (group === 'user') {
             if (sub === 'forcegive') {
                 if (!user) return interaction.editReply({ content: "User required." });
-                const days = interaction.options.getInteger('days') ?? snapsmithRoles.ROLE_DURATION_DAYS;
+                const days = interaction.options.getInteger('days') ?? snapsmithRoles.BASE_REACTIONS;
                 const guild = interaction.guild;
                 const member = await guild.members.fetch(user.id);
                 await snapsmithRoles.grantSnapsmith(member, days);
@@ -264,11 +264,11 @@ async function execute(interaction) {
                 snapsmithStorage.saveUserData(userData);
                 await interaction.editReply({ content: `Force removed Snapsmith from ${removed} users.` });
             } else if (sub === 'massgrant') {
-                const days = interaction.options.getInteger('days') ?? snapsmithRoles.ROLE_DURATION_DAYS;
+                const days = interaction.options.getInteger('days') ?? snapsmithRoles.BASE_REACTIONS;
                 let granted = 0;
                 for (const userId in userData) {
                     const stats = snapsmithTracker.getUserReactionStats(userId);
-                    if (!snapsmithRoles.getSnapsmithStatus(userId).isActive && stats.total >= REACTION_TARGET) {
+                    if (!snapsmithRoles.getSnapsmithStatus(userId).isActive && stats.total >= snapsmithRoles.BASE_REACTIONS) {
                         userData[userId].expiration = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
                         granted++;
                     }
