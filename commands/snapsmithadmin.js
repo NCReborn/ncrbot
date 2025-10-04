@@ -60,7 +60,7 @@ const data = new SlashCommandBuilder()
             .addSubcommand(subcmd =>
                 subcmd.setName('addreaction')
                     .setDescription('Manually add a unique user reaction to a photo')
-                    .addUserOption(opt => opt.setName('user').setDescription('User to add as reactor').setRequired(true))
+                    .addStringOption(opt => opt.setName('users').setDescription('Comma-separated user IDs or @mentions to add as reactors').setRequired(true))
                     .addStringOption(opt => opt.setName('messageid').setDescription('Showcase message ID').setRequired(true))
             )
             .addSubcommand(subcmd =>
