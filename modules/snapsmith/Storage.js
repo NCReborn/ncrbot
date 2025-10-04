@@ -3,8 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
-const USER_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
+const REACTION_DATA_PATH = path.join(__dirname, '..', '..', 'data', 'snapsmithreactions.json');
+const USER_DATA_PATH = path.join(__dirname, '..', '..', 'data', 'snapsmith.json');
 
 /**
  * Load all Snapsmith reaction data.
