@@ -1,29 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const path = require('path');
-const fs = require('fs');
-
-const REACTION_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmithreactions.json');
-const META_DATA_PATH = path.join(__dirname, '..', 'data', 'snapsmith.json');
-
-function loadReactions() {
-    if (fs.existsSync(REACTION_DATA_PATH)) {
-        return JSON.parse(fs.readFileSync(REACTION_DATA_PATH, 'utf8'));
-    }
-    return {};
-}
-
-function loadMeta() {
-    if (fs.existsSync(META_DATA_PATH)) {
-        return JSON.parse(fs.readFileSync(META_DATA_PATH, 'utf8'));
-    }
-    return {};
-}
-
-function isCurrentSnapsmith(userMeta) {
-    if (!userMeta || !userMeta.expiration) return false;
-    const expDate = new Date(userMeta.expiration);
-    return expDate > new Date();
-}
+const snapsmithRoles = require('../modules/snapsmith/roles');
+const snapsmithTracker = require('../modules/snapsmith/tracker');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -36,37 +13,27 @@ module.exports = {
         ),
     async execute(interaction) {
         try {
-            const reactions = loadReactions();
-            const meta = loadMeta();
             const count = interaction.options.getInteger('count') ?? 10;
 
-            // Only include users who currently have the Snapsmith role
-            const currentSnapsmithIds = Object.entries(meta)
-                .filter(([userId, userMeta]) => isCurrentSnapsmith(userMeta))
+            // Get all user IDs with active Snapsmith role
+            const userData = require('../modules/snapsmith/storage').loadUserData();
+            const currentSnapsmithIds = Object.entries(userData)
+                .filter(([userId, meta]) => snapsmithRoles.getSnapsmithStatus(userId).isActive)
                 .map(([userId]) => userId);
 
-            // Build a map of userId -> totalUniqueReactions for current Snapsmiths only
-            const totals = {};
-            for (const userId of currentSnapsmithIds) {
-                let totalUniqueReactions = 0;
-                const userReactions = reactions[userId] || {};
-                for (const monthObj of Object.values(userReactions)) {
-                    for (const reactorsArr of Object.values(monthObj)) {
-                        totalUniqueReactions += reactorsArr.length;
-                    }
-                }
-                totals[userId] = totalUniqueReactions;
-            }
+            // Get reaction counts for current snapsmiths
+            const reactionCounts = currentSnapsmithIds.map(userId => ({
+                userId,
+                total: snapsmithTracker.getUserReactionStats(userId).total
+            }));
 
-            // Sort by totalUniqueReactions
-            const sorted = Object.entries(totals)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, count);
+            // Sort and slice top N
+            reactionCounts.sort((a, b) => b.total - a.total);
+            const top = reactionCounts.slice(0, count);
 
             let desc = '';
-            for (let i = 0; i < sorted.length; i++) {
-                const [userId, total] = sorted[i];
-                desc += `**${i + 1}. <@${userId}>** — ${total} reactions\n`;
+            for (let i = 0; i < top.length; i++) {
+                desc += `**${i + 1}. <@${top[i].userId}>** — ${top[i].total} reactions\n`;
             }
 
             const embed = new EmbedBuilder()
