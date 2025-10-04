@@ -1,6 +1,6 @@
 const { loadUserData, saveUserData } = require('./Storage');
 const SNAPSMITH_ROLE_ID = '1374841261898469378'; // Set to your real role ID
-const BASE_REACTIONS = 30;
+const BASE_REACTIONS = 2;
 const EXTRA_DAY_REACTION_COUNT = 10;
 const MAX_BUFFER_DAYS = 60;
 
