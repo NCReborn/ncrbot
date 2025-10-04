@@ -1,7 +1,7 @@
 // Super Approval: Handles logic for multiple super approvers' star reactions and instant Snapsmith bonuses
 
-const { loadUserData, saveUserData } = require('./snapsmith/snapsmithStorage');
-const { grantSnapsmith, addSnapsmithDays, getSnapsmithStatus } = require('./snapsmith/snapsmithRoles');
+const { loadUserData, saveUserData } = require('./snapsmith/Storage');
+const { grantSnapsmith, addSnapsmithDays, getSnapsmithStatus } = require('./snapsmith/Roles');
 
 // List of super approver Discord user IDs (add more as needed)
 const SUPER_APPROVER_IDS = [
