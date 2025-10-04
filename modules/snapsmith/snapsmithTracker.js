@@ -1,6 +1,6 @@
 // Snapsmith Tracker: Tracks reactions, unique reactors, and handles decay logic
 
-const { loadReactionData, saveReactionData } = require('./snapsmithStorage');
+const { loadReactionData, saveReactionData } = require('./snapsmith/snapsmithStorage');
 const REACTION_DECAY_DAYS = 7; // Number of days to track reactions for each post
 
 /**
