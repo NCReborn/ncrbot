@@ -19,16 +19,30 @@ module.exports = {
         ),
     async execute(interaction) {
         try {
+            // Use the selected user if provided, otherwise default to the command user
             const targetUser = interaction.options.getUser?.('user') || interaction.user;
             const userId = targetUser.id;
 
+            // Fetch GuildMember for username/displayName if available
+            let usernameDisplay = `<@${userId}>`;
+            if (interaction.guild) {
+                try {
+                    const member = await interaction.guild.members.fetch(userId);
+                    usernameDisplay = `${member.displayName} (<@${userId}>)`;
+                } catch {
+                    usernameDisplay = `${targetUser.username} (<@${userId}>)`;
+                }
+            } else {
+                usernameDisplay = `${targetUser.username} (<@${userId}>)`;
+            }
+
             const status = snapsmithRoles.getSnapsmithStatus(userId);
             const stats = snapsmithTracker.getUserReactionStats(userId);
-            const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
-
-            // Updated logic: use reactionMilestoneDays for milestone progress
             const userData = loadUserData();
             const milestoneDays = userData[userId]?.reactionMilestoneDays ?? 0;
+            const superApprovalBonusDays = userData[userId]?.superApprovalBonusDays ?? 0;
+            const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
+
             const nextMilestoneReactions = (milestoneDays + 1) * EXTRA_DAY_REACTION_COUNT;
             const reactionsToNextDay = nextMilestoneReactions - stats.total;
 
@@ -36,7 +50,6 @@ module.exports = {
             if (!status.isActive) {
                 nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
             } else {
-                // Already snapsmith: milestone progress based on reactionMilestoneDays
                 nextDayText = `${Math.max(reactionsToNextDay, 0)} more reactions until an additional day is added.`;
             }
 
@@ -46,11 +59,11 @@ module.exports = {
                     .setColor(0xFAA61A)
                     .setTitle(`Snapsmith Status`)
                     .addFields(
-                        { name: 'User', value: `<@${userId}>`, inline: true },
+                        { name: 'User', value: usernameDisplay, inline: true },
                         { name: 'Role Status', value: `You do **not** currently have the <@&${SNAPSMITH_ROLE_ID}> role.`, inline: false },
                         { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
                         { name: `Reactions remaining`, value: `**${Math.max(REACTION_TARGET - stats.total, 0)}** more needed to earn Snapsmith.`, inline: true },
-                        { name: 'Super reactions this month', value: `**0**`, inline: true },
+                        { name: 'Super reactions this month', value: `**${superApprovalBonusDays}**`, inline: true },
                         { name: 'Days queued', value: `**0** (max ${MAX_BUFFER_DAYS})`, inline: true }
                     );
             } else if (status.isActive && !superApproved) {
@@ -58,12 +71,12 @@ module.exports = {
                     .setColor(0xFAA61A)
                     .setTitle(`Snapsmith Status`)
                     .addFields(
-                        { name: 'User', value: `<@${userId}>`, inline: true },
+                        { name: 'User', value: usernameDisplay, inline: true },
                         { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role.`, inline: false },
                         { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
                         { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
                         { name: 'Next Day Progress', value: nextDayText, inline: true },
-                        { name: 'Super reactions this month', value: `**0**`, inline: true },
+                        { name: 'Super reactions this month', value: `**${superApprovalBonusDays}**`, inline: true },
                         { name: 'Days queued', value: `**${status.daysLeft}** (max ${MAX_BUFFER_DAYS})`, inline: true }
                     );
             } else if (status.isActive && superApproved) {
@@ -71,13 +84,13 @@ module.exports = {
                     .setColor(0xFAA61A)
                     .setTitle(`Snapsmith Status`)
                     .addFields(
-                        { name: 'User', value: `<@${userId}>`, inline: true },
+                        { name: 'User', value: usernameDisplay, inline: true },
                         { name: 'Role Status', value: `You currently have the <@&${SNAPSMITH_ROLE_ID}> role (**awarded via Super Approval**).`, inline: false },
                         { name: 'Time Left', value: `**${status.daysLeft} days**`, inline: true },
                         { name: 'Unique Reactions', value: `**${stats.total}**`, inline: true },
                         { name: 'Next Day Progress', value: nextDayText, inline: true },
                         { name: 'Super Approval', value: `You received a 🌟 Super Approval from a super approver!`, inline: false },
-                        { name: 'Super reactions this month', value: `**1**`, inline: true },
+                        { name: 'Super reactions this month', value: `**${superApprovalBonusDays}**`, inline: true },
                         { name: 'Days queued', value: `**${status.daysLeft}** (max ${MAX_BUFFER_DAYS})`, inline: true }
                     );
             }
@@ -89,6 +102,11 @@ module.exports = {
             }
         } catch (err) {
             console.error("Error in /snapsmith command:", err);
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ content: "An error occurred while checking Snapsmith status." });
+            } else {
+                await interaction.reply({ content: "An error occurred while checking Snapsmith status.", ephemeral: true });
+            }
         }
     }
 };
