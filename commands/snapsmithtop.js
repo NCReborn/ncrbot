@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const snapsmithRoles = require('../modules/snapsmith/roles');
+const snapsmithRoles = require('../modules/snapsmith/Roles');
 const snapsmithTracker = require('../modules/snapsmith/tracker');
 
 module.exports = {
