@@ -7,7 +7,7 @@ const { loadUserData } = require('../modules/snapsmith/Storage');
 const SNAPSMITH_ROLE_ID = snapsmithRoles.SNAPSMITH_ROLE_ID;
 const EXTRA_DAY_REACTION_COUNT = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
 const MAX_BUFFER_DAYS = snapsmithRoles.MAX_BUFFER_DAYS;
-const REACTION_TARGET = 30;
+const REACTION_TARGET = 2;
 
 module.exports = {
     data: new SlashCommandBuilder()
