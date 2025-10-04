@@ -4,6 +4,8 @@ const snapsmithTracker = require('../modules/snapsmith/tracker');
 const snapsmithSuperApproval = require('../modules/snapsmith/superApproval');
 const snapsmithAnnouncer = require('../modules/snapsmith/announcer');
 const snapsmithStorage = require('../modules/snapsmith/Storage');
+const SNAPSMITH_ROLE_ID = snapsmithRoles.SNAPSMITH_ROLE_ID;
+
 
 // For config mutation, you might want to persist these values to config or env in a real system
 let REACTION_TARGET = snapsmithRoles.ROLE_DURATION_DAYS;
