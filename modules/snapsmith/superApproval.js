@@ -6,6 +6,7 @@ const { grantSnapsmith, addSnapsmithDays, getSnapsmithStatus } = require('./Role
 // List of super approver Discord user IDs (add more as needed)
 const SUPER_APPROVER_IDS = [
     '278359162860077056', // zVeinz
+    '680928073587359902' // mquiny
     // Add more IDs here, e.g. '123456789012345678'
 ];
 
