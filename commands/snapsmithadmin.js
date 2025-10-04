@@ -4,13 +4,15 @@ const snapsmithTracker = require('../modules/snapsmith/tracker');
 const snapsmithSuperApproval = require('../modules/snapsmith/superApproval');
 const snapsmithAnnouncer = require('../modules/snapsmith/announcer');
 const snapsmithStorage = require('../modules/snapsmith/Storage');
+
 const SNAPSMITH_ROLE_ID = snapsmithRoles.SNAPSMITH_ROLE_ID;
+const ROLE_DURATION_DAYS = snapsmithRoles.ROLE_DURATION_DAYS;
+const EXTRA_DAY_REACTION_COUNT = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
+const MAX_BUFFER_DAYS = snapsmithRoles.MAX_BUFFER_DAYS;
 
-
-// For config mutation, you might want to persist these values to config or env in a real system
 let REACTION_TARGET = snapsmithRoles.ROLE_DURATION_DAYS;
-let EXTRA_DAY_REACTION_COUNT = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
-let MAX_BUFFER_DAYS = snapsmithRoles.MAX_BUFFER_DAYS;
+let EXTRA_DAY_REACTION_TARGET = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
+let MAX_BUFFER_DAYS_MUTABLE = snapsmithRoles.MAX_BUFFER_DAYS;
 
 const data = new SlashCommandBuilder()
     .setName('snapsmithadmin')
@@ -185,12 +187,12 @@ async function execute(interaction) {
                     changed.push(`REACTION_TARGET set to ${REACTION_TARGET}`);
                 }
                 if (interaction.options.getInteger('extraday')) {
-                    EXTRA_DAY_REACTION_COUNT = interaction.options.getInteger('extraday');
-                    changed.push(`EXTRA_DAY_REACTION_COUNT set to ${EXTRA_DAY_REACTION_COUNT}`);
+                    EXTRA_DAY_REACTION_TARGET = interaction.options.getInteger('extraday');
+                    changed.push(`EXTRA_DAY_REACTION_COUNT set to ${EXTRA_DAY_REACTION_TARGET}`);
                 }
                 if (interaction.options.getInteger('maxbuffer')) {
-                    MAX_BUFFER_DAYS = interaction.options.getInteger('maxbuffer');
-                    changed.push(`MAX_BUFFER_DAYS set to ${MAX_BUFFER_DAYS}`);
+                    MAX_BUFFER_DAYS_MUTABLE = interaction.options.getInteger('maxbuffer');
+                    changed.push(`MAX_BUFFER_DAYS set to ${MAX_BUFFER_DAYS_MUTABLE}`);
                 }
                 await interaction.editReply({ content: changed.length ? changed.join('\n') : 'No config values changed.' });
             } else if (sub === 'superapprover') {
@@ -320,14 +322,11 @@ async function execute(interaction) {
 
                 await interaction.editReply({ embeds: [embed] });
             } else if (sub === 'log') {
-                // You would need to implement a log system (not present in modules yet)
                 await interaction.editReply({ content: 'Role change logging not implemented yet.' });
             } else if (sub === 'audit') {
                 if (!user) return interaction.editReply({ content: "User required." });
-                // Show full reaction history, milestones, super approval events, expiry changes
                 await interaction.editReply({ content: 'User audit not implemented yet.' });
             } else if (sub === 'healthcheck') {
-                // Run system health/sanity checks for orphaned roles, missing achievement dates, etc.
                 await interaction.editReply({ content: 'Health check not implemented yet.' });
             }
         }
@@ -442,8 +441,27 @@ async function execute(interaction) {
                 snapsmithStorage.saveUserData(userData);
                 await interaction.editReply({ content: `Force granted Snapsmith to ${granted} eligible users.` });
             } else if (sub === 'syncroles') {
-                // Optionally scan all guild members and update userData if they have snapsmith role
-                await interaction.editReply({ content: "Role syncing not implemented in new system. Add if needed." });
+                // Scan guild members, find those with the Snapsmith role, add/update them in userData
+                const guild = interaction.guild;
+                await guild.members.fetch(); // Ensure members are cached
+                const membersWithRole = guild.members.cache.filter(m => m.roles.cache.has(SNAPSMITH_ROLE_ID));
+                let added = 0;
+                for (const member of membersWithRole.values()) {
+                    const userId = member.id;
+                    if (!userData[userId]) {
+                        userData[userId] = {
+                            snapsmithAchievedAt: Date.now(),
+                            expiration: null,
+                            initialReactionCount: 30,
+                            reactionMilestoneDays: 0,
+                            superApprovalBonusDays: 0,
+                            superApproved: false,
+                        };
+                        added++;
+                    }
+                }
+                snapsmithStorage.saveUserData(userData);
+                await interaction.editReply({ content: `Synced ${added} Snapsmith role holders into system.` });
             }
         }
         // ANNOUNCE GROUP
