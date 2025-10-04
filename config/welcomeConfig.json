@@ -2,7 +2,7 @@
   "enabled": true,
   "channelId": "1361831774975561849",
   "message": "Welcome to **{server}**! {user} with you, there are **{memberCount}** of us. 🥳🎉",
-  "logo": "hhttps://i.postimg.cc/NFmFGC4M/a-neon-sign-with-the-words-night-city-re-4va5xh1-YRs-GHAi-SH70-Nmq-A-50-CSylg6-QESwtqo-Tsc-OQm-A.jpg",
+  "logo": "https://i.postimg.cc/NFmFGC4M/a-neon-sign-with-the-words-night-city-re-4va5xh1-YRs-GHAi-SH70-Nmq-A-50-CSylg6-QESwtqo-Tsc-OQm-A.jpg",
   "embedColor": "#2B2D31",
   "showUsernameBelowAvatar": true,
   "embedFooter": "Night City Reborn • Enjoy your stay!"
