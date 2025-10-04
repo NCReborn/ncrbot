@@ -1,11 +1,8 @@
 const { saveReactionData, loadReactionData } = require('./Storage');
-const { addSnapsmithDays, updateSnapsmithDays } = require('./Roles');
+const { addSnapsmithDays, grantSnapsmith, getSnapsmithStatus, BASE_REACTIONS, EXTRA_DAY_REACTION_COUNT, MAX_BUFFER_DAYS } = require('./Roles');
 const { loadUserData, saveUserData } = require('./Storage');
-const { announceExtraDay } = require('./announcer');
+const { announceExtraDay, announceNewSnapsmith } = require('./announcer');
 
-const BASE_REACTIONS = 30;
-const EXTRA_DAY_REACTIONS = 10;
-const MAX_DAYS = 60;
 const REACTION_DECAY_DAYS = 7;
 
 /**
@@ -29,14 +26,14 @@ function trackShowcasePost(message) {
 }
 
 /**
- * Add a unique reaction to a showcase post.
- * Ensures the post entry exists; creates it if missing (using authorId if provided).
- * @param {string} messageId - Discord message ID of the showcase post
- * @param {string} reactorId - Discord user ID who reacted
- * @param {string|null} authorId - Discord user ID of showcase post author (optional, used if entry missing)
- * @param {Discord.Client|null} client - Discord client (for announcement, optional)
+ * Add a unique reaction to a showcase post and trigger milestone logic.
+ * @param {string} messageId
+ * @param {string} reactorId
+ * @param {string|null} authorId
+ * @param {Discord.Client|null} client
+ * @param {Discord.Guild|null} guild
  */
-async function addReaction(messageId, reactorId, authorId = null, client = null) {
+async function addReaction(messageId, reactorId, authorId = null, client = null, guild = null) {
     const reactions = loadReactionData();
     let found = false;
 
@@ -49,35 +46,8 @@ async function addReaction(messageId, reactorId, authorId = null, client = null)
                 entry.reactors.push(reactorId);
                 saveReactionData(reactions);
 
-                // PATCH: Milestone logic -- always award milestone days to post author!
                 const author = authorId || userId;
-                const totalReactions = Object.values(reactions[author])
-                    .reduce((acc, entry) => acc + entry.reactors.length, 0);
-
-                // Milestone tracking: only award new days if milestoneDays increased
-                const userData = loadUserData();
-                // If an existing snapsmith, pre-set reactionMilestoneDays to 3 if missing
-                if (
-                    userData[author] &&
-                    userData[author].expiration &&
-                    (userData[author].reactionMilestoneDays === undefined || userData[author].reactionMilestoneDays < 3)
-                ) {
-                    userData[author].reactionMilestoneDays = 3;
-                    saveUserData(userData);
-                }
-
-                const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
-                const alreadyAwarded = userData[author]?.reactionMilestoneDays || 0;
-
-                if (milestoneDays > alreadyAwarded) {
-                    addSnapsmithDays(author, milestoneDays - alreadyAwarded);
-                    userData[author] = userData[author] || {};
-                    userData[author].reactionMilestoneDays = milestoneDays;
-                    saveUserData(userData);
-                    if (client) {
-                        await announceExtraDay(client, author, milestoneDays - alreadyAwarded);
-                    }
-                }
+                await handleMilestones(author, client, guild);
                 return true;
             }
             return false; // Already reacted
@@ -93,37 +63,50 @@ async function addReaction(messageId, reactorId, authorId = null, client = null)
         };
         saveReactionData(reactions);
 
-        // PATCH: Milestone logic -- always award milestone days to post author!
-        const totalReactions = Object.values(reactions[authorId])
-            .reduce((acc, entry) => acc + entry.reactors.length, 0);
-
-        const userData = loadUserData();
-        // If an existing snapsmith, pre-set reactionMilestoneDays to 3 if missing
-        if (
-            userData[authorId] &&
-            userData[authorId].expiration &&
-            (userData[authorId].reactionMilestoneDays === undefined || userData[authorId].reactionMilestoneDays < 3)
-        ) {
-            userData[authorId].reactionMilestoneDays = 3;
-            saveUserData(userData);
-        }
-
-        const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
-        const alreadyAwarded = userData[authorId]?.reactionMilestoneDays || 0;
-
-        if (milestoneDays > alreadyAwarded) {
-            addSnapsmithDays(authorId, milestoneDays - alreadyAwarded);
-            userData[authorId] = userData[authorId] || {};
-            userData[authorId].reactionMilestoneDays = milestoneDays;
-            saveUserData(userData);
-            if (client) {
-                await announceExtraDay(client, authorId, milestoneDays - alreadyAwarded);
-            }
-        }
+        await handleMilestones(authorId, client, guild);
         return true;
     }
 
     return false;
+}
+
+/**
+ * Handles milestone logic for role granting and extra days.
+ * @param {string} userId
+ * @param {Discord.Client|null} client
+ * @param {Discord.Guild|null} guild
+ */
+async function handleMilestones(userId, client = null, guild = null) {
+    const reactions = loadReactionData();
+    const userData = loadUserData();
+    const stats = getUserReactionStats(userId);
+    const status = getSnapsmithStatus(userId);
+
+    // Calculate how many extra days should have been awarded
+    const milestoneBlocks = Math.floor((stats.total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
+    const alreadyAwarded = userData[userId]?.reactionMilestoneDays || 0;
+
+    // If user doesn't have Snapsmith, grant if they hit 30 reactions
+    if (!status.isActive && stats.total >= BASE_REACTIONS) {
+        if (guild) {
+            const member = await guild.members.fetch(userId);
+            await grantSnapsmith(member, BASE_REACTIONS);
+            if (client) await announceNewSnapsmith(client, userId, null);
+        }
+        userData[userId] = userData[userId] || {};
+        userData[userId].reactionMilestoneDays = 0;
+        saveUserData(userData);
+        return;
+    }
+
+    // If user is Snapsmith, award extra days for new milestones
+    if (status.isActive && milestoneBlocks > alreadyAwarded) {
+        addSnapsmithDays(userId, milestoneBlocks - alreadyAwarded);
+        userData[userId] = userData[userId] || {};
+        userData[userId].reactionMilestoneDays = milestoneBlocks;
+        saveUserData(userData);
+        if (client) await announceExtraDay(client, userId, milestoneBlocks - alreadyAwarded);
+    }
 }
 
 /**
@@ -145,72 +128,34 @@ function removeReaction(messageId, reactorId) {
 }
 
 /**
- * Remove all reactions and tracking for a showcase post.
- * Also recalculates user's buffer days.
- * @param {string} messageId - Discord message ID of the showcase post
- * @param {string} authorId - Discord user ID of showcase post author
+ * Sync all users' reactionMilestoneDays to match their real reaction count.
+ * Call this after any manual data changes!
  */
-function removeShowcasePost(messageId, authorId) {
+function syncAllMilestoneDays() {
+    const userData = loadUserData();
     const reactions = loadReactionData();
-    let removed = false;
-    if (reactions[authorId] && reactions[authorId][messageId]) {
-        delete reactions[authorId][messageId];
-        removed = true;
-        saveReactionData(reactions);
-
-        // Recalculate milestone days and expiry
-        const totalReactions = Object.values(reactions[authorId])
-            .reduce((acc, entry) => acc + entry.reactors.length, 0);
-
-        const userData = loadUserData();
-        const milestoneDays = Math.floor(totalReactions / EXTRA_DAY_REACTIONS);
-        userData[authorId].reactionMilestoneDays = milestoneDays;
-        saveUserData(userData);
-
-        updateSnapsmithDays(authorId, totalReactions);
-    }
-    return removed;
-}
-
-/**
- * Get unique reactors for a post.
- * @param {string} messageId
- * @returns {string[]} Array of user IDs
- */
-function getUniqueReactors(messageId) {
-    const reactions = loadReactionData();
-    for (const userId in reactions) {
-        if (reactions[userId][messageId]) {
-            return reactions[userId][messageId].reactors;
-        }
-    }
-    return [];
-}
-
-/**
- * Apply decay to reactions (remove reactors for posts older than REACTION_DECAY_DAYS).
- * Should be called periodically (e.g., daily).
- */
-function applyDecay() {
-    const reactions = loadReactionData();
-    const now = Date.now();
-    const cutoff = now - (REACTION_DECAY_DAYS * 24 * 60 * 60 * 1000);
-
-    for (const userId in reactions) {
-        for (const messageId in reactions[userId]) {
-            const entry = reactions[userId][messageId];
-            if (entry.created < cutoff) {
-                entry.reactors = [];
+    let changed = 0;
+    for (const userId in userData) {
+        let total = 0;
+        if (reactions[userId]) {
+            for (const entry of Object.values(reactions[userId])) {
+                total += entry.reactors.length;
             }
         }
+        const milestoneDays = Math.floor((total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
+        if (userData[userId].reactionMilestoneDays !== milestoneDays) {
+            userData[userId].reactionMilestoneDays = milestoneDays;
+            changed++;
+        }
     }
-    saveReactionData(reactions);
+    saveUserData(userData);
+    return changed;
 }
 
 /**
  * Get stats for a user.
  * @param {string} userId
- * @returns {object} { total: int, recent: int, posts: int, days: int }
+ * @returns {object} { total: int, recent: int, posts: int }
  */
 function getUserReactionStats(userId) {
     const reactions = loadReactionData();
@@ -227,26 +172,14 @@ function getUserReactionStats(userId) {
             }
         }
     }
-    // Days logic: 30 to start, +1 day for each additional 10 reactions, capped at 60 days max
-    let days = 0;
-    if (total < BASE_REACTIONS) {
-        days = total; // If below the threshold, days = reaction count
-    } else {
-        const additionalDays = Math.floor((total - BASE_REACTIONS) / EXTRA_DAY_REACTIONS);
-        days = Math.min(BASE_REACTIONS + additionalDays, MAX_DAYS);
-    }
-    return { total, recent, posts, days };
+    return { total, recent, posts };
 }
 
 module.exports = {
     trackShowcasePost,
     addReaction,
     removeReaction,
-    getUniqueReactors,
-    applyDecay,
     getUserReactionStats,
-    removeShowcasePost,
-    BASE_REACTIONS,
-    EXTRA_DAY_REACTIONS,
-    MAX_DAYS,
+    syncAllMilestoneDays,
+    handleMilestones,
 };
