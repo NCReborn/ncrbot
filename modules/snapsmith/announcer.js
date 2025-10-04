@@ -1,5 +1,3 @@
-// Snapsmith Announcer: Handles Snapsmith-related embed messages in Discord channels
-
 const { EmbedBuilder } = require('discord.js');
 const SNAPSMITH_CHANNEL_ID = '1406275196133965834'; // Set your actual channel ID
 const SHOWCASE_CHANNEL_ID = '1285797205927792782'; // Set your actual channel ID
