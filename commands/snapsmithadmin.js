@@ -1,9 +1,9 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const snapsmithRoles = require('../modules/snapsmith/roles');
+const snapsmithRoles = require('../modules/snapsmith/Roles');
 const snapsmithTracker = require('../modules/snapsmith/tracker');
 const snapsmithSuperApproval = require('../modules/snapsmith/superApproval');
 const snapsmithAnnouncer = require('../modules/snapsmith/announcer');
-const snapsmithStorage = require('../modules/snapsmith/storage');
+const snapsmithStorage = require('../modules/snapsmith/Storage');
 
 // For config mutation, you might want to persist these values to config or env in a real system
 let REACTION_TARGET = snapsmithRoles.ROLE_DURATION_DAYS;
