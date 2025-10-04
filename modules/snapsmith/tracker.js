@@ -1,5 +1,8 @@
 const { saveReactionData, loadReactionData } = require('./Storage');
 
+const BASE_REACTIONS = 30;         // reactions required for initial Snapsmith
+const EXTRA_DAY_REACTIONS = 10;    // reactions per additional day
+const MAX_DAYS = 60;
 const REACTION_DECAY_DAYS = 7;
 
 /**
@@ -117,7 +120,7 @@ function applyDecay() {
 /**
  * Get stats for a user.
  * @param {string} userId
- * @returns {object} { total: int, recent: int, posts: int }
+ * @returns {object} { total: int, recent: int, posts: int, days: int }
  */
 function getUserReactionStats(userId) {
     const reactions = loadReactionData();
@@ -134,7 +137,15 @@ function getUserReactionStats(userId) {
             }
         }
     }
-    return { total, recent, posts };
+    // Days logic: 30 to start, +1 day for each additional 10 reactions, capped at 60 days max
+    let days = 0;
+    if (total < BASE_REACTIONS) {
+        days = total; // If below the threshold, days = reaction count
+    } else {
+        const additionalDays = Math.floor((total - BASE_REACTIONS) / EXTRA_DAY_REACTIONS);
+        days = Math.min(BASE_REACTIONS + additionalDays, MAX_DAYS);
+    }
+    return { total, recent, posts, days };
 }
 
 module.exports = {
@@ -144,4 +155,7 @@ module.exports = {
     getUniqueReactors,
     applyDecay,
     getUserReactionStats,
+    BASE_REACTIONS,
+    EXTRA_DAY_REACTIONS,
+    MAX_DAYS,
 };
