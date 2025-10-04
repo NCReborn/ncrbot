@@ -50,10 +50,11 @@ module.exports = {
                 nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
             } else {
                 // If they haven't hit initial milestone for extra days yet:
-                if (stats.total < REACTION_TARGET) {
-                    nextDayText = `${REACTION_TARGET - stats.total} more reactions needed to earn the first extra day.`;
+                if (stats.total < REACTION_TARGET + EXTRA_DAY_REACTION_COUNT) {
+                    // Need 10 reactions for first extra day after getting role
+                    const reactionsNeeded = EXTRA_DAY_REACTION_COUNT - (stats.total - REACTION_TARGET);
+                    nextDayText = `${reactionsNeeded} more reactions needed to earn your first extra day.`;
                 } else {
-                    // Calculate how many reactions toward next extra day
                     const reactionsSinceMilestone = stats.total - REACTION_TARGET;
                     const reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - (reactionsSinceMilestone % EXTRA_DAY_REACTION_COUNT);
                     nextDayText = `${reactionsToNextDay} more reactions until an additional day is added.`;
