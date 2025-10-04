@@ -3,7 +3,7 @@ const { addSnapsmithDays, updateSnapsmithDays } = require('./Roles');
 const { loadUserData, saveUserData } = require('./Storage');
 const { announceExtraDay } = require('./announcer');
 
-const BASE_REACTIONS = 2;
+const BASE_REACTIONS = 30;
 const EXTRA_DAY_REACTIONS = 10;
 const MAX_DAYS = 60;
 const REACTION_DECAY_DAYS = 7;
