@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const snapsmithRoles = require('../modules/snapsmith/Roles');
 const snapsmithTracker = require('../modules/snapsmith/tracker');
 const snapsmithSuperApproval = require('../modules/snapsmith/superApproval');
+const { loadUserData } = require('../modules/snapsmith/Storage');
 
 const SNAPSMITH_ROLE_ID = snapsmithRoles.SNAPSMITH_ROLE_ID;
 const EXTRA_DAY_REACTION_COUNT = snapsmithRoles.EXTRA_DAY_REACTION_COUNT;
@@ -11,7 +12,11 @@ const REACTION_TARGET = 30;
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('snapsmith')
-        .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)'),
+        .setDescription('Check your Snapsmith role status and eligibility (based on unique users per post)')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('Check another user\'s Snapsmith status')
+        ),
     async execute(interaction) {
         try {
             const targetUser = interaction.options.getUser?.('user') || interaction.user;
@@ -21,13 +26,18 @@ module.exports = {
             const stats = snapsmithTracker.getUserReactionStats(userId);
             const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
 
+            // Updated logic: use reactionMilestoneDays for milestone progress
+            const userData = loadUserData();
+            const milestoneDays = userData[userId]?.reactionMilestoneDays ?? 0;
+            const nextMilestoneReactions = (milestoneDays + 1) * EXTRA_DAY_REACTION_COUNT;
+            const reactionsToNextDay = nextMilestoneReactions - stats.total;
+
             let nextDayText;
             if (!status.isActive) {
                 nextDayText = `${Math.max(REACTION_TARGET - stats.total, 0)} more reactions needed to earn Snapsmith.`;
             } else {
-                const remainder = stats.total % EXTRA_DAY_REACTION_COUNT;
-                const toNext = remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
-                nextDayText = `${toNext} more reactions until an additional day is added.`;
+                // Already snapsmith: milestone progress based on reactionMilestoneDays
+                nextDayText = `${Math.max(reactionsToNextDay, 0)} more reactions until an additional day is added.`;
             }
 
             let embed;
