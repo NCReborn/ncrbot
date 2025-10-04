@@ -1,7 +1,9 @@
 const { saveReactionData, loadReactionData } = require('./Storage');
+const { addSnapsmithDays } = require('./Roles');
+const { announceExtraDay } = require('./announcer');
 
-const BASE_REACTIONS = 30;         // reactions required for initial Snapsmith
-const EXTRA_DAY_REACTIONS = 10;    // reactions per additional day
+const BASE_REACTIONS = 30;
+const EXTRA_DAY_REACTIONS = 10;
 const MAX_DAYS = 60;
 const REACTION_DECAY_DAYS = 7;
 
@@ -31,8 +33,9 @@ function trackShowcasePost(message) {
  * @param {string} messageId - Discord message ID of the showcase post
  * @param {string} reactorId - Discord user ID who reacted
  * @param {string|null} authorId - Discord user ID of showcase post author (optional, used if entry missing)
+ * @param {Discord.Client|null} client - Discord client (for announcement, optional)
  */
-function addReaction(messageId, reactorId, authorId = null) {
+async function addReaction(messageId, reactorId, authorId = null, client = null) {
     const reactions = loadReactionData();
     let found = false;
 
@@ -44,6 +47,18 @@ function addReaction(messageId, reactorId, authorId = null) {
             if (!entry.reactors.includes(reactorId)) {
                 entry.reactors.push(reactorId);
                 saveReactionData(reactions);
+
+                // PATCH: count total reactions for this user and check milestone
+                const totalReactions = Object.values(reactions[userId])
+                    .reduce((acc, entry) => acc + entry.reactors.length, 0);
+
+                // If total is a new milestone (10, 20, 30, ...) and > 0, add a day and announce
+                if (totalReactions > 0 && totalReactions % EXTRA_DAY_REACTIONS === 0) {
+                    addSnapsmithDays(userId, 1);
+                    if (client) {
+                        await announceExtraDay(client, userId, 1);
+                    }
+                }
                 return true;
             }
             return false; // Already reacted
@@ -58,6 +73,17 @@ function addReaction(messageId, reactorId, authorId = null) {
             created: Date.now(),
         };
         saveReactionData(reactions);
+
+        // PATCH: count total reactions for this user and check milestone
+        const totalReactions = Object.values(reactions[authorId])
+            .reduce((acc, entry) => acc + entry.reactors.length, 0);
+
+        if (totalReactions > 0 && totalReactions % EXTRA_DAY_REACTIONS === 0) {
+            addSnapsmithDays(authorId, 1);
+            if (client) {
+                await announceExtraDay(client, authorId, 1);
+            }
+        }
         return true;
     }
 
