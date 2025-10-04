@@ -83,8 +83,10 @@ async function handleMilestones(userId, client = null, guild = null) {
     const status = getSnapsmithStatus(userId);
 
     // Calculate how many extra days should have been awarded
-    const milestoneBlocks = Math.floor((stats.total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
-    const alreadyAwarded = userData[userId]?.reactionMilestoneDays || 0;
+    const milestoneBlocks = stats.total < BASE_REACTIONS
+        ? 0
+        : Math.floor((stats.total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
+    const alreadyAwarded = userData[userId]?.reactionMilestoneDays ?? 0;
 
     // If user doesn't have Snapsmith, grant if they hit 30 reactions
     if (!status.isActive && stats.total >= BASE_REACTIONS) {
@@ -142,7 +144,10 @@ function syncAllMilestoneDays() {
                 total += entry.reactors.length;
             }
         }
-        const milestoneDays = Math.floor((total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
+        // PATCHED: Prevent negative milestone days
+        const milestoneDays = total < BASE_REACTIONS
+            ? 0
+            : Math.floor((total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
         if (userData[userId].reactionMilestoneDays !== milestoneDays) {
             userData[userId].reactionMilestoneDays = milestoneDays;
             changed++;
