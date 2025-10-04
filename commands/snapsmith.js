@@ -21,13 +21,15 @@ module.exports = {
             const stats = snapsmithTracker.getUserReactionStats(userId);
             const superApproved = snapsmithSuperApproval.checkSuperApproval(userId);
 
-            let embed;
-            let reactionsToNextDay = null;
-            if (status.isActive) {
-                let extra = stats.total - REACTION_TARGET;
-                reactionsToNextDay = EXTRA_DAY_REACTION_COUNT - ((extra > 0 ? extra : 0) % EXTRA_DAY_REACTION_COUNT);
-                if (reactionsToNextDay === 0) reactionsToNextDay = EXTRA_DAY_REACTION_COUNT;
-            }
+let nextDayText;
+if (stats.total < REACTION_TARGET) {
+    nextDayText = `${REACTION_TARGET - stats.total} more reactions needed to earn Snapsmith.`;
+} else {
+    const extra = stats.total - REACTION_TARGET;
+    const remainder = extra % EXTRA_DAY_REACTION_COUNT;
+    const toNext = remainder === 0 ? EXTRA_DAY_REACTION_COUNT : EXTRA_DAY_REACTION_COUNT - remainder;
+    nextDayText = `${toNext} more reactions until an additional day is added.`;
+}
 
             if (!status.isActive) {
                 embed = new EmbedBuilder()
