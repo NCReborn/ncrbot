@@ -157,32 +157,34 @@ const snapsmithAnnouncer = require('./modules/snapsmith/announcer');
 
 // --- SHOWCASE POST DETECTION ---
 client.on('messageCreate', async (message) => {
-  // Only act on non-bot messages in the showcase channel
   if (
     message.channel.id === snapsmithAnnouncer.SHOWCASE_CHANNEL_ID &&
     !message.author.bot
   ) {
-    // Track the showcase post
     snapsmithTracker.trackShowcasePost(message);
 
     // Auto-react with emojis (these do NOT count)
     await message.react('👍').catch(() => {});
     await message.react('🔥').catch(() => {});
     await message.react('😎').catch(() => {});
-    // Add more emojis if desired
   }
 });
 
 // --- REACTION HANDLING ---
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
-  // Only process reactions in the showcase channel
   if (reaction.message.channel.id !== snapsmithAnnouncer.SHOWCASE_CHANNEL_ID) return;
 
-  // Track unique reactor
-  snapsmithTracker.addReaction(reaction.message.id, user.id);
+  // Track reaction and trigger milestone logic centrally
+  await snapsmithTracker.addReaction(
+    reaction.message.id,
+    user.id,
+    reaction.message.author.id,
+    client,
+    reaction.message.guild
+  );
 
-  // Check for super approval
+  // Super approvals (star reactions)
   const result = await snapsmithSuperApproval.processSuperApproval(
     reaction.message, reaction, user, reaction.message.guild
   );
@@ -192,36 +194,12 @@ client.on('messageReactionAdd', async (reaction, user) => {
   } else if (result === 'bonus') {
     await snapsmithAnnouncer.announceSuperApproval(client, reaction.message.author.id, user.id);
   }
-
-  // PATCH: Grant Snapsmith role and announce when milestone reached by reactions
-  const authorId = reaction.message.author.id;
-  const stats = snapsmithTracker.getUserReactionStats(authorId);
-  const userStatus = snapsmithRoles.getSnapsmithStatus(authorId);
-  if (!userStatus.isActive && stats.total >= snapsmithRoles.BASE_REACTIONS) {
-    try {
-      const member = await reaction.message.guild.members.fetch(authorId);
-      await snapsmithRoles.grantSnapsmith(member);
-      await snapsmithAnnouncer.announceNewSnapsmith(client, authorId, null);
-    } catch (e) {
-      console.error(`Error awarding Snapsmith role: ${e}`);
-    }
-  }
-
-  // PATCH: Extra day logic for milestones
-  const prevMilestone = userStatus.prevMilestone || 0; // Store prevMilestone in user meta if needed
-  const milestone = Math.floor((stats.total - snapsmithRoles.BASE_REACTIONS) / snapsmithRoles.EXTRA_DAY_REACTION_COUNT);
-
-  if (userStatus.isActive && milestone > prevMilestone) {
-    snapsmithRoles.addSnapsmithDays(authorId, milestone - prevMilestone);
-    await snapsmithAnnouncer.announceExtraDay(client, authorId, milestone - prevMilestone);
-    // TODO: update prevMilestone in user meta
-  }
 });
 
 // --- PERIODIC DECAY & EXPIRY ---
 setInterval(() => {
   snapsmithTracker.applyDecay();
-  const guild = client.guilds.cache.get(process.env.GUILD_ID); // Set your guild ID in .env
+  const guild = client.guilds.cache.get(process.env.GUILD_ID);
   if (guild) snapsmithRoles.expireSnapsmiths(guild);
 }, 24 * 60 * 60 * 1000); // Every 24 hours
 
