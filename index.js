@@ -149,59 +149,7 @@ client.once('clientReady', async () => {
   }
 });
 
-// --- SNAPSMITH MODULE IMPORTS ---
-const snapsmithTracker = require('./modules/snapsmith/tracker');
-const snapsmithRoles = require('./modules/snapsmith/Roles');
-const snapsmithSuperApproval = require('./modules/snapsmith/superApproval');
-const snapsmithAnnouncer = require('./modules/snapsmith/announcer');
-
-// --- SHOWCASE POST DETECTION ---
-client.on('messageCreate', async (message) => {
-  if (
-    message.channel.id === snapsmithAnnouncer.SHOWCASE_CHANNEL_ID &&
-    !message.author.bot
-  ) {
-    snapsmithTracker.trackShowcasePost(message);
-
-    // Auto-react with emojis (these do NOT count)
-    await message.react('👍').catch(() => {});
-    await message.react('🔥').catch(() => {});
-    await message.react('😎').catch(() => {});
-  }
-});
-
-// --- REACTION HANDLING ---
-client.on('messageReactionAdd', async (reaction, user) => {
-  if (user.bot) return;
-  if (reaction.message.channel.id !== snapsmithAnnouncer.SHOWCASE_CHANNEL_ID) return;
-
-  // Track reaction and trigger milestone logic centrally
-  await snapsmithTracker.addReaction(
-    reaction.message.id,
-    user.id,
-    reaction.message.author.id,
-    client,
-    reaction.message.guild
-  );
-
-  // Super approvals (star reactions)
-  const result = await snapsmithSuperApproval.processSuperApproval(
-    reaction.message, reaction, user, reaction.message.guild
-  );
-
-  if (result === 'granted') {
-    await snapsmithAnnouncer.announceNewSnapsmith(client, reaction.message.author.id, user.id);
-  } else if (result === 'bonus') {
-    await snapsmithAnnouncer.announceSuperApproval(client, reaction.message.author.id, user.id);
-  }
-});
-
-// --- PERIODIC DECAY & EXPIRY ---
-setInterval(() => {
-  snapsmithTracker.applyDecay();
-  const guild = client.guilds.cache.get(process.env.GUILD_ID);
-  if (guild) snapsmithRoles.expireSnapsmiths(guild);
-}, 24 * 60 * 60 * 1000); // Every 24 hours
+// --- Removed Snapsmith logic for now ---
 
 // --- DO NOT HANDLE SLASH COMMANDS HERE ---
 // All slash command handling is now in events/interactionCreate.js
