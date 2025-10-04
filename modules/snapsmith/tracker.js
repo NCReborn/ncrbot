@@ -82,14 +82,20 @@ async function handleMilestones(userId, client = null, guild = null) {
     const stats = getUserReactionStats(userId);
     const status = getSnapsmithStatus(userId);
 
+    // Track the starting point for extra days (default 30, but can be 0 for manual grant)
+    let initial = BASE_REACTIONS;
+    if (userData[userId] && typeof userData[userId].initialReactionCount === 'number') {
+        initial = userData[userId].initialReactionCount;
+    }
+
     // Calculate how many extra days should have been awarded
-    const milestoneBlocks = stats.total < BASE_REACTIONS
+    const milestoneBlocks = stats.total < initial
         ? 0
-        : Math.floor((stats.total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
+        : Math.floor((stats.total - initial) / EXTRA_DAY_REACTION_COUNT);
     const alreadyAwarded = userData[userId]?.reactionMilestoneDays ?? 0;
 
-    // If user doesn't have Snapsmith, grant if they hit 30 reactions
-    if (!status.isActive && stats.total >= BASE_REACTIONS) {
+    // If user doesn't have Snapsmith, grant if they hit BASE_REACTIONS
+    if (!status.isActive && stats.total >= initial) {
         if (guild) {
             const member = await guild.members.fetch(userId);
             await grantSnapsmith(member, BASE_REACTIONS);
@@ -144,13 +150,22 @@ function syncAllMilestoneDays() {
                 total += entry.reactors.length;
             }
         }
-        // PATCHED: Prevent negative milestone days
-        const milestoneDays = total < BASE_REACTIONS
-            ? 0
-            : Math.floor((total - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
-        if (userData[userId].reactionMilestoneDays !== milestoneDays) {
-            userData[userId].reactionMilestoneDays = milestoneDays;
-            changed++;
+
+        // Track the starting point for extra days (default 30, but can be 0 for manual grant)
+        let initial = BASE_REACTIONS;
+        if (userData[userId] && typeof userData[userId].initialReactionCount === 'number') {
+            initial = userData[userId].initialReactionCount;
+        }
+
+        // Only count extra days if user has Snapsmith
+        if (userData[userId]?.expiration) {
+            const milestoneDays = total < initial
+                ? 0
+                : Math.floor((total - initial) / EXTRA_DAY_REACTION_COUNT);
+            if (userData[userId].reactionMilestoneDays !== milestoneDays) {
+                userData[userId].reactionMilestoneDays = milestoneDays;
+                changed++;
+            }
         }
     }
     saveUserData(userData);
