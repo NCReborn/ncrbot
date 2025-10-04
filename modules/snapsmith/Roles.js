@@ -1,17 +1,15 @@
-// Snapsmith Roles: Handles Snapsmith role assignment, expiry calculation, and removal
-
 const { loadUserData, saveUserData } = require('./Storage');
 const SNAPSMITH_ROLE_ID = '1374841261898469378'; // Set to your real role ID
-const ROLE_DURATION_DAYS = 30;
-const EXTRA_DAY_REACTION_COUNT = 10; // Each 10 reactions adds a day
+const BASE_REACTIONS = 30;
+const EXTRA_DAY_REACTION_COUNT = 10;
 const MAX_BUFFER_DAYS = 60;
 
 /**
  * Grant Snapsmith role to a user for a certain number of days.
  * @param {Discord.GuildMember} member - Discord guild member object
- * @param {number} days - Number of days to grant (default 30)
+ * @param {number} days - Number of days to grant (default BASE_REACTIONS)
  */
-async function grantSnapsmith(member, days = ROLE_DURATION_DAYS) {
+async function grantSnapsmith(member, days = BASE_REACTIONS) {
     const userId = member.id;
     const userData = loadUserData();
     const now = Date.now();
@@ -21,11 +19,10 @@ async function grantSnapsmith(member, days = ROLE_DURATION_DAYS) {
     userData[userId] = userData[userId] || {};
     userData[userId].snapsmithAchievedAt = now;
     userData[userId].expiration = new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
-    userData[userId].initialReactionCount = 30; // Set to required reactions for initial award
+    userData[userId].initialReactionCount = BASE_REACTIONS;
     userData[userId].reactionMilestoneDays = 0;
     userData[userId].superApprovalBonusDays = 0;
     userData[userId].superApproved = false;
-
     saveUserData(userData);
 }
 
@@ -55,15 +52,21 @@ async function removeSnapsmith(member) {
  * Add days to Snapsmith expiry (bonus/reaction milestones).
  * Enforces MAX_BUFFER_DAYS.
  * @param {string} userId
- * @param {number} days
+ * @param {number} totalReactions
  */
-function addSnapsmithDays(userId, days = 1) {
+function updateSnapsmithDays(userId, totalReactions) {
     const userData = loadUserData();
     if (!userData[userId] || !userData[userId].snapsmithAchievedAt) return;
 
-    const achieved = userData[userId].snapsmithAchievedAt;
-    const newExpiration = new Date(achieved + Math.min(MAX_BUFFER_DAYS, (days + ROLE_DURATION_DAYS)) * 24 * 60 * 60 * 1000);
+    // Each additional 10 reactions grants 1 extra day, capped at 60 total days
+    let days = BASE_REACTIONS;
+    if (totalReactions > BASE_REACTIONS) {
+        days += Math.floor((totalReactions - BASE_REACTIONS) / EXTRA_DAY_REACTION_COUNT);
+    }
+    days = Math.min(days, MAX_BUFFER_DAYS);
 
+    const achieved = userData[userId].snapsmithAchievedAt;
+    const newExpiration = new Date(achieved + days * 24 * 60 * 60 * 1000);
     userData[userId].expiration = newExpiration.toISOString();
     saveUserData(userData);
 }
@@ -112,11 +115,11 @@ async function expireSnapsmiths(guild) {
 module.exports = {
     grantSnapsmith,
     removeSnapsmith,
-    addSnapsmithDays,
+    updateSnapsmithDays,
     getSnapsmithStatus,
     expireSnapsmiths,
     SNAPSMITH_ROLE_ID,
-    ROLE_DURATION_DAYS,
+    BASE_REACTIONS,
     EXTRA_DAY_REACTION_COUNT,
     MAX_BUFFER_DAYS,
 };
