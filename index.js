@@ -193,12 +193,23 @@ client.on('messageReactionAdd', async (reaction, user) => {
     await snapsmithAnnouncer.announceSuperApproval(client, reaction.message.author.id, user.id);
   }
 
-  // Milestone check (extra days for reactions)
+  // PATCH: Grant Snapsmith role and announce when milestone reached by reactions
   const authorId = reaction.message.author.id;
   const stats = snapsmithTracker.getUserReactionStats(authorId);
   const userStatus = snapsmithRoles.getSnapsmithStatus(authorId);
-  const prevMilestone = userStatus.prevMilestone || 0; // Store prevMilestone in user meta
-  const milestone = Math.floor((stats.total - 30) / snapsmithRoles.EXTRA_DAY_REACTION_COUNT);
+  if (!userStatus.isActive && stats.total >= snapsmithRoles.BASE_REACTIONS) {
+    try {
+      const member = await reaction.message.guild.members.fetch(authorId);
+      await snapsmithRoles.grantSnapsmith(member);
+      await snapsmithAnnouncer.announceNewSnapsmith(client, authorId, null);
+    } catch (e) {
+      console.error(`Error awarding Snapsmith role: ${e}`);
+    }
+  }
+
+  // PATCH: Extra day logic for milestones
+  const prevMilestone = userStatus.prevMilestone || 0; // Store prevMilestone in user meta if needed
+  const milestone = Math.floor((stats.total - snapsmithRoles.BASE_REACTIONS) / snapsmithRoles.EXTRA_DAY_REACTION_COUNT);
 
   if (userStatus.isActive && milestone > prevMilestone) {
     snapsmithRoles.addSnapsmithDays(authorId, milestone - prevMilestone);
