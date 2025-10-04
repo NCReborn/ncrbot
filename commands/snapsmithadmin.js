@@ -99,6 +99,11 @@ const data = new SlashCommandBuilder()
                 subcmd.setName('syncroles')
                     .setDescription('Sync current Snapsmith role holders into system')
             )
+            .addSubcommand(subcmd =>
+                subcmd.setName('bulkgrant30')
+                    .setDescription('Bulk set selected users to 30 unique reactions for milestone testing')
+                    .addStringOption(opt => opt.setName('users').setDescription('Comma-separated user IDs or @mentions').setRequired(true))
+            )
     )
     // ANNOUNCE GROUP
     .addSubcommandGroup(group =>
@@ -210,9 +215,26 @@ async function execute(interaction) {
                 await interaction.editReply({ content: `Removed Snapsmith role from <@${user.id}>.` });
             }
             else if (sub === 'addreaction') {
-                if (!user || !messageId) return interaction.editReply({ content: "User and message ID required." });
-                snapsmithTracker.addReaction(messageId, user.id);
-                await interaction.editReply({ content: `Added reaction for <@${user.id}> on message ${messageId}.` });
+                // BULK ADD REACTIONS PATCHED BLOCK
+                const usersStr = interaction.options.getString('users');
+                const msgId = interaction.options.getString('messageid');
+                if (!usersStr || !msgId) return interaction.editReply({ content: "Users and message ID required." });
+
+                // Split by comma, trim, extract user IDs from mentions
+                const userIds = usersStr
+                    .split(',')
+                    .map(s => s.trim())
+                    .map(u => u.replace(/\D/g, '')) // remove non-numeric, gets ID from mention
+                    .filter(u => u.length > 0);
+
+                let added = [];
+                for (const userId of userIds) {
+                    const result = await snapsmithTracker.addReaction(msgId, userId);
+                    if (result) added.push(`<@${userId}>`);
+                }
+                await interaction.editReply({
+                    content: `Added reaction for ${added.join(', ')} on message ${msgId}.`
+                });
             }
             else if (sub === 'removereaction') {
                 if (!user || !messageId) return interaction.editReply({ content: "User and message ID required." });
@@ -297,6 +319,37 @@ async function execute(interaction) {
                 }
                 snapsmithStorage.saveUserData(userData);
                 await interaction.editReply({ content: `Synced ${added} Snapsmith role holders into system and set their expiry to 30 days from now.` });
+            }
+            // BULKGRANT30: Patch to grant 30 unique reactions to selected users
+            else if (sub === 'bulkgrant30') {
+                const usersStr = interaction.options.getString('users');
+                if (!usersStr) return interaction.editReply({ content: "Users required." });
+
+                // Split by comma, trim, extract user IDs from mentions
+                const userIds = usersStr
+                    .split(',')
+                    .map(s => s.trim())
+                    .map(u => u.replace(/\D/g, '')) // get ID from mention or just the digits
+                    .filter(u => u.length > 0);
+
+                const reactions = snapsmithStorage.loadReactionData();
+                let granted = [];
+                for (const userId of userIds) {
+                    if (!reactions[userId]) reactions[userId] = {};
+                    // Add 30 fake messages, each with a unique 'reactor'
+                    for (let i = 0; i < 30; i++) {
+                        const msgId = `bulkgrant30_${userId}_${i}`;
+                        reactions[userId][msgId] = {
+                            reactors: [`bulkreactor${i}`],
+                            created: Date.now()
+                        };
+                    }
+                    granted.push(`<@${userId}>`);
+                }
+                snapsmithStorage.saveReactionData(reactions);
+                await interaction.editReply({
+                    content: `Granted 30 reactions to: ${granted.join(', ')}. Run /snapsmithadmin config syncmilestonedays to sync milestones and expiry.`
+                });
             }
         }
         // ANNOUNCE GROUP
