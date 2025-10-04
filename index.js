@@ -151,7 +151,7 @@ client.once('clientReady', async () => {
 
 // --- SNAPSMITH MODULE IMPORTS ---
 const snapsmithTracker = require('./modules/snapsmith/tracker');
-const snapsmithRoles = require('./modules/snapsmith/roles');
+const snapsmithRoles = require('./modules/snapsmith/Roles');
 const snapsmithSuperApproval = require('./modules/snapsmith/superApproval');
 const snapsmithAnnouncer = require('./modules/snapsmith/announcer');
 
