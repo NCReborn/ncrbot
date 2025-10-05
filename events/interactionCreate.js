@@ -160,11 +160,9 @@ module.exports = {
 
         try {
           // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-          // Fix: Defer reply immediately for all slash commands
+          // PATCH: Do NOT auto-defer slash commands here.
+          // Let command files handle defer/reply/modal as needed!
           // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.deferReply({ ephemeral: true });
-          }
           await command.execute(interaction);
 
           // --- Only update the #bot-controls channel topic after a status slash command ---
