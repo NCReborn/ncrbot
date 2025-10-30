@@ -215,7 +215,10 @@ async function sendCombinedChangelogMessages(channel, adminChannel, diffs1, diff
         }
       }
     } else {
-      const embed = new EmbedBuilder().setTitle("🔄 Updated Mods").setDescription("No mods were updated in either collection").setColor(16776960);
+      const embed = new EmbedBuilder()
+        .setTitle("🔄 Updated Mods")
+        .setDescription("No mods were updated in either collection")
+        .setColor(16776960);
       try {
         await channel.send({ embeds: [embed] });
       } catch (err) {
@@ -370,7 +373,15 @@ async function sendSingleChangelogMessages(channel, adminChannel, diffs, slug, o
         }
       }
     } else {
-      const embed = new EmbedBuilder().setTitle("🔄)
+      const embed = new EmbedBuilder()
+        .setTitle("🔄 Updated Mods")
+        .setDescription("No mods were updated in this revision")
+        .setColor(16776960);
+      try {
+        await channel.send({ embeds: [embed] });
+      } catch (err) {
+        logger.error(`Failed to send empty updated mods embed: ${err.message}`);
+      }
     }
 
     // Removed Mods
