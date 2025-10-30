@@ -24,6 +24,7 @@ function saveCategoryCache(cache) {
   fs.writeFileSync(CATEGORY_CACHE_PATH, JSON.stringify(cache, null, 2));
 }
 
+let debugLogged = false;
 async function fetchModCategory(domainName, modId, apiKey, cache) {
   const cacheKey = `${modId}:${domainName}`;
   if (cache[cacheKey]) return cache[cacheKey];
@@ -35,7 +36,23 @@ async function fetchModCategory(domainName, modId, apiKey, cache) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const category = data.category_name || "Other";
+
+    // Log the first response for debugging
+    if (!debugLogged) {
+      console.log('MOD RESPONSE:', JSON.stringify(data, null, 2));
+      debugLogged = true;
+    }
+
+    // Try common category fields
+    let category = "Other";
+    if (data.category_name) {
+      category = data.category_name;
+    } else if (Array.isArray(data.categories) && data.categories.length > 0 && data.categories[0].name) {
+      category = data.categories[0].name;
+    } else if (data.category && typeof data.category === "string") {
+      category = data.category;
+    }
+
     cache[cacheKey] = category;
     saveCategoryCache(cache);
     return category;
