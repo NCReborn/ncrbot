@@ -7,7 +7,6 @@ const {
 } = require('../utils/discordUtils');
 const { getCollectionName } = require('../utils/nexusApi');
 const logger = require('../utils/logger');
-const { enrichModsWithCategoryAndProgress } = require('../utils/enrichModsWithCategory'); // <-- NEW
 
 /**
  * Helper to group mods by category
