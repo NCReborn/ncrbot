@@ -6,77 +6,28 @@ const {
   sortUpdatedModsAlphabetically 
 } = require('../utils/discordUtils');
 const { getCollectionName } = require('../utils/nexusApi');
-const { fetchModCategory } = require('../utils/nexusApi');
 const logger = require('../utils/logger');
-
-const NEXUS_API_KEY = process.env.NEXUS_API_KEY;
-
-// Utility to enrich mod array with category
-async function enrichModsWithCategory(modList) {
-  return await Promise.all(modList.map(async mod => {
-    if (!mod.domainName || !mod.modId) return { ...mod, category: "Other" };
-    const category = await fetchModCategory(mod.domainName, mod.modId, NEXUS_API_KEY);
-    return { ...mod, category };
-  }));
-}
-
-// For updated mods (before/after shape)
-async function enrichUpdatedModsWithCategory(modList) {
-  return await Promise.all(modList.map(async update => {
-    if (!update.before?.domainName || !update.before?.modId) return { ...update, before: { ...update.before, category: "Other" } };
-    const category = await fetchModCategory(update.before.domainName, update.before.modId, NEXUS_API_KEY);
-    return { ...update, before: { ...update.before, category } };
-  }));
-}
-
-// Helper to group mods by category
-function groupModsByCategory(modList, isUpdate = false) {
-  const groups = {};
-  for (const mod of modList) {
-    const category = isUpdate
-      ? (mod.before?.category || 'Other')
-      : (mod.category || 'Other');
-    if (!groups[category]) groups[category] = [];
-    groups[category].push(mod);
-  }
-  return groups;
-}
-
-// Builds changelog text grouped by category
-function buildGroupedModList(mods, isUpdate = false) {
-  const grouped = groupModsByCategory(mods, isUpdate);
-  let output = '';
-  for (const [category, modArr] of Object.entries(grouped)) {
-    output += `__**${category}**__\n`;
-    output += modArr.map(mod => {
-      if (isUpdate) {
-        const modName = sanitizeName(mod.before.name);
-        const modUrl = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
-        return `• [${modName}](${modUrl}) : v${mod.before.version} → v${mod.after.version}`;
-      } else {
-        const modName = sanitizeName(mod.name);
-        const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
-        return `• [${modName} (v${mod.version})](${modUrl})`;
-      }
-    }).join('\n');
-    output += '\n\n';
-  }
-  return output.trim();
-}
 
 async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveChanges, slug1, oldRev1, newRev1, slug2, oldRev2, newRev2) {
   const collectionName1 = getCollectionName(slug1);
   const collectionName2 = getCollectionName(slug2);
 
+  // --- DEBUG LOGS ---
+  //logger.info(`[CHANGELOG] sendCombinedChangelogMessages called for ${collectionName1} (${oldRev1}→${newRev1}) & ${collectionName2} (${oldRev2}→${newRev2})`);
+  //logger.debug(`[CHANGELOG] diffs1: ${JSON.stringify(diffs1)}`);
+  //logger.debug(`[CHANGELOG] diffs2: ${JSON.stringify(diffs2)}`);
+  //logger.debug(`[CHANGELOG] exclusiveChanges: ${JSON.stringify(exclusiveChanges)}`);
+
   try {
+    // Embed preamble (was missing in your last version!)
     const embed1 = new EmbedBuilder()
       .setTitle(`Revision ${collectionName1}-${newRev1}/${collectionName2}-${newRev2} - Game Version 2.3`)
-      .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1400942550076100811>\n\n**⚠️ Important** - To update a collection, ...")
+      .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1400942550076100811>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1411463524017770580> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1400940644565782599> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
       .setColor(5814783);
 
     const embed1a = new EmbedBuilder()
       .setTitle("Updating collection")
-      .setDescription("If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"")
+      .setDescription("If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"  <#1400942550076100811>")
       .setColor(16746072);
 
     await channel.send({ embeds: [embed1, embed1a] });
@@ -87,36 +38,36 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 
     await channel.send({ embeds: [collectionHeader] });
 
+    // Defensive: Provide empty arrays if missing/invalid
     diffs1 = diffs1 ?? {};
     diffs2 = diffs2 ?? {};
     exclusiveChanges = exclusiveChanges ?? {};
-    let added1 = Array.isArray(diffs1.added) ? diffs1.added : [];
-    let added2 = Array.isArray(diffs2.added) ? diffs2.added : [];
-    let updated1 = Array.isArray(diffs1.updated) ? diffs1.updated : [];
-    let updated2 = Array.isArray(diffs2.updated) ? diffs2.updated : [];
-    let removed1 = Array.isArray(diffs1.removed) ? diffs1.removed : [];
-    let removed2 = Array.isArray(diffs2.removed) ? diffs2.removed : [];
-    let exAdded1 = Array.isArray(exclusiveChanges.added1) ? exclusiveChanges.added1 : [];
-    let exAdded2 = Array.isArray(exclusiveChanges.added2) ? exclusiveChanges.added2 : [];
-    let exUpdated1 = Array.isArray(exclusiveChanges.updated1) ? exclusiveChanges.updated1 : [];
-    let exUpdated2 = Array.isArray(exclusiveChanges.updated2) ? exclusiveChanges.updated2 : [];
-    let exRemoved1 = Array.isArray(exclusiveChanges.removed1) ? exclusiveChanges.removed1 : [];
-    let exRemoved2 = Array.isArray(exclusiveChanges.removed2) ? exclusiveChanges.removed2 : [];
+    const added1 = Array.isArray(diffs1.added) ? diffs1.added : [];
+    const added2 = Array.isArray(diffs2.added) ? diffs2.added : [];
+    const updated1 = Array.isArray(diffs1.updated) ? diffs1.updated : [];
+    const updated2 = Array.isArray(diffs2.updated) ? diffs2.updated : [];
+    const removed1 = Array.isArray(diffs1.removed) ? diffs1.removed : [];
+    const removed2 = Array.isArray(diffs2.removed) ? diffs2.removed : [];
+    const exAdded1 = Array.isArray(exclusiveChanges.added1) ? exclusiveChanges.added1 : [];
+    const exAdded2 = Array.isArray(exclusiveChanges.added2) ? exclusiveChanges.added2 : [];
+    const exUpdated1 = Array.isArray(exclusiveChanges.updated1) ? exclusiveChanges.updated1 : [];
+    const exUpdated2 = Array.isArray(exclusiveChanges.updated2) ? exclusiveChanges.updated2 : [];
+    const exRemoved1 = Array.isArray(exclusiveChanges.removed1) ? exclusiveChanges.removed1 : [];
+    const exRemoved2 = Array.isArray(exclusiveChanges.removed2) ? exclusiveChanges.removed2 : [];
 
-    // CATEGORY ENRICHMENT
-    added1 = await enrichModsWithCategory(added1);
-    added2 = await enrichModsWithCategory(added2);
-    removed1 = await enrichModsWithCategory(removed1);
-    removed2 = await enrichModsWithCategory(removed2);
-    exAdded1 = await enrichModsWithCategory(exAdded1);
-    exAdded2 = await enrichModsWithCategory(exAdded2);
-    exRemoved1 = await enrichModsWithCategory(exRemoved1);
-    exRemoved2 = await enrichModsWithCategory(exRemoved2);
-
-    updated1 = await enrichUpdatedModsWithCategory(updated1);
-    updated2 = await enrichUpdatedModsWithCategory(updated2);
-    exUpdated1 = await enrichUpdatedModsWithCategory(exUpdated1);
-    exUpdated2 = await enrichUpdatedModsWithCategory(exUpdated2);
+    // --- DEBUG LOGS FOR DIFF ARRAYS ---
+    //logger.debug(`[CHANGELOG] Added1: ${JSON.stringify(added1)}`);
+    //logger.debug(`[CHANGELOG] Added2: ${JSON.stringify(added2)}`);
+    //logger.debug(`[CHANGELOG] Updated1: ${JSON.stringify(updated1)}`);
+    //logger.debug(`[CHANGELOG] Updated2: ${JSON.stringify(updated2)}`);
+    //logger.debug(`[CHANGELOG] Removed1: ${JSON.stringify(removed1)}`);
+    //logger.debug(`[CHANGELOG] Removed2: ${JSON.stringify(removed2)}`);
+    //logger.debug(`[CHANGELOG] exAdded1: ${JSON.stringify(exAdded1)}`);
+    //logger.debug(`[CHANGELOG] exAdded2: ${JSON.stringify(exAdded2)}`);
+    //logger.debug(`[CHANGELOG] exUpdated1: ${JSON.stringify(exUpdated1)}`);
+    //logger.debug(`[CHANGELOG] exUpdated2: ${JSON.stringify(exUpdated2)}`);
+    //logger.debug(`[CHANGELOG] exRemoved1: ${JSON.stringify(exRemoved1)}`);
+    //logger.debug(`[CHANGELOG] exRemoved2: ${JSON.stringify(exRemoved2)}`);
 
     // Added Mods
     const allAdded = [...added1, ...added2];
@@ -130,15 +81,29 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 
       let addedList = '';
       if (sharedAdded.length > 0) {
-        addedList += buildGroupedModList(sharedAdded);
+        addedList += sharedAdded.map(mod => {
+          const modName = sanitizeName(mod.name);
+          const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `• [${modName} (v${mod.version})](${modUrl})`;
+        }).join('\n');
       }
+
       if (exclusiveAdded1.length > 0) {
         if (addedList) addedList += '\n\n';
-        addedList += `**${collectionName1} Exclusive:**\n` + buildGroupedModList(exclusiveAdded1);
+        addedList += `**${collectionName1} Exclusive:**\n` + exclusiveAdded1.map(mod => {
+          const modName = sanitizeName(mod.name);
+          const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `• [${modName} (v${mod.version})](${modUrl})`;
+        }).join('\n');
       }
+
       if (exclusiveAdded2.length > 0) {
         if (addedList) addedList += '\n\n';
-        addedList += `**${collectionName2} Exclusive:**\n` + buildGroupedModList(exclusiveAdded2);
+        addedList += `**${collectionName2} Exclusive:**\n` + exclusiveAdded2.map(mod => {
+          const modName = sanitizeName(mod.name);
+          const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `• [${modName} (v${mod.version})](${modUrl})`;
+        }).join('\n');
       }
 
       const addedParts = splitLongDescription(addedList);
@@ -172,15 +137,29 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 
       let updatedList = '';
       if (sharedUpdated.length > 0) {
-        updatedList += buildGroupedModList(sharedUpdated, true);
+        updatedList += sharedUpdated.map(update => {
+          const modName = sanitizeName(update.before.name);
+          const modUrl = `https://www.nexusmods.com/${update.before.domainName}/mods/${update.before.modId}`;
+          return `• [${modName}](${modUrl}) : v${update.before.version} → v${update.after.version}`;
+        }).join('\n');
       }
+
       if (exclusiveUpdated1.length > 0) {
         if (updatedList) updatedList += '\n\n';
-        updatedList += `**${collectionName1} Exclusive:**\n` + buildGroupedModList(exclusiveUpdated1, true);
+        updatedList += `**${collectionName1} Exclusive:**\n` + exclusiveUpdated1.map(update => {
+          const modName = sanitizeName(update.before.name);
+          const modUrl = `https://www.nexusmods.com/${update.before.domainName}/mods/${update.before.modId}`;
+          return `• [${modName}](${modUrl}) : v${update.before.version} → v${update.after.version}`;
+        }).join('\n');
       }
+
       if (exclusiveUpdated2.length > 0) {
         if (updatedList) updatedList += '\n\n';
-        updatedList += `**${collectionName2} Exclusive:**\n` + buildGroupedModList(exclusiveUpdated2, true);
+        updatedList += `**${collectionName2} Exclusive:**\n` + exclusiveUpdated2.map(update => {
+          const modName = sanitizeName(update.before.name);
+          const modUrl = `https://www.nexusmods.com/${update.before.domainName}/mods/${update.before.modId}`;
+          return `• [${modName}](${modUrl}) : v${update.before.version} → v${update.after.version}`;
+        }).join('\n');
       }
 
       const updatedParts = splitLongDescription(updatedList);
@@ -214,15 +193,29 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 
       let removedList = '';
       if (sharedRemoved.length > 0) {
-        removedList += buildGroupedModList(sharedRemoved);
+        removedList += sharedRemoved.map(mod => {
+          const modName = sanitizeName(mod.name);
+          const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `• [${modName} (v${mod.version})](${modUrl})`;
+        }).join('\n');
       }
+
       if (exclusiveRemoved1.length > 0) {
         if (removedList) removedList += '\n\n';
-        removedList += `**${collectionName1} Exclusive:**\n` + buildGroupedModList(exclusiveRemoved1);
+        removedList += `**${collectionName1} Exclusive:**\n` + exclusiveRemoved1.map(mod => {
+          const modName = sanitizeName(mod.name);
+          const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `• [${modName} (v${mod.version})](${modUrl})`;
+        }).join('\n');
       }
+
       if (exclusiveRemoved2.length > 0) {
         if (removedList) removedList += '\n\n';
-        removedList += `**${collectionName2} Exclusive:**\n` + buildGroupedModList(exclusiveRemoved2);
+        removedList += `**${collectionName2} Exclusive:**\n` + exclusiveRemoved2.map(mod => {
+          const modName = sanitizeName(mod.name);
+          const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `• [${modName} (v${mod.version})](${modUrl})`;
+        }).join('\n');
       }
 
       const removedParts = splitLongDescription(removedList);
@@ -249,28 +242,29 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 }
 
 async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev, collectionName) {
+  // --- DEBUG LOGS ---
   logger.info(`[CHANGELOG] sendSingleChangelogMessages called for ${collectionName} (${slug} ${oldRev}→${newRev})`);
   logger.debug(`[CHANGELOG] diffs: ${JSON.stringify(diffs)}`);
 
   try {
+    // Defensive: Provide empty arrays if missing/invalid
     diffs = diffs ?? {};
-    let added = Array.isArray(diffs.added) ? diffs.added : [];
-    let updated = Array.isArray(diffs.updated) ? diffs.updated : [];
-    let removed = Array.isArray(diffs.removed) ? diffs.removed : [];
+    const added = Array.isArray(diffs.added) ? diffs.added : [];
+    const updated = Array.isArray(diffs.updated) ? diffs.updated : [];
+    const removed = Array.isArray(diffs.removed) ? diffs.removed : [];
 
-    // CATEGORY ENRICHMENT
-    added = await enrichModsWithCategory(added);
-    removed = await enrichModsWithCategory(removed);
-    updated = await enrichUpdatedModsWithCategory(updated);
+    //logger.debug(`[CHANGELOG] Added: ${JSON.stringify(added)}`);
+  //  logger.debug(`[CHANGELOG] Updated: ${JSON.stringify(updated)}`);
+    //logger.debug(`[CHANGELOG] Removed: ${JSON.stringify(removed)}`);
 
     const embed1 = new EmbedBuilder()
       .setTitle(`Revision ${collectionName}-${newRev} - Game Version 2.3`)
-      .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1346957358244433950>\n\n**⚠️ Important** - To update a collection, ...")
+      .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1346957358244433950>\n\n**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n**⚠️ Important** - If you encounter any redscript errors please see the recommendations in <#1332486336040403075> as it can sometimes be a simple case of a dependency that hasn't installed properly.\n\n**⚠️ Important** - Any fallback installer errors you come across, just select \"Yes, install to staging anyway\" every time you see it.\n\nAny issues with updating please refer to <#1285796905640788030> & <#1285797091750187039>\n\nIf you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>")
       .setColor(5814783);
 
     const embed1a = new EmbedBuilder()
       .setTitle("Updating collection")
-      .setDescription("If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"")
+      .setDescription("If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\nIf you run into fallback messages just select \"Yes, install to staging anyway\"  <#1332486336967610449>")
       .setColor(16746072);
 
     await channel.send({ embeds: [embed1, embed1a] });
@@ -284,7 +278,11 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     // Added Mods
     if (added.length > 0) {
       const sortedAdded = sortModsAlphabetically([...added]);
-      let addedList = buildGroupedModList(sortedAdded);
+      let addedList = sortedAdded.map(mod => {
+        const modName = sanitizeName(mod.name);
+        const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+        return `• [${modName} (v${mod.version})](${modUrl})`;
+      }).join('\n');
 
       const addedParts = splitLongDescription(addedList);
       for (let i = 0; i < addedParts.length; i++) {
@@ -308,7 +306,11 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     // Updated Mods
     if (updated.length > 0) {
       const sortedUpdated = sortUpdatedModsAlphabetically([...updated]);
-      let updatedList = buildGroupedModList(sortedUpdated, true);
+      let updatedList = sortedUpdated.map(update => {
+        const modName = sanitizeName(update.before.name);
+        const modUrl = `https://www.nexusmods.com/${update.before.domainName}/mods/${update.before.modId}`;
+        return `• [${modName}](${modUrl}) : v${update.before.version} → v${update.after.version}`;
+      }).join('\n');
 
       const updatedParts = splitLongDescription(updatedList);
       for (let i = 0; i < updatedParts.length; i++) {
@@ -332,7 +334,11 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
     // Removed Mods
     if (removed.length > 0) {
       const sortedRemoved = sortModsAlphabetically([...removed]);
-      let removedList = buildGroupedModList(sortedRemoved);
+      let removedList = sortedRemoved.map(mod => {
+        const modName = sanitizeName(mod.name);
+        const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+        return `• [${modName} (v${mod.version})](${modUrl})`;
+      }).join('\n');
 
       const removedParts = splitLongDescription(removedList);
       for (let i = 0; i < removedParts.length; i++) {
