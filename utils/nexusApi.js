@@ -19,7 +19,6 @@ async function fetchRevision(slug, revision, apiKey, appName, appVersion) {
             mod {
               modId
               name
-              categoryName
               game {
                 name
                 domainName
@@ -130,7 +129,6 @@ function findExclusiveChanges(diffs1, diffs2) {
   };
 }
 
-// --- THIS IS THE KEY CHANGE! ---
 function processModFiles(modFiles) {
   const mods = modFiles
     .filter((mf) => mf.file && mf.file.mod)
@@ -140,7 +138,6 @@ function processModFiles(modFiles) {
       version: mf.file.version,
       domainName: mf.file.mod.game.domainName,
       modId: mf.file.mod.modId,
-      category: mf.file.mod.categoryName || "Other"   // <---- ADD THIS LINE!
     }));
   logger.debug(`[processModFiles] Processed ${mods.length} mods: ${JSON.stringify(mods)}`);
   return mods;
