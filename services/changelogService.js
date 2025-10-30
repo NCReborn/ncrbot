@@ -6,13 +6,33 @@ const {
   sortUpdatedModsAlphabetically 
 } = require('../utils/discordUtils');
 const { getCollectionName } = require('../utils/nexusApi');
+const { fetchModCategory } = require('../utils/nexusCategory');
 const logger = require('../utils/logger');
+
+const NEXUS_API_KEY = process.env.NEXUS_API_KEY;
+
+// Utility to enrich mod array with category
+async function enrichModsWithCategory(modList) {
+  return await Promise.all(modList.map(async mod => {
+    if (!mod.domainName || !mod.modId) return { ...mod, category: "Other" };
+    const category = await fetchModCategory(mod.domainName, mod.modId, NEXUS_API_KEY);
+    return { ...mod, category };
+  }));
+}
+
+// For updated mods (before/after shape)
+async function enrichUpdatedModsWithCategory(modList) {
+  return await Promise.all(modList.map(async update => {
+    if (!update.before?.domainName || !update.before?.modId) return { ...update, before: { ...update.before, category: "Other" } };
+    const category = await fetchModCategory(update.before.domainName, update.before.modId, NEXUS_API_KEY);
+    return { ...update, before: { ...update.before, category } };
+  }));
+}
 
 // Helper to group mods by category
 function groupModsByCategory(modList, isUpdate = false) {
   const groups = {};
   for (const mod of modList) {
-    // For updated mods, .category could be on mod.before
     const category = isUpdate
       ? (mod.before?.category || 'Other')
       : (mod.category || 'Other');
@@ -30,12 +50,10 @@ function buildGroupedModList(mods, isUpdate = false) {
     output += `__**${category}**__\n`;
     output += modArr.map(mod => {
       if (isUpdate) {
-        // Updated mod shape: before/after
         const modName = sanitizeName(mod.before.name);
         const modUrl = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
         return `• [${modName}](${modUrl}) : v${mod.before.version} → v${mod.after.version}`;
       } else {
-        // Added/Removed mod shape: single mod
         const modName = sanitizeName(mod.name);
         const modUrl = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
         return `• [${modName} (v${mod.version})](${modUrl})`;
@@ -51,7 +69,6 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
   const collectionName2 = getCollectionName(slug2);
 
   try {
-    // Embed preamble
     const embed1 = new EmbedBuilder()
       .setTitle(`Revision ${collectionName1}-${newRev1}/${collectionName2}-${newRev2} - Game Version 2.3`)
       .setDescription("**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts. <#1400942550076100811>\n\n**⚠️ Important** - To update a collection, ...")
@@ -70,22 +87,36 @@ async function sendCombinedChangelogMessages(channel, diffs1, diffs2, exclusiveC
 
     await channel.send({ embeds: [collectionHeader] });
 
-    // Defensive: Provide empty arrays if missing/invalid
     diffs1 = diffs1 ?? {};
     diffs2 = diffs2 ?? {};
     exclusiveChanges = exclusiveChanges ?? {};
-    const added1 = Array.isArray(diffs1.added) ? diffs1.added : [];
-    const added2 = Array.isArray(diffs2.added) ? diffs2.added : [];
-    const updated1 = Array.isArray(diffs1.updated) ? diffs1.updated : [];
-    const updated2 = Array.isArray(diffs2.updated) ? diffs2.updated : [];
-    const removed1 = Array.isArray(diffs1.removed) ? diffs1.removed : [];
-    const removed2 = Array.isArray(diffs2.removed) ? diffs2.removed : [];
-    const exAdded1 = Array.isArray(exclusiveChanges.added1) ? exclusiveChanges.added1 : [];
-    const exAdded2 = Array.isArray(exclusiveChanges.added2) ? exclusiveChanges.added2 : [];
-    const exUpdated1 = Array.isArray(exclusiveChanges.updated1) ? exclusiveChanges.updated1 : [];
-    const exUpdated2 = Array.isArray(exclusiveChanges.updated2) ? exclusiveChanges.updated2 : [];
-    const exRemoved1 = Array.isArray(exclusiveChanges.removed1) ? exclusiveChanges.removed1 : [];
-    const exRemoved2 = Array.isArray(exclusiveChanges.removed2) ? exclusiveChanges.removed2 : [];
+    let added1 = Array.isArray(diffs1.added) ? diffs1.added : [];
+    let added2 = Array.isArray(diffs2.added) ? diffs2.added : [];
+    let updated1 = Array.isArray(diffs1.updated) ? diffs1.updated : [];
+    let updated2 = Array.isArray(diffs2.updated) ? diffs2.updated : [];
+    let removed1 = Array.isArray(diffs1.removed) ? diffs1.removed : [];
+    let removed2 = Array.isArray(diffs2.removed) ? diffs2.removed : [];
+    let exAdded1 = Array.isArray(exclusiveChanges.added1) ? exclusiveChanges.added1 : [];
+    let exAdded2 = Array.isArray(exclusiveChanges.added2) ? exclusiveChanges.added2 : [];
+    let exUpdated1 = Array.isArray(exclusiveChanges.updated1) ? exclusiveChanges.updated1 : [];
+    let exUpdated2 = Array.isArray(exclusiveChanges.updated2) ? exclusiveChanges.updated2 : [];
+    let exRemoved1 = Array.isArray(exclusiveChanges.removed1) ? exclusiveChanges.removed1 : [];
+    let exRemoved2 = Array.isArray(exclusiveChanges.removed2) ? exclusiveChanges.removed2 : [];
+
+    // CATEGORY ENRICHMENT
+    added1 = await enrichModsWithCategory(added1);
+    added2 = await enrichModsWithCategory(added2);
+    removed1 = await enrichModsWithCategory(removed1);
+    removed2 = await enrichModsWithCategory(removed2);
+    exAdded1 = await enrichModsWithCategory(exAdded1);
+    exAdded2 = await enrichModsWithCategory(exAdded2);
+    exRemoved1 = await enrichModsWithCategory(exRemoved1);
+    exRemoved2 = await enrichModsWithCategory(exRemoved2);
+
+    updated1 = await enrichUpdatedModsWithCategory(updated1);
+    updated2 = await enrichUpdatedModsWithCategory(updated2);
+    exUpdated1 = await enrichUpdatedModsWithCategory(exUpdated1);
+    exUpdated2 = await enrichUpdatedModsWithCategory(exUpdated2);
 
     // Added Mods
     const allAdded = [...added1, ...added2];
@@ -222,11 +253,15 @@ async function sendSingleChangelogMessages(channel, diffs, slug, oldRev, newRev,
   logger.debug(`[CHANGELOG] diffs: ${JSON.stringify(diffs)}`);
 
   try {
-    // Defensive: Provide empty arrays if missing/invalid
     diffs = diffs ?? {};
-    const added = Array.isArray(diffs.added) ? diffs.added : [];
-    const updated = Array.isArray(diffs.updated) ? diffs.updated : [];
-    const removed = Array.isArray(diffs.removed) ? diffs.removed : [];
+    let added = Array.isArray(diffs.added) ? diffs.added : [];
+    let updated = Array.isArray(diffs.updated) ? diffs.updated : [];
+    let removed = Array.isArray(diffs.removed) ? diffs.removed : [];
+
+    // CATEGORY ENRICHMENT
+    added = await enrichModsWithCategory(added);
+    removed = await enrichModsWithCategory(removed);
+    updated = await enrichUpdatedModsWithCategory(updated);
 
     const embed1 = new EmbedBuilder()
       .setTitle(`Revision ${collectionName}-${newRev} - Game Version 2.3`)
