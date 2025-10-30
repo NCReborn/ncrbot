@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
-const pLimit = require('p-limit');
+const pLimit = require('p-limit').default; // <-- CORRECT import for p-limit v4+
 
 const CATEGORY_CACHE_PATH = path.join(__dirname, 'modCategoryCache.json');
 const RATE_LIMIT = 30; // Nexus Mods API rate limit per minute
