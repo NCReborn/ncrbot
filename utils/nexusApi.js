@@ -3,26 +3,6 @@ const { COLLECTION_MAPPINGS } = require('../config/constants');
 const logger = require('./logger');
 
 const API_URL = 'https://api-router.nexusmods.com/graphql';
-const NEXUS_API_REST = 'https://api.nexusmods.com/v1/games';
-
-// Utility: fetch mod details including category via REST API
-async function fetchModCategory(domainName, modId, apiKey) {
-  const url = `${NEXUS_API_REST}/${domainName}/mods/${modId}.json`;
-  try {
-    const res = await axios.get(url, {
-      headers: {
-        apikey: apiKey,
-        "Accept": "application/json"
-      },
-      timeout: 8000
-    });
-    if (!res.data) return "Other";
-    return res.data.category_name || "Other";
-  } catch (e) {
-    logger.warn(`Failed to fetch category for ${domainName}:${modId}: ${e.message}`);
-    return "Other";
-  }
-}
 
 async function fetchRevision(slug, revision, apiKey, appName, appVersion) {
   const query = `
@@ -74,7 +54,7 @@ async function fetchRevision(slug, revision, apiKey, appName, appVersion) {
 
     // DEBUG: Log revision and modFiles count
     const modFiles = response.data.data.collectionRevision.modFiles || [];
-    // logger.debug(`[fetchRevision] ${slug} rev ${revision}: found ${modFiles.length} modFiles`);
+  //  logger.debug(`[fetchRevision] ${slug} rev ${revision}: found ${modFiles.length} modFiles`);
     // Optionally uncomment this for full raw modFiles:
     // logger.debug(`[fetchRevision] ${slug} rev ${revision} modFiles: ${JSON.stringify(modFiles)}`);
     
@@ -103,6 +83,9 @@ function getCollectionName(slug) {
 }
 
 function computeDiff(oldMods, newMods) {
+ // logger.debug(`[computeDiff] oldMods (${oldMods.length}): ${JSON.stringify(oldMods)}`);
+ // logger.debug(`[computeDiff] newMods (${newMods.length}): ${JSON.stringify(newMods)}`);
+
   const oldMap = new Map(oldMods.map((m) => [String(m.id), m]));
   const newMap = new Map(newMods.map((m) => [String(m.id), m]));
 
@@ -127,6 +110,10 @@ function computeDiff(oldMods, newMods) {
     }
   }
 
+ // logger.debug(`[computeDiff] added (${added.length}): ${JSON.stringify(added)}`);
+//  logger.debug(`[computeDiff] removed (${removed.length}): ${JSON.stringify(removed)}`);
+ // logger.debug(`[computeDiff] updated (${updated.length}): ${JSON.stringify(updated)}`);
+
   return { added, removed, updated };
 }
 
@@ -149,24 +136,17 @@ function findExclusiveChanges(diffs1, diffs2) {
   };
 }
 
-// NEW: Attach category to each mod object
-async function processModFiles(modFiles, apiKey) {
-  const mods = await Promise.all(
-    modFiles
-      .filter((mf) => mf.file && mf.file.mod)
-      .map(async (mf) => {
-        const modObj = {
-          id: `${mf.file.mod.modId}-${mf.file.mod.game.domainName}`,
-          name: mf.file.mod.name,
-          version: mf.file.version,
-          domainName: mf.file.mod.game.domainName,
-          modId: mf.file.mod.modId
-        };
-        modObj.category = await fetchModCategory(modObj.domainName, modObj.modId, apiKey);
-        return modObj;
-      })
-  );
-  logger.debug(`[processModFiles] Processed ${mods.length} mods with categories: ${JSON.stringify(mods)}`);
+function processModFiles(modFiles) {
+  const mods = modFiles
+    .filter((mf) => mf.file && mf.file.mod)
+    .map((mf) => ({
+      id: `${mf.file.mod.modId}-${mf.file.mod.game.domainName}`,
+      name: mf.file.mod.name,
+      version: mf.file.version,
+      domainName: mf.file.mod.game.domainName,
+      modId: mf.file.mod.modId
+    }));
+  logger.debug(`[processModFiles] Processed ${mods.length} mods: ${JSON.stringify(mods)}`);
   return mods;
 }
 
@@ -176,6 +156,5 @@ module.exports = {
   getCollectionName,
   computeDiff,
   findExclusiveChanges,
-  processModFiles,
-  fetchModCategory // (exported for flexibility, e.g. for updated mods)
+  processModFiles
 };
