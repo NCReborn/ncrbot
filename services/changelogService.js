@@ -6,7 +6,7 @@ const {
   sortUpdatedModsAlphabetically 
 } = require('../utils/discordUtils');
 const { getCollectionName } = require('../utils/nexusApi');
-const { fetchModCategory } = require('../utils/nexusCategory');
+const { fetchModCategory } = require('../utils/nexusApi');
 const logger = require('../utils/logger');
 
 const NEXUS_API_KEY = process.env.NEXUS_API_KEY;
