@@ -20,6 +20,16 @@ export default {
                     allowedMentions: { users: [message.author.id] },
                     deleteAfter: 5
                 });
+                
+                // Attempt to DM the user as a reminder
+                try {
+                    await message.author.send(
+                        `You attempted to mention the support role in **${message.guild.name}**, but you are currently banned from doing so. If you believe this is an error, please contact the moderators.`
+                    );
+                } catch (err) {
+                    // Ignore if user has DMs blocked
+                }
+
             } catch (err) {
                 console.error("Could not delete blocked ping message:", err);
             }
