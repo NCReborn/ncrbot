@@ -15,7 +15,6 @@ module.exports = {
         if (message.mentions.roles.has(SUPPORT_ROLE_ID)) {
             try {
                 await message.delete();            
-                });
 
                 // Attempt to DM the user as a reminder
                 try {
