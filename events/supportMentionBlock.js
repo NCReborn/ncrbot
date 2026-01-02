@@ -1,12 +1,3 @@
-Copilot said: You’re using **ES module** syntax (`import` /
-You’re using ES module syntax (import / export default) for your event, but your bot runs in CommonJS mode (based on your package.json and working commands).
-
-Because of that, your event is very likely not being loaded at all by your event loader.
-
-Solution: Convert Your Event Handler to CommonJS
-Replace your supportMentionBlock.js contents with:
-
-JavaScript
 const { Events } = require('discord.js');
 
 const SUPPORT_ROLE_ID = '1456751771841204295';
