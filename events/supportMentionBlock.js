@@ -1,9 +1,18 @@
-import { Events } from 'discord.js';
+Copilot said: You’re using **ES module** syntax (`import` /
+You’re using ES module syntax (import / export default) for your event, but your bot runs in CommonJS mode (based on your package.json and working commands).
+
+Because of that, your event is very likely not being loaded at all by your event loader.
+
+Solution: Convert Your Event Handler to CommonJS
+Replace your supportMentionBlock.js contents with:
+
+JavaScript
+const { Events } = require('discord.js');
 
 const SUPPORT_ROLE_ID = '1456751771841204295';
 const PING_BANNED_ROLE_ID = '1456763426159329555';
 
-export default {
+module.exports = {
     name: Events.MessageCreate,
     async execute(message) {
         if (message.author.bot || !message.guild) return;
@@ -17,10 +26,9 @@ export default {
                 await message.delete();
                 await message.channel.send({
                     content: `${message.author}, you are banned from mentioning <@&${SUPPORT_ROLE_ID}>.`,
-                    allowedMentions: { users: [message.author.id] },
-                    deleteAfter: 5
+                    allowedMentions: { users: [message.author.id] }
                 });
-                
+
                 // Attempt to DM the user as a reminder
                 try {
                     await message.author.send(
