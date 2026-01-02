@@ -1,9 +1,9 @@
-import { SlashCommandBuilder } from 'discord.js';
-import { hasModRole } from '../utils/hasModRole.js';
+const { SlashCommandBuilder } = require('discord.js');
+const { hasModRole } = require('../utils/hasModRole.js');
 
 const PING_BANNED_ROLE_ID = '1456763426159329555';
 
-export default {
+module.exports = {
     data: new SlashCommandBuilder()
         .setName('blocksupportmention')
         .setDescription('Ban a user from mentioning the support role by assigning the Ping Banned role.')
