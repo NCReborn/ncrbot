@@ -14,10 +14,7 @@ module.exports = {
         // If the message mentions the support role and sender is ping-banned, delete message
         if (message.mentions.roles.has(SUPPORT_ROLE_ID)) {
             try {
-                await message.delete();
-                await message.channel.send({
-                    content: `${message.author}, you are banned from mentioning <@&${SUPPORT_ROLE_ID}>.`,
-                    allowedMentions: { users: [message.author.id] }
+                await message.delete();            
                 });
 
                 // Attempt to DM the user as a reminder
