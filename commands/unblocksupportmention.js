@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { hasModRole } from '../../utils/hasModRole.js';
+import { hasModRole } from '../utils/hasModRole.js';
 
 const PING_BANNED_ROLE_ID = '1456763426159329555';
 
