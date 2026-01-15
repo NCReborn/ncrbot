@@ -33,7 +33,7 @@ async function sendE33ChangelogMessages(
     const embed2 = new EmbedBuilder()
       .setTitle("Updating collection")
       .setDescription(
-        "If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\n"
+        "If you run into any popups during installation check this thread <#1461441742694781133>\n\n"
       )
       .setColor(16746072);
 
