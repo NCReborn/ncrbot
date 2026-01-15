@@ -24,7 +24,7 @@ async function sendE33ChangelogMessages(
       .setTitle(`Revision ${newRev} - Game Version ${gameVersion}`)
       .setDescription(
         "**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts.\n\n" +
-        "Any issues with updating please refer to <#1400942550076100811> or <#1411463524017770580>\n\n" +
+        "Any issues with updating please refer to <#1461441742694781133>\n\n" +
         "If you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>"
       )
       .setColor(5814783);
