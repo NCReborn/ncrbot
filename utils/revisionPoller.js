@@ -119,11 +119,19 @@ module.exports = {
                 const newMods1 = processModFiles(newData1.modFiles);
                 const diffs1 = computeDiff(oldMods1, newMods1);
 
-                await sendSingleChangelogMessages(
-                  channel,
-                  diffs1,
-                  slug1, prevRev1, newRev1, name.toUpperCase()
-                );
+                if (slug1 === 'jzmqt4') {
+                  await sendE33ChangelogMessages(
+                    channel,
+                    diffs1,
+                    slug1, prevRev1, newRev1, name.toUpperCase()
+                  );
+                } else {
+                  await sendSingleChangelogMessages(
+                    channel,
+                    diffs1,
+                    slug1, prevRev1, newRev1, name.toUpperCase()
+                  );
+                }
                 logger.info(`[AUTO-CHANGELOG] Posted single changelog for ${name} in #${channelId}`);
               }
               // Only collection 2 updated
@@ -134,11 +142,19 @@ module.exports = {
                 const newMods2 = processModFiles(newData2.modFiles);
                 const diffs2 = computeDiff(oldMods2, newMods2);
 
-                await sendSingleChangelogMessages(
-                  channel,
-                  diffs2,
-                  slug2, prevRev2, newRev2, compare.toUpperCase()
-                );
+                if (slug2 === 'jzmqt4') {
+                  await sendE33ChangelogMessages(
+                    channel,
+                    diffs2,
+                    slug2, prevRev2, newRev2, compare.toUpperCase()
+                  );
+                } else {
+                  await sendSingleChangelogMessages(
+                    channel,
+                    diffs2,
+                    slug2, prevRev2, newRev2, compare.toUpperCase()
+                  );
+                }
                 logger.info(`[AUTO-CHANGELOG] Posted single changelog for ${compare} in #${channelId}`);
               }
             } catch (err) {
