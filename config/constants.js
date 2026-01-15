@@ -13,15 +13,12 @@ const COLLECTION_MAPPINGS = {
     'adr lite': 'ezxduq',
     'ncrlite': 'vfy7w1',
     'adrlite': 'ezxduq',
-    'e33': 'jzmqt4',
-    'expedition33': 'jzmqt4'
   },
   names: {
     'rcuccp': 'NCR',
     'srpv39': 'ADR',
     'vfy7w1': 'NCR Lite',
     'ezxduq': 'ADR Lite',
-    'jzmqt4': 'Expedition 33'
   }
 };
 
