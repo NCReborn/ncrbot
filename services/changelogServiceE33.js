@@ -11,9 +11,10 @@ const logger = require('../utils/logger');
  * Expedition 33-specific single changelog posting.
  * Slug: jzmqt4
  * Game version can be overridden if desired; defaults to 1.5.1.
+ * newMods must be passed in for first revision case!
  */
 async function sendE33ChangelogMessages(
-  channel, diffs, slug, oldRev, newRev, collectionName, gameVersion = "1.5.1"
+  channel, diffs, slug, oldRev, newRev, collectionName, gameVersion = "1.5.1", newMods = []
 ) {
   logger.info(`[E33 CHANGELOG] sendE33ChangelogMessages called for ${collectionName} (${slug} ${oldRev}→${newRev})`);
   logger.debug(`[E33 CHANGELOG] diffs: ${JSON.stringify(diffs)}`);
@@ -46,8 +47,16 @@ async function sendE33ChangelogMessages(
 
     await channel.send({ embeds: [collectionHeader] });
 
+    // --------- Special handling for FIRST revision ---------
+    const isFirstRevision = !oldRev || oldRev === 0 || String(oldRev) === '1';
+    let addedMods = [];
+    if (isFirstRevision) {
+      addedMods = Array.isArray(newMods) ? newMods : [];
+    } else {
+      addedMods = Array.isArray(diffs.added) ? diffs.added : [];
+    }
+
     // Added Mods section
-    const addedMods = Array.isArray(diffs.added) ? diffs.added : [];
     if (addedMods.length > 0) {
       const sortedAdded = sortModsAlphabetically([...addedMods]);
       let addedList = sortedAdded.map(mod => {
@@ -70,7 +79,7 @@ async function sendE33ChangelogMessages(
     }
 
     // Updated Mods section
-    const updatedMods = Array.isArray(diffs.updated) ? diffs.updated : [];
+    let updatedMods = (!isFirstRevision && Array.isArray(diffs.updated)) ? diffs.updated : [];
     if (updatedMods.length > 0) {
       const sortedUpdated = sortUpdatedModsAlphabetically([...updatedMods]);
       let updatedList = sortedUpdated.map(update => {
@@ -93,7 +102,7 @@ async function sendE33ChangelogMessages(
     }
 
     // Removed Mods section
-    const removedMods = Array.isArray(diffs.removed) ? diffs.removed : [];
+    let removedMods = (!isFirstRevision && Array.isArray(diffs.removed)) ? diffs.removed : [];
     if (removedMods.length > 0) {
       const sortedRemoved = sortModsAlphabetically([...removedMods]);
       let removedList = sortedRemoved.map(mod => {
