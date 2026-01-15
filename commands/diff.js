@@ -4,7 +4,7 @@ const {
   computeDiff, findExclusiveChanges, processModFiles
 } = require('../utils/nexusApi');
 const { sendCombinedChangelogMessages, sendSingleChangelogMessages } = require('../services/changelogService');
-const { sendE33ChangelogMessages } = require('../services/changelogServiceE33'); // <-- Import the E33 handler!
+const { sendE33ChangelogMessages } = require('../services/changelogServiceE33');
 const logger = require('../utils/logger');
 const { checkAndSetRateLimit } = require('../utils/rateLimiter');
 const { errorEmbed } = require('../utils/discordUtils');
@@ -13,7 +13,7 @@ const USER_COOLDOWN = 30 * 1000;   // 30 seconds
 const GLOBAL_COOLDOWN = 30 * 1000;   // 30 seconds
 
 module.exports = {
-   data: new SlashCommandBuilder()
+  data: new SlashCommandBuilder()
     .setName('diff')
     .setDescription('Show mod differences between collection revisions (Admin only)')
     .addStringOption(option =>
@@ -78,9 +78,19 @@ module.exports = {
         const newMods = processModFiles(newData.modFiles);
         const diffs = computeDiff(oldMods, newMods);
 
+        const isFirstRevision = !old1 || old1 === 0 || String(old1) === '1';
+
         // Use the E33 handler for Expedition 33, otherwise regular
         if (slug === 'jzmqt4') {
-          await sendE33ChangelogMessages(interaction.channel, diffs, slug, old1, new1, collectionName);
+          if (isFirstRevision) {
+            await sendE33ChangelogMessages(
+              interaction.channel, diffs, slug, old1, new1, collectionName, "1.5.1", newMods
+            );
+          } else {
+            await sendE33ChangelogMessages(
+              interaction.channel, diffs, slug, old1, new1, collectionName
+            );
+          }
         } else {
           await sendSingleChangelogMessages(interaction.channel, diffs, slug, old1, new1, collectionName);
         }
