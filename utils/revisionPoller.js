@@ -2,7 +2,7 @@ const logger = require('./logger');
 const { getCollectionRevision, setCollectionRevision, loadState } = require('./revisionState');
 const { getCollectionSlug, fetchRevision, processModFiles, computeDiff, findExclusiveChanges } = require('./nexusApi');
 const { sendCombinedChangelogMessages, sendSingleChangelogMessages } = require('../services/changelogService');
-
+const { sendE33ChangelogMessages } = require('../services/changelogServiceE33');
 const COLLECTIONS = [
   { name: 'ncr', compare: 'adr', channelId: '1285797113879334962' },
   { name: 'ncrlite', compare: 'adrlite', channelId: '1387411802035585086' },
