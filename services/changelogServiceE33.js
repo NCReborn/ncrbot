@@ -25,7 +25,7 @@ async function sendE33ChangelogMessages(
       .setDescription(
         "**⚠️ Important** - Don't forget to install new revisions to a separate profile, and remove old mods to prevent conflicts.\n\n" +
         "Any issues with updating please refer to <#1400942550076100811> or <#1411463524017770580>\n\n" +
-        "If you need further help ping @Ripperdoc or @Techie"
+        "If you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>"
       )
       .setColor(5814783);
 
@@ -33,8 +33,7 @@ async function sendE33ChangelogMessages(
     const embed2 = new EmbedBuilder()
       .setTitle("Updating collection")
       .setDescription(
-        "If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\n" +
-        "If you run into fallback messages just select \"Yes, install to staging anyway\""
+        "If you run into any popups during installation check these threads <#1400942550076100811> or <#1411463524017770580>\n\n"
       )
       .setColor(16746072);
 
