@@ -48,7 +48,8 @@ async function sendE33ChangelogMessages(
     await channel.send({ embeds: [collectionHeader] });
 
     // --------- Special handling for FIRST revision ---------
-    const isFirstRevision = !oldRev || oldRev === 0 || String(oldRev) === '1';
+    // FIX: Only true first revision (undefined/null/0) triggers the shortcut!
+    const isFirstRevision = oldRev == null || oldRev === 0;
     let addedMods = [];
     if (isFirstRevision) {
       addedMods = Array.isArray(newMods) ? newMods : [];
