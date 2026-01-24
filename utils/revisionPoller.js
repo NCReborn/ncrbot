@@ -6,7 +6,7 @@ const { sendE33ChangelogMessages } = require('../services/changelogServiceE33');
 const COLLECTIONS = [
   { name: 'ncr', compare: 'adr', channelId: '1285797113879334962' },
   { name: 'ncrlite', compare: 'adrlite', channelId: '1387411802035585086' },
-  //{ name: 'expedition33', compare: '', channelId: '1461274886281629902' } // Added Expedition 33
+  { name: 'expedition33', compare: '', channelId: '1461274886281629902' } // Added Expedition 33
 ];
 
 module.exports = {
