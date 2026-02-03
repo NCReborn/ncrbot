@@ -1,28 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
+const mediaChannelService = require('../services/MediaChannelService');
 const logger = require('../utils/logger');
-
-const configPath = path.join(__dirname, '../config/imageOnlyConfig.json');
-
-function loadConfig() {
-  try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } catch (error) {
-    logger.error('[MEDIA_CHANNELS] Failed to load config:', error);
-    return { imageOnlyChannels: [], fileOnlyChannels: [] };
-  }
-}
-
-function saveConfig(config) {
-  try {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-    logger.info('[MEDIA_CHANNELS] Config saved');
-  } catch (error) {
-    logger.error('[MEDIA_CHANNELS] Failed to save config:', error);
-    throw error;
-  }
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -49,20 +27,18 @@ module.exports = {
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
-    const config = loadConfig();
 
     if (sub === 'add-image') {
       const channel = interaction.options.getChannel('channel');
       
-      if (config.imageOnlyChannels.includes(channel.id)) {
+      const result = mediaChannelService.addImageOnlyChannel(channel.id);
+      
+      if (!result.success) {
         return interaction.reply({ 
           content: `⚠️ <#${channel.id}> is already image-only.`, 
           ephemeral: true 
         });
       }
-      
-      config.imageOnlyChannels.push(channel.id);
-      saveConfig(config);
       
       logger.info(`[MEDIA_CHANNELS] Added image-only channel: ${channel.id} by ${interaction.user.tag}`);
       
@@ -75,15 +51,14 @@ module.exports = {
     if (sub === 'remove-image') {
       const channel = interaction.options.getChannel('channel');
       
-      if (!config.imageOnlyChannels.includes(channel.id)) {
+      const result = mediaChannelService.removeImageOnlyChannel(channel.id);
+      
+      if (!result.success) {
         return interaction.reply({ 
           content: `⚠️ <#${channel.id}> is not in the image-only list.`, 
           ephemeral: true 
         });
       }
-      
-      config.imageOnlyChannels = config.imageOnlyChannels.filter(id => id !== channel.id);
-      saveConfig(config);
       
       logger.info(`[MEDIA_CHANNELS] Removed image-only channel: ${channel.id} by ${interaction.user.tag}`);
       
@@ -94,16 +69,19 @@ module.exports = {
     }
 
     if (sub === 'list') {
-      const imageChannels = config.imageOnlyChannels?.length > 0
-        ? config.imageOnlyChannels.map(id => `<#${id}>`).join('\n')
+      const imageChannels = mediaChannelService.getImageOnlyChannels();
+      const fileChannels = mediaChannelService.getFileOnlyChannels();
+      
+      const imageList = imageChannels.length > 0
+        ? imageChannels.map(id => `<#${id}>`).join('\n')
         : '_None configured_';
         
-      const fileChannels = config.fileOnlyChannels?.length > 0
-        ? config.fileOnlyChannels.map(id => `<#${id}>`).join('\n')
+      const fileList = fileChannels.length > 0
+        ? fileChannels.map(id => `<#${id}>`).join('\n')
         : '_None configured_';
       
       return interaction.reply({
-        content: `**Image-only channels:**\n${imageChannels}\n\n**File-only channels:**\n${fileChannels}`,
+        content: `**Image-only channels:**\n${imageList}\n\n**File-only channels:**\n${fileList}`,
         ephemeral: true
       });
     }
