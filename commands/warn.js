@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const moderationService = require('../services/ModerationService');
 const logger = require('../utils/logger');
 
@@ -29,7 +29,7 @@ module.exports = {
     if (user.bot) {
       await interaction.reply({
         content: '❌ You cannot warn bots.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -85,7 +85,7 @@ module.exports = {
       logger.error('[WARN] Error executing warn command:', error);
       await interaction.reply({
         content: '❌ An error occurred while warning the user.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
