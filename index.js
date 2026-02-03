@@ -12,7 +12,7 @@ process.on('uncaughtException', (err) => {
   try { logger.error('Uncaught Exception:', err && err.stack ? err.stack : err); } catch(e) {}
   process.exit(1);
 });
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   console.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason);
   try { logger.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason); } catch(e) {}
 });
@@ -38,8 +38,6 @@ if (process.env.AUTO_SYNC_COMMANDS === 'true') {
     });
 }
 
-const BOT_TOKEN = process.env.DISCORD_TOKEN;
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -61,6 +59,9 @@ const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 let runtimeRegistrationFailed = false;
+let loadedCount = 0;
+let failedCount = 0;
+
 for (const file of commandFiles) {
   try {
     const command = require(`./commands/${file}`);
@@ -69,30 +70,38 @@ for (const file of commandFiles) {
         if (subcommand.data && typeof subcommand.execute === 'function') {
           client.commands.set(subcommand.data.name, subcommand);
           logger.info(`Loaded subcommand: ${subcommand.data.name}`);
+          loadedCount++;
         } else {
           logger.error(`Subcommand in ${file} is missing .data or .execute`);
           runtimeRegistrationFailed = true;
+          failedCount++;
         }
       }
     } else if (command.data && typeof command.execute === 'function') {
       client.commands.set(command.data.name, command);
       logger.info(`Loaded command: ${command.data.name}`);
+      loadedCount++;
     } else {
       logger.error(`Command file ${file} does not export a valid command with .data and .execute`);
       runtimeRegistrationFailed = true;
+      failedCount++;
     }
   } catch (err) {
     logger.error(`Failed to load command ${file}: ${err.message}`);
     runtimeRegistrationFailed = true;
+    failedCount++;
   }
 }
+
+logger.info(`✨ Commands loaded: ${loadedCount} successful, ${failedCount} failed`);
+
 if (runtimeRegistrationFailed) {
   logger.error('Aborting bot startup due to invalid/malformed commands. Check above logs for details.');
   logger.error('Command files found: ' + commandFiles.join(', '));
   process.exit(1);
 }
 
-// --- LOAD EVENTS FROM events/ DIRECTORY ---
+// Load events from events/ directory
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
@@ -105,16 +114,9 @@ for (const file of eventFiles) {
   }
 }
 
-// --- CLEAR DUPLICATE SLASH COMMANDS ONCE (REMOVE OR COMMENT AFTER RUNNING ONCE) ---
-// Uncomment next lines to clear all global and guild commands.
-// const clearCommands = require('./utils/clearCommands');
-// client.once('clientReady', async () => {
-//   logger.info(`Ready! Logged in as ${client.user.tag}`);
-//   await clearCommands(client);
-//   logger.info('All global and guild commands cleared. Remove or comment this after running once.');
-// });
+logger.info(`✨ Events loaded successfully`);
 
-// --- Bot Control Panel: Repost control panel on startup if saved ---
+// Bot Control Panel: Repost control panel on startup if saved
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
 
@@ -149,11 +151,4 @@ client.once('clientReady', async () => {
   }
 });
 
-// --- Snapsmith Manager: Start periodic scan ---
-const { startPeriodicScan } = require('./utils/snapsmithManager');
-startPeriodicScan(client); //<-- UNCOMMENT THIS AFTER MANUAL TESTS
-
-// --- DO NOT HANDLE SLASH COMMANDS HERE ---
-// All slash command handling is now in events/interactionCreate.js
-
-client.login(BOT_TOKEN);
+client.login(process.env.DISCORD_TOKEN);

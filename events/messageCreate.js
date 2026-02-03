@@ -2,20 +2,18 @@ const logger = require('../utils/logger');
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 const { loadResponses } = require('../utils/autoResponder');
 const botcontrol = require('../commands/botcontrol.js');
-
-const MOD_ROLE_IDS = [
-  '1370874936456908931', // existing mod role
-  '1288633895910375464' // add your ripperdoc role ID here
-];
+const { PermissionChecker } = require('../utils/permissions');
+const CONSTANTS = require('../config/constants');
+const spamDetector = require('../services/spam/SpamDetector');
+const spamActionHandler = require('../services/spam/SpamActionHandler');
 
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
     if (botcontrol.botStatus.muted) return;
 
-    const CRASH_LOG_CHANNEL_ID = process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785';
     if (
-      message.channelId === CRASH_LOG_CHANNEL_ID &&
+      message.channelId === CONSTANTS.CHANNELS.CRASH_LOG &&
       !message.author.bot &&
       message.attachments.size > 0
     ) {
@@ -50,7 +48,7 @@ module.exports = {
 
     try {
       if (message.author.bot) return;
-      if (!MOD_ROLE_IDS.some(id => message.member?.roles.cache.has(id))) return;
+      if (!PermissionChecker.hasModRole(message.member)) return;
 
       const responses = loadResponses();
       for (const entry of responses) {
@@ -68,6 +66,19 @@ module.exports = {
       }
     } catch (err) {
       logger.error(`[MESSAGE_CREATE][AUTORESPONDER] Uncaught error: ${err.stack || err}`);
+    }
+
+    // Anti-spam detection
+    try {
+      if (message.author.bot || !message.guild) return;
+      
+      const detectionResult = await spamDetector.detectSpam(message, message.member);
+      
+      if (detectionResult?.detected) {
+        await spamActionHandler.handleSpamDetection(client, message, message.member, detectionResult);
+      }
+    } catch (err) {
+      logger.error('[SPAM] Error:', err);
     }
   }
 };
