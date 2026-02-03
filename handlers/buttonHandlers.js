@@ -1,7 +1,6 @@
 const logger = require('../utils/logger');
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const botcontrol = require('../commands/botcontrol');
-const reloadModule = require('../commands/reload');
 
 class ButtonHandlers {
   async handle(interaction, client) {
@@ -14,7 +13,7 @@ class ButtonHandlers {
 
   async handleBotControl(interaction, client) {
     const { customId: id } = interaction;
-    const adminOnly = ['restart', 'stop'];
+    const adminOnly = ['restart', 'stop', 'reload']; // Add reload to admin-only
     const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
 
     if (adminOnly.includes(id) && !isAdmin) {
@@ -25,19 +24,16 @@ class ButtonHandlers {
       return;
     }
 
+    // Handle reload - inline without requiring separate module
     if (id === 'reload') {
-      await interaction.deferReply({ ephemeral: true });
-      try {
-        await reloadModule.reloadCommands(client, logger);
-        await interaction.editReply({ content: 'Bot commands reloaded!' });
-        logger.info(`[RELOAD] Commands reloaded by ${interaction.user.tag}`);
-      } catch (error) {
-        logger.error('[RELOAD] Failed:', error);
-        await interaction.editReply({ content: 'Reload failed.' });
-      }
+      await interaction.reply({ 
+        content: '⚠️ Reload functionality is currently disabled. Please restart the bot instead.', 
+        ephemeral: true 
+      });
       return;
     }
 
+    // Handle other controls
     let resultMsg = '';
     let needsPanelUpdate = false;
 
