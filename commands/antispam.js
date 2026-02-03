@@ -7,8 +7,8 @@ const logger = require('../utils/logger');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('antispam')
-    .setDescription('Manage the anti-spam system')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDescription('Configure anti-spam settings (Moderator+)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addSubcommand(subcommand =>
       subcommand
         .setName('status')
