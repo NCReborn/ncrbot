@@ -12,7 +12,7 @@ process.on('uncaughtException', (err) => {
   try { logger.error('Uncaught Exception:', err && err.stack ? err.stack : err); } catch(e) {}
   process.exit(1);
 });
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   console.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason);
   try { logger.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason); } catch(e) {}
 });
@@ -37,8 +37,6 @@ if (process.env.AUTO_SYNC_COMMANDS === 'true') {
       process.exit(1);
     });
 }
-
-const BOT_TOKEN = process.env.DISCORD_TOKEN;
 
 const client = new Client({
   intents: [
@@ -103,7 +101,7 @@ if (runtimeRegistrationFailed) {
   process.exit(1);
 }
 
-// --- LOAD EVENTS FROM events/ DIRECTORY ---
+// Load events from events/ directory
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
@@ -118,16 +116,7 @@ for (const file of eventFiles) {
 
 logger.info(`✨ Events loaded successfully`);
 
-// --- CLEAR DUPLICATE SLASH COMMANDS ONCE (REMOVE OR COMMENT AFTER RUNNING ONCE) ---
-// Uncomment next lines to clear all global and guild commands.
-// const clearCommands = require('./utils/clearCommands');
-// client.once('clientReady', async () => {
-//   logger.info(`Ready! Logged in as ${client.user.tag}`);
-//   await clearCommands(client);
-//   logger.info('All global and guild commands cleared. Remove or comment this after running once.');
-// });
-
-// --- Bot Control Panel: Repost control panel on startup if saved ---
+// Bot Control Panel: Repost control panel on startup if saved
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
 
@@ -162,9 +151,4 @@ client.once('clientReady', async () => {
   }
 });
 
-// --- Removed Snapsmith logic for now ---
-
-// --- DO NOT HANDLE SLASH COMMANDS HERE ---
-// All slash command handling is now in events/interactionCreate.js
-
-client.login(BOT_TOKEN);
+client.login(process.env.DISCORD_TOKEN);
