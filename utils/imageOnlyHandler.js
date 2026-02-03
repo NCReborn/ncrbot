@@ -1,4 +1,5 @@
 const mediaChannelService = require('../services/MediaChannelService');
+const logger = require('./logger');
 
 module.exports = (client) => {
   client.on('messageCreate', async (message) => {
@@ -24,7 +25,7 @@ module.exports = (client) => {
           });
           setTimeout(() => reply.delete().catch(() => {}), 5000);
         } catch (e) {
-          console.error('Failed to delete message:', e);
+          logger.error('[IMAGE_ONLY] Failed to delete message:', e);
         }
       }
       return;
@@ -41,7 +42,7 @@ module.exports = (client) => {
           });
           setTimeout(() => reply.delete().catch(() => {}), 5000);
         } catch (e) {
-          console.error('Failed to delete message:', e);
+          logger.error('[FILE_ONLY] Failed to delete message:', e);
         }
       }
       return;
