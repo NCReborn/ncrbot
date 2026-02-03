@@ -246,8 +246,34 @@ class AuditLogger {
     const embed = this.createBaseEmbed('messageDelete', message.author, message.guild);
     if (!embed) return;
 
+    // Fetch who deleted the message from audit logs
+    let deletedBy = 'Unknown';
+    try {
+      const auditLogs = await message.guild.fetchAuditLogs({
+        type: 72, // MESSAGE_DELETE
+        limit: 5
+      });
+      
+      const deleteLog = auditLogs.entries.find(entry => 
+        entry.target?.id === message.author.id &&
+        entry.createdTimestamp > Date.now() - 5000 &&
+        entry.extra?.channel?.id === message.channelId
+      );
+      
+      if (deleteLog) {
+        deletedBy = `${deleteLog.executor.tag} (${deleteLog.executor.id})`;
+      } else {
+        // If no audit log entry found, likely self-deleted
+        deletedBy = 'User (self-deleted)';
+      }
+    } catch (error) {
+      deletedBy = 'Unknown (bot needs View Audit Log permission)';
+      logger.error('Failed to fetch audit logs for message deletion:', error);
+    }
+
     embed.addFields([
-      { name: 'User', value: `${message.author.tag} (${message.author.id})`, inline: true },
+      { name: 'Message Author', value: `${message.author.tag} (${message.author.id})`, inline: true },
+      { name: 'Deleted By', value: deletedBy, inline: true },
       { name: 'Channel', value: `${message.channel.toString()} (#${message.channel.name})`, inline: true },
       { name: 'Message ID', value: message.id, inline: true }
     ]);

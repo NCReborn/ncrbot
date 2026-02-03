@@ -4,6 +4,8 @@ const { loadResponses } = require('../utils/autoResponder');
 const botcontrol = require('../commands/botcontrol.js');
 const { PermissionChecker } = require('../utils/permissions');
 const CONSTANTS = require('../config/constants');
+const spamDetector = require('../services/spam/SpamDetector');
+const spamActionHandler = require('../services/spam/SpamActionHandler');
 
 module.exports = {
   name: 'messageCreate',
@@ -64,6 +66,19 @@ module.exports = {
       }
     } catch (err) {
       logger.error(`[MESSAGE_CREATE][AUTORESPONDER] Uncaught error: ${err.stack || err}`);
+    }
+
+    // Anti-spam detection
+    try {
+      if (message.author.bot || !message.guild) return;
+      
+      const detectionResult = await spamDetector.detectSpam(message, message.member);
+      
+      if (detectionResult?.detected) {
+        await spamActionHandler.handleSpamDetection(client, message, message.member, detectionResult);
+      }
+    } catch (err) {
+      logger.error('[SPAM] Error:', err);
     }
   }
 };
