@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { loadResponses, upsertResponse, deleteResponse } = require('../utils/autoResponder');
 const { PermissionChecker } = require('../utils/permissions');
+const logger = require('../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -32,38 +33,38 @@ module.exports = {
             .setRequired(true))
     ),
   async execute(interaction) {
-    console.log(`[autoresponder] Command invoked by ${interaction.user.tag} (${interaction.user.id})`);
+    logger.info(`[AUTORESPONDER] Command invoked by ${interaction.user.tag} (${interaction.user.id})`);
     try {
       // Permission check
       const memberRoles = interaction.member?.roles?.cache;
       if (!memberRoles) {
-        console.error('[autoresponder] No member roles found on interaction:', interaction.member);
+        logger.error('[AUTORESPONDER] No member roles found on interaction:', interaction.member);
         await interaction.reply({ content: 'Internal error: Cannot read member roles.', ephemeral: true });
         return;
       }
       const hasModRole = PermissionChecker.hasModRole(interaction.member);
-      console.log(`[autoresponder] User roles: ${Array.from(memberRoles.keys()).join(', ')} | Has mod role: ${hasModRole}`);
+      logger.info(`[AUTORESPONDER] User roles: ${Array.from(memberRoles.keys()).join(', ')} | Has mod role: ${hasModRole}`);
       if (!hasModRole) {
         await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
         return;
       }
 
       const sub = interaction.options.getSubcommand();
-      console.log(`[autoresponder] Subcommand: ${sub}`);
+      logger.info(`[AUTORESPONDER] Subcommand: ${sub}`);
 
       // List responses
       if (sub === 'list') {
         let responses;
         try {
           responses = loadResponses();
-          console.log(`[autoresponder] Loaded responses:`, responses);
+          logger.info('[AUTORESPONDER] Loaded responses:', responses);
         } catch (err) {
-          console.error('[autoresponder] Error loading responses:', err);
+          logger.error('[AUTORESPONDER] Error loading responses:', err);
           await interaction.reply({ content: 'Failed to load auto-responses.', ephemeral: true });
           return;
         }
         if (!Array.isArray(responses)) {
-          console.error('[autoresponder] Responses data is not an array:', responses);
+          logger.error('[AUTORESPONDER] Responses data is not an array:', responses);
           await interaction.reply({ content: 'Internal error: Responses data is not an array.', ephemeral: true });
           return;
         }
@@ -84,7 +85,7 @@ module.exports = {
             }
           }
           if (chunk) chunks.push(chunk);
-          console.log(`[autoresponder] Prepared ${chunks.length} chunks for reply`);
+          logger.info(`[AUTORESPONDER] Prepared ${chunks.length} chunks for reply`);
           await interaction.reply({ content: chunks[0], ephemeral: true });
           for (let i = 1; i < chunks.length; ++i) {
             await interaction.followUp({ content: chunks[i], ephemeral: true });
@@ -95,7 +96,7 @@ module.exports = {
 
       // Add response - show modal
       if (sub === 'add') {
-        console.log('[autoresponder] Showing add modal');
+        logger.info('[AUTORESPONDER] Showing add modal');
         const modal = new ModalBuilder()
           .setCustomId('autoresponder_add')
           .setTitle('Add Auto-Response');
@@ -133,17 +134,17 @@ module.exports = {
       // Edit response - show modal with prefilled values
       if (sub === 'edit') {
         const trigger = interaction.options.getString('trigger');
-        console.log(`[autoresponder] Edit requested for trigger: ${trigger}`);
+        logger.info(`[AUTORESPONDER] Edit requested for trigger: ${trigger}`);
         let entry;
         try {
           entry = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
         } catch (err) {
-          console.error('[autoresponder] Error loading responses for edit:', err);
+          logger.error('[AUTORESPONDER] Error loading responses for edit:', err);
           await interaction.reply({ content: 'Failed to load auto-responses.', ephemeral: true });
           return;
         }
         if (!entry) {
-          console.log(`[autoresponder] No entry found for trigger: ${trigger}`);
+          logger.info(`[AUTORESPONDER] No entry found for trigger: ${trigger}`);
           await interaction.reply({ content: `No auto-response found for trigger: \`${trigger}\``, ephemeral: true });
           return;
         }
@@ -188,25 +189,25 @@ module.exports = {
       // Delete response
       if (sub === 'delete') {
         const trigger = interaction.options.getString('trigger');
-        console.log(`[autoresponder] Delete requested for trigger: ${trigger}`);
+        logger.info(`[AUTORESPONDER] Delete requested for trigger: ${trigger}`);
         let entry;
         try {
           entry = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
         } catch (err) {
-          console.error('[autoresponder] Error loading responses for delete:', err);
+          logger.error('[AUTORESPONDER] Error loading responses for delete:', err);
           await interaction.reply({ content: 'Failed to load auto-responses.', ephemeral: true });
           return;
         }
         if (!entry) {
-          console.log(`[autoresponder] No entry found for delete trigger: ${trigger}`);
+          logger.info(`[AUTORESPONDER] No entry found for delete trigger: ${trigger}`);
           await interaction.reply({ content: `No auto-response found for trigger: \`${trigger}\``, ephemeral: true });
           return;
         }
         try {
           deleteResponse(trigger);
-          console.log(`[autoresponder] Deleted response for trigger: ${trigger}`);
+          logger.info(`[AUTORESPONDER] Deleted response for trigger: ${trigger}`);
         } catch (err) {
-          console.error('[autoresponder] Error deleting response:', err);
+          logger.error('[AUTORESPONDER] Error deleting response:', err);
           await interaction.reply({ content: `Failed to delete auto-response for trigger: \`${trigger}\``, ephemeral: true });
           return;
         }
@@ -215,10 +216,10 @@ module.exports = {
       }
 
       // Fallback if unknown subcommand
-      console.warn(`[autoresponder] Unknown subcommand: ${sub}`);
+      logger.warn(`[AUTORESPONDER] Unknown subcommand: ${sub}`);
       await interaction.reply({ content: 'Unknown subcommand.', ephemeral: true });
     } catch (err) {
-      console.error('[autoresponder] Uncaught error:', err);
+      logger.error('[AUTORESPONDER] Uncaught error:', err);
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
       }

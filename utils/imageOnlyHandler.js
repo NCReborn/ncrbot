@@ -1,4 +1,5 @@
-const config = require('../config/imageOnlyConfig.json');
+const mediaChannelService = require('../services/MediaChannelService');
+const logger = require('./logger');
 
 module.exports = (client) => {
   client.on('messageCreate', async (message) => {
@@ -13,7 +14,7 @@ module.exports = (client) => {
     if (isAdmin) return;
 
     // IMAGE-ONLY CHANNELS
-    if (config.imageOnlyChannels.includes(message.channel.id)) {
+    if (mediaChannelService.isImageOnlyChannel(message.channel.id)) {
       const hasImage = message.attachments.some(att => att.contentType && att.contentType.startsWith('image/'));
       const hasLink = /(https?:\/\/[^\s]+)/i.test(message.content);
       if (!hasImage && !hasLink) {
@@ -24,14 +25,14 @@ module.exports = (client) => {
           });
           setTimeout(() => reply.delete().catch(() => {}), 5000);
         } catch (e) {
-          console.error('Failed to delete message:', e);
+          logger.error('[IMAGE_ONLY] Failed to delete message:', e);
         }
       }
       return;
     }
 
     // FILE-ONLY CHANNELS
-    if (config.fileOnlyChannels.includes(message.channel.id)) {
+    if (mediaChannelService.isFileOnlyChannel(message.channel.id)) {
       const hasFile = message.attachments.size > 0;
       if (!hasFile) {
         try {
@@ -41,7 +42,7 @@ module.exports = (client) => {
           });
           setTimeout(() => reply.delete().catch(() => {}), 5000);
         } catch (e) {
-          console.error('Failed to delete message:', e);
+          logger.error('[FILE_ONLY] Failed to delete message:', e);
         }
       }
       return;
