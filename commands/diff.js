@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const {
   fetchRevision, getCollectionSlug, getCollectionName,
   computeDiff, findExclusiveChanges, processModFiles
@@ -27,7 +27,7 @@ module.exports = {
     .addIntegerOption(option =>
       option.setName('newrev2').setDescription('New revision number for collection 2 (optional)').setRequired(false)),
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const username = `${interaction.user.tag} (${interaction.user.id})`;
 
