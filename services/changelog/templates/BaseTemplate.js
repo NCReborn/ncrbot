@@ -26,9 +26,9 @@ class BaseTemplate {
       header: 5814783,
       warning: 16746072,
       changes: 1146986,
-      added: 0x00FF00,
-      removed: 0xFF0000,
-      updated: 0xFFAA00
+      added: 5763719,
+      removed: 15548997,
+      updated: 16776960
     };
     return colors[type] || colors.header;
   }
