@@ -1,7 +1,10 @@
 const { EmbedBuilder } = require('discord.js');
+const { AuditLogEvent } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
+
+const AUDIT_LOG_TIME_WINDOW_MS = 5000; // 5 seconds
 
 class AuditLogger {
   constructor() {
@@ -250,13 +253,13 @@ class AuditLogger {
     let deletedBy = 'Unknown';
     try {
       const auditLogs = await message.guild.fetchAuditLogs({
-        type: 72, // MESSAGE_DELETE
+        type: AuditLogEvent.MessageDelete,
         limit: 5
       });
       
       const deleteLog = auditLogs.entries.find(entry => 
         entry.target?.id === message.author.id &&
-        entry.createdTimestamp > Date.now() - 5000 &&
+        entry.createdTimestamp > Date.now() - AUDIT_LOG_TIME_WINDOW_MS &&
         entry.extra?.channel?.id === message.channelId
       );
       
@@ -272,7 +275,7 @@ class AuditLogger {
     }
 
     embed.addFields([
-      { name: 'Message Author', value: `${message.author.tag} (${message.author.id})`, inline: true },
+      { name: 'Author', value: `${message.author.tag} (${message.author.id})`, inline: true },
       { name: 'Deleted By', value: deletedBy, inline: true },
       { name: 'Channel', value: `${message.channel.toString()} (#${message.channel.name})`, inline: true },
       { name: 'Message ID', value: message.id, inline: true }

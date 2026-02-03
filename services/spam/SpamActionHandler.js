@@ -3,6 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
 
+const CONTENT_PREVIEW_LENGTH = 100;
+const MAX_DETECTION_HISTORY = 100;
+
 class SpamActionHandler {
   constructor() {
     this.configPath = path.join(__dirname, '../../config/spamConfig.json');
@@ -97,7 +100,7 @@ class SpamActionHandler {
               deletedMessages.push({
                 id: msg.id,
                 channelId: msg.channelId,
-                content: msg.content.substring(0, 100)
+                content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH)
               });
             } catch (err) {
               logger.error(`[SPAM] Failed to delete message ${msg.id}:`, err);
@@ -196,10 +199,11 @@ class SpamActionHandler {
       // Actions taken
       const channelCount = new Set(deletedMessages.map(m => m.channelId)).size;
       const timeoutTimestamp = Math.floor(timeoutUntil.getTime() / 1000);
+      const timeoutHours = this.config.defaultTimeoutSeconds / 3600;
       
       const actionsText = [
         `✅ Deleted ${deletedMessages.length} messages across ${channelCount} channel(s)`,
-        `✅ Timed out for 12 hours`,
+        `✅ Timed out for ${timeoutHours} hours`,
         `✅ Timeout expires <t:${timeoutTimestamp}:R>`
       ].join('\n');
 
@@ -250,9 +254,9 @@ class SpamActionHandler {
       evidenceCount: detectionResult.evidence.length
     });
 
-    // Keep only last 100 detections
-    if (this.stats.detections.length > 100) {
-      this.stats.detections = this.stats.detections.slice(-100);
+    // Keep only last MAX_DETECTION_HISTORY detections
+    if (this.stats.detections.length > MAX_DETECTION_HISTORY) {
+      this.stats.detections = this.stats.detections.slice(-MAX_DETECTION_HISTORY);
     }
 
     this.saveStats();

@@ -3,6 +3,8 @@ const path = require('path');
 const logger = require('../../utils/logger');
 const CONSTANTS = require('../../config/constants');
 
+const CONTENT_PREVIEW_LENGTH = 100;
+
 class SpamDetector {
   constructor() {
     this.configPath = path.join(__dirname, '../../config/spamConfig.json');
@@ -112,7 +114,7 @@ class SpamDetector {
   isNewAccount(member) {
     const accountAge = Date.now() - member.user.createdTimestamp;
     const daysOld = accountAge / (1000 * 60 * 60 * 24);
-    return daysOld < this.config.rules.newAccountMonitoring?.accountAgeDays || 7;
+    return daysOld < (this.config.rules.newAccountMonitoring?.accountAgeDays || 7);
   }
 
   async detectSpam(message, member) {
@@ -159,7 +161,7 @@ class SpamDetector {
           evidence.push({
             messageId: msg.id,
             channelId: msg.channelId,
-            content: msg.content.substring(0, 100)
+            content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH)
           });
         });
       }
@@ -228,7 +230,7 @@ class SpamDetector {
           evidence.push({
             messageId: message.id,
             channelId: message.channelId,
-            content: message.content.substring(0, 100)
+            content: message.content.substring(0, CONTENT_PREVIEW_LENGTH)
           });
           break;
         }
@@ -276,7 +278,7 @@ class SpamDetector {
       .map(msg => ({
         messageId: msg.id,
         channelId: msg.channelId,
-        content: msg.content.substring(0, 100)
+        content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH)
       }));
   }
 

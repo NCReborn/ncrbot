@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const logger = require('../utils/logger');
 
+const MAX_SLOWMODE_SECONDS = 21600; // 6 hours
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('slowmode')
@@ -12,7 +14,7 @@ module.exports = {
         .setDescription('Slowmode delay in seconds (0 to disable, max 21600)')
         .setRequired(true)
         .setMinValue(0)
-        .setMaxValue(21600)
+        .setMaxValue(MAX_SLOWMODE_SECONDS)
     ),
 
   async execute(interaction) {
