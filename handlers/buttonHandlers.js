@@ -1,6 +1,7 @@
 const logger = require('../utils/logger');
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const botcontrol = require('../commands/botcontrol');
+const spamActionHandler = require('../services/spam/SpamActionHandler');
 
 class ButtonHandlers {
   async handle(interaction, client) {
@@ -8,6 +9,8 @@ class ButtonHandlers {
 
     if (['reload', 'mute', 'unmute', 'restart', 'stop'].includes(customId)) {
       await this.handleBotControl(interaction, client);
+    } else if (customId.startsWith('spam_')) {
+      await spamActionHandler.handleModAction(interaction);
     }
   }
 

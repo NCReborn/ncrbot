@@ -22,11 +22,17 @@ module.exports = {
 • /setversion – Update the bot version and changelog (Admin only)
 • /convertembed – Fetches embeds from one or more messages and converts them to Nexus-ready Markdown
 • /mediachannels – Manage media-only channel enforcement (add, remove, list)
-* /removecommand - Remove a mod command from the database 
+• /removecommand - Remove a mod command from the database
+• /antispam – Manage anti-spam system (status, toggle, whitelist)
+• /clearwarnings – Clear all warnings for a user (Admin only)
 
 **Moderator Commands:**
 • /autoresponder – Manage auto-responses for mods
 • /addcommand – Open a popup to manually add mod commands to the database (Moderator/Admin)
+• /warn – Warn a user for rule violations
+• /warnings – View all warnings for a user
+• /timeout – Timeout a user with preset durations
+• /slowmode – Set channel slowmode (0 to disable)
 
 **User Commands:**
 • /findcommand – Search for mod commands by keyword (mod name, item, etc.)
