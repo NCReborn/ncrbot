@@ -21,9 +21,7 @@ module.exports = {
 • /pending – Set the status channel to "Pending (Core Mods)" (Admin only)
 • /setversion – Update the bot version and changelog (Admin only)
 • /convertembed – Fetches embeds from one or more messages and converts them to Nexus-ready Markdown
-• /addimageonly – Add a channel to image-only enforcement. (Moderator/Admin)
-• /removeimageonly – Remove a channel from image-only enforcement. 
-• /listmediachannels – List all image-only and file-only channels
+• /mediachannels – Manage media-only channel enforcement (add, remove, list)
 * /removecommand - Remove a mod command from the database 
 
 **Moderator Commands:**

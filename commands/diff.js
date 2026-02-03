@@ -6,7 +6,7 @@ const {
 const changelogGenerator = require('../services/changelog/ChangelogGenerator');
 const collectionsConfig = require('../config/collections');
 const logger = require('../utils/logger');
-const { checkAndSetRateLimit } = require('../utils/rateLimiter');
+const cooldownManager = require('../utils/cooldownManager');
 const { errorEmbed } = require('../utils/discordUtils');
 const CONSTANTS = require('../config/constants');
 
@@ -39,7 +39,7 @@ module.exports = {
 
     // Global rate limit
     const globalKey = 'diff:global';
-    const globalLeft = checkAndSetRateLimit(globalKey, CONSTANTS.COOLDOWNS.GLOBAL_COMMAND);
+    const globalLeft = cooldownManager.check(globalKey, CONSTANTS.COOLDOWNS.GLOBAL_COMMAND);
     if (globalLeft > 0) {
       logger.info(`[DIFF] Global cooldown hit by ${username} (${globalLeft}s left)`);
       await interaction.editReply({ embeds: [errorEmbed('Global Cooldown', `⏳ Please wait ${globalLeft} more second(s) before anyone can use this command again.`)] });
@@ -48,7 +48,7 @@ module.exports = {
 
     // Per-user rate limit with consistent key: diff:user:<userId>
     const userKey = `diff:user:${interaction.user.id}`;
-    const userLeft = checkAndSetRateLimit(userKey, CONSTANTS.COOLDOWNS.USER_COMMAND);
+    const userLeft = cooldownManager.check(userKey, CONSTANTS.COOLDOWNS.USER_COMMAND);
     if (userLeft > 0) {
       logger.info(`[DIFF] User cooldown hit by ${username} (${userLeft}s left)`);
       await interaction.editReply({ embeds: [errorEmbed('User Cooldown', `⏳ You must wait ${userLeft} more minute(s) before you can use this command again.`)] });
