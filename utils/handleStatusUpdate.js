@@ -1,8 +1,10 @@
 const { ChannelType } = require('discord.js');
-const rateLimitMap = new Map();
-const RATE_LIMIT_MS = 5 * 60 * 1000;
+const CONSTANTS = require('../config/constants');
 
-const STATUS_CHANNEL_ID = '1395501617523986644';
+const rateLimitMap = new Map();
+const RATE_LIMIT_MS = CONSTANTS.COOLDOWNS.STATUS_UPDATE;
+
+const STATUS_CHANNEL_ID = CONSTANTS.CHANNELS.STATUS;
 
 const statusLabels = {
   investigating: { emoji: '🟡', label: 'Investigating (Latest)' },

@@ -1,7 +1,5 @@
 const { Events } = require('discord.js');
-
-const SUPPORT_ROLE_ID = '1456751771841204295';
-const PING_BANNED_ROLE_ID = '1456763426159329555';
+const CONSTANTS = require('../config/constants');
 
 module.exports = {
     name: Events.MessageCreate,
@@ -9,10 +7,10 @@ module.exports = {
         if (message.author.bot || !message.guild) return;
 
         const member = message.member;
-        if (!member || !member.roles.cache.has(PING_BANNED_ROLE_ID)) return;
+        if (!member || !member.roles.cache.has(CONSTANTS.ROLES.PING_BANNED)) return;
 
         // If the message mentions the support role and sender is ping-banned, delete message
-        if (message.mentions.roles.has(SUPPORT_ROLE_ID)) {
+        if (message.mentions.roles.has(CONSTANTS.ROLES.SUPPORT)) {
             try {
                 await message.delete();            
 

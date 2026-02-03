@@ -10,9 +10,10 @@ const {
 } = require('discord.js');
 const { analyzeLogForErrors, buildErrorEmbed } = require('./logAnalyzer');
 const logger = require('./logger'); // <-- Use logger for warnings/errors/info
+const CONSTANTS = require('../config/constants');
 
-// 15 second cooldown in milliseconds
-const LOG_SCAN_COOLDOWN = 15 * 1000;
+// 15 second cooldown in milliseconds (use constant if available)
+const LOG_SCAN_COOLDOWN = CONSTANTS.COOLDOWNS.LOG_SCAN;
 const userScanCooldowns = new Map();
 
 /**
@@ -66,7 +67,7 @@ async function sendLogScanButton(client, channelId) {
         `**How to use the NCReborn Utilities Bot:**\n\n` +
           `• Use the **button below** to paste your crashlog. The bot will scan and give feedback on potential issues.\n\n` +
           `• Please only post the lower sections of your crashfiles. (Typically with stuff like [warn] or [error]) don't paste the entire thing as it will likely go over the 4000 character limit\n\n` +
-          `• If your log is too large to paste (over 4000 characters), upload it as a \`.log\` or \`.txt\` file to <#1287876503811653785> and the bot will scan it automatically.\n\n` +
+          `• If your log is too large to paste (over 4000 characters), upload it as a \`.log\` or \`.txt\` file to <#${CONSTANTS.CHANNELS.CRASH_LOG}> and the bot will scan it automatically.\n\n` +
           `*ℹ️ This bot is in BETA. Its recommendations are based on previous logs and manual input from mquiny. For more help, see <#1285796905640788030>.*`
       )
       .setFooter({
@@ -144,7 +145,7 @@ async function handleLogScanTicketInteraction(interaction) {
       logger.warn(`[LOGSCAN] Log too long from ${interaction.user.tag} (${interaction.user.id}) via modal`);
       await interaction.reply({
         content:
-          '❌ Your log was over 4000 characters and was truncated by discord rate limits. For full analysis, upload the log file as an attachment in <#1287876503811653785> instead, or trim your post down to only include the [errors]. ❌',
+          `❌ Your log was over 4000 characters and was truncated by discord rate limits. For full analysis, upload the log file as an attachment in <#${CONSTANTS.CHANNELS.CRASH_LOG}> instead, or trim your post down to only include the [errors]. ❌`,
         ephemeral: true,
       });
       return;

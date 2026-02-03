@@ -61,6 +61,9 @@ const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 let runtimeRegistrationFailed = false;
+let loadedCount = 0;
+let failedCount = 0;
+
 for (const file of commandFiles) {
   try {
     const command = require(`./commands/${file}`);
@@ -69,23 +72,31 @@ for (const file of commandFiles) {
         if (subcommand.data && typeof subcommand.execute === 'function') {
           client.commands.set(subcommand.data.name, subcommand);
           logger.info(`Loaded subcommand: ${subcommand.data.name}`);
+          loadedCount++;
         } else {
           logger.error(`Subcommand in ${file} is missing .data or .execute`);
           runtimeRegistrationFailed = true;
+          failedCount++;
         }
       }
     } else if (command.data && typeof command.execute === 'function') {
       client.commands.set(command.data.name, command);
       logger.info(`Loaded command: ${command.data.name}`);
+      loadedCount++;
     } else {
       logger.error(`Command file ${file} does not export a valid command with .data and .execute`);
       runtimeRegistrationFailed = true;
+      failedCount++;
     }
   } catch (err) {
     logger.error(`Failed to load command ${file}: ${err.message}`);
     runtimeRegistrationFailed = true;
+    failedCount++;
   }
 }
+
+logger.info(`✨ Commands loaded: ${loadedCount} successful, ${failedCount} failed`);
+
 if (runtimeRegistrationFailed) {
   logger.error('Aborting bot startup due to invalid/malformed commands. Check above logs for details.');
   logger.error('Command files found: ' + commandFiles.join(', '));
@@ -104,6 +115,8 @@ for (const file of eventFiles) {
     client.on(event.name, (...args) => event.execute(...args, client));
   }
 }
+
+logger.info(`✨ Events loaded successfully`);
 
 // --- CLEAR DUPLICATE SLASH COMMANDS ONCE (REMOVE OR COMMENT AFTER RUNNING ONCE) ---
 // Uncomment next lines to clear all global and guild commands.
