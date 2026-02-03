@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { convertChangelogToNexusMarkdownFromEmbeds } = require('../utils/changelogConverter');
 const fs = require('fs');
 const path = require('path');
@@ -21,11 +21,11 @@ module.exports = {
   async execute(interaction) {
     // --- ADMIN CHECK ---
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      await interaction.reply({ content: 'You do not have permission to use this command. (Admin only)', ephemeral: true });
+      await interaction.reply({ content: 'You do not have permission to use this command. (Admin only)', flags: MessageFlags.Ephemeral });
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const messageIdsRaw = interaction.options.getString('message_ids');
     const channelId = interaction.options.getString('channel_id') || interaction.channelId;
@@ -88,7 +88,7 @@ module.exports = {
         await interaction.editReply({
           content: replyContent,
           files: [attachment],
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
 
         // Clean up: remove the temp file after sending
@@ -104,7 +104,7 @@ module.exports = {
         if (failedIds.length) {
           await interaction.followUp({
             content: `Warning: Could not fetch messages with IDs: ${failedIds.join(', ')}`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
         }
       }

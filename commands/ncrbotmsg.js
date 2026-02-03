@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -10,7 +10,7 @@ module.exports = {
     const guildMember = await interaction.guild.members.fetch(interaction.user.id);
 
     if (!guildMember.permissions.has(PermissionFlagsBits.Administrator)) {
-      await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
+      await interaction.reply({ content: 'You do not have permission to use this command.', flags: MessageFlags.Ephemeral });
       return;
     }
     // Show modal for multi-line input

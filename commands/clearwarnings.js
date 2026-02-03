@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const moderationService = require('../services/ModerationService');
 const logger = require('../utils/logger');
 
@@ -24,7 +24,7 @@ module.exports = {
       if (count === 0) {
         await interaction.reply({
           content: `ℹ️ ${user.tag} had no warnings to clear.`,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -48,7 +48,7 @@ module.exports = {
       logger.error('[CLEARWARNINGS] Error executing clearwarnings command:', error);
       await interaction.reply({
         content: '❌ An error occurred while clearing warnings.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }

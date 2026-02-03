@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const VERSION_FILE = path.join(__dirname, '../data/versionInfo.json');
@@ -23,6 +23,6 @@ module.exports = {
       .setDescription(`**Version:** ${versionObj.version}\n**Changes:** ${versionObj.changes}`)
       .setColor(5814783);
 
-    await interaction.reply({ embeds: [versionEmbed], ephemeral: true });
+    await interaction.reply({ embeds: [versionEmbed], flags: MessageFlags.Ephemeral });
   }
 };

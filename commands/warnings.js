@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const moderationService = require('../services/ModerationService');
 const logger = require('../utils/logger');
 
@@ -23,7 +23,7 @@ module.exports = {
       if (warnings.length === 0) {
         await interaction.reply({
           content: `✅ ${user.tag} has no warnings.`,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -56,13 +56,13 @@ module.exports = {
         embed.setFooter({ text: `Showing last 25 of ${warnings.length} warnings` });
       }
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 
     } catch (error) {
       logger.error('[WARNINGS] Error executing warnings command:', error);
       await interaction.reply({
         content: '❌ An error occurred while fetching warnings.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }

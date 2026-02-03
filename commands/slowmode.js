@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const logger = require('../utils/logger');
 
 const MAX_SLOWMODE_SECONDS = 21600; // 6 hours
@@ -57,7 +57,7 @@ module.exports = {
       logger.error('[SLOWMODE] Error executing slowmode command:', error);
       await interaction.reply({
         content: '❌ An error occurred while setting slowmode. Make sure the bot has the "Manage Channels" permission.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }

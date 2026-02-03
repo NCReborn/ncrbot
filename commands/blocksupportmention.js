@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { PermissionChecker } = require('../utils/permissions');
 const CONSTANTS = require('../config/constants');
 
@@ -13,13 +13,13 @@ module.exports = {
         ),
     async execute(interaction) {
         if (!PermissionChecker.hasModRole(interaction.member)) {
-            return await interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+            return await interaction.reply({ content: "You don't have permission to use this command.", flags: MessageFlags.Ephemeral });
         }
         const user = interaction.options.getUser('user');
         const member = await interaction.guild.members.fetch(user.id);
 
         if (member.roles.cache.has(CONSTANTS.ROLES.PING_BANNED)) {
-            return await interaction.reply({ content: `${user.tag} is already ping-banned.`, ephemeral: true });
+            return await interaction.reply({ content: `${user.tag} is already ping-banned.`, flags: MessageFlags.Ephemeral });
         }
 
         await member.roles.add(CONSTANTS.ROLES.PING_BANNED, 'Ping-banned from mentioning support role');
@@ -33,6 +33,6 @@ module.exports = {
             // Ignore if user has DMs blocked
         }
 
-        await interaction.reply({ content: `${user.tag} is now ping-banned from mentioning the support role.`, ephemeral: true });
+        await interaction.reply({ content: `${user.tag} is now ping-banned from mentioning the support role.`, flags: MessageFlags.Ephemeral });
     },
 };

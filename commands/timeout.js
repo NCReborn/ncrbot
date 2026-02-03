@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const logger = require('../utils/logger');
 
 module.exports = {
@@ -48,7 +48,7 @@ module.exports = {
       if (!member) {
         await interaction.reply({
           content: '❌ User is not in the server.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -57,7 +57,7 @@ module.exports = {
       if (member.permissions.has(PermissionFlagsBits.Administrator)) {
         await interaction.reply({
           content: '❌ You cannot timeout administrators.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -91,7 +91,7 @@ module.exports = {
       logger.error('[TIMEOUT] Error executing timeout command:', error);
       await interaction.reply({
         content: '❌ An error occurred while timing out the user. Make sure the bot has the "Timeout Members" permission.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   },
