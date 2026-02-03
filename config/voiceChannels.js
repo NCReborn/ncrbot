@@ -6,5 +6,6 @@ module.exports = {
   statusStable: '🟢┃Status : Stable (Latest)',
   statusChecking: '🟣┃Status : Checking (Latest)',
   statusJustUpdated: '🟣┃Status : Just Updated',
-  statusRevertDelayMs: 24 * 60 * 60 * 1000 // 24 hours
+  statusRevertDelayMs: 24 * 60 * 60 * 1000, // 24 hours
+  defaultGameVersion: '2.3' // Fallback if group config doesn't have gameVersion
 };

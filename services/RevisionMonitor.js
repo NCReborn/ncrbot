@@ -76,7 +76,7 @@ class RevisionMonitor {
       const guild = client.guilds.cache.first();
       if (guild) {
         const groupConfig = collectionsConfig.getGroupForCollection(slug);
-        const gameVersion = groupConfig?.gameVersion || '2.3';
+        const gameVersion = groupConfig?.gameVersion || voiceConfig.defaultGameVersion;
         
         await updateCollectionVersionChannel(guild, gameVersion, currentRevision);
         await updateStatusChannel(guild, voiceConfig.statusJustUpdated, true);
