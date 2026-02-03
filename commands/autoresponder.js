@@ -1,10 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { loadResponses, upsertResponse, deleteResponse } = require('../utils/autoResponder');
-
-const MOD_ROLE_IDS = [
-  '1370874936456908931',
-  '1288633895910375464'
-];
+const { PermissionChecker } = require('../utils/permissions');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -45,7 +41,7 @@ module.exports = {
         await interaction.reply({ content: 'Internal error: Cannot read member roles.', ephemeral: true });
         return;
       }
-      const hasModRole = MOD_ROLE_IDS.some(id => memberRoles.has(id));
+      const hasModRole = PermissionChecker.hasModRole(interaction.member);
       console.log(`[autoresponder] User roles: ${Array.from(memberRoles.keys()).join(', ')} | Has mod role: ${hasModRole}`);
       if (!hasModRole) {
         await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });

@@ -8,9 +8,7 @@ const { sendE33ChangelogMessages } = require('../services/changelogServiceE33');
 const logger = require('../utils/logger');
 const { checkAndSetRateLimit } = require('../utils/rateLimiter');
 const { errorEmbed } = require('../utils/discordUtils');
-
-const USER_COOLDOWN = 30 * 1000;   // 30 seconds
-const GLOBAL_COOLDOWN = 30 * 1000;   // 30 seconds
+const CONSTANTS = require('../config/constants');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -41,7 +39,7 @@ module.exports = {
 
     // Global rate limit
     const globalKey = 'diff:global';
-    const globalLeft = checkAndSetRateLimit(globalKey, GLOBAL_COOLDOWN);
+    const globalLeft = checkAndSetRateLimit(globalKey, CONSTANTS.COOLDOWNS.GLOBAL_COMMAND);
     if (globalLeft > 0) {
       logger.info(`[DIFF] Global cooldown hit by ${username} (${globalLeft}s left)`);
       await interaction.editReply({ embeds: [errorEmbed('Global Cooldown', `⏳ Please wait ${globalLeft} more second(s) before anyone can use this command again.`)] });
@@ -50,7 +48,7 @@ module.exports = {
 
     // Per-user rate limit with consistent key: diff:user:<userId>
     const userKey = `diff:user:${interaction.user.id}`;
-    const userLeft = checkAndSetRateLimit(userKey, USER_COOLDOWN);
+    const userLeft = checkAndSetRateLimit(userKey, CONSTANTS.COOLDOWNS.USER_COMMAND);
     if (userLeft > 0) {
       logger.info(`[DIFF] User cooldown hit by ${username} (${userLeft}s left)`);
       await interaction.editReply({ embeds: [errorEmbed('User Cooldown', `⏳ You must wait ${userLeft} more minute(s) before you can use this command again.`)] });

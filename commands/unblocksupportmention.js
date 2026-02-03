@@ -1,7 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { hasModRole } = require('../utils/hasModRole.js');
-
-const PING_BANNED_ROLE_ID = '1456763426159329555';
+const { PermissionChecker } = require('../utils/permissions');
+const CONSTANTS = require('../config/constants');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -13,17 +12,17 @@ module.exports = {
                 .setRequired(true)
         ),
     async execute(interaction) {
-        if (!hasModRole(interaction.member)) {
+        if (!PermissionChecker.hasModRole(interaction.member)) {
             return interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
         }
         const user = interaction.options.getUser('user');
         const member = await interaction.guild.members.fetch(user.id);
 
-        if (!member.roles.cache.has(PING_BANNED_ROLE_ID)) {
+        if (!member.roles.cache.has(CONSTANTS.ROLES.PING_BANNED)) {
             return interaction.reply({ content: `${user.tag} is not ping-banned.`, ephemeral: true });
         }
 
-        await member.roles.remove(PING_BANNED_ROLE_ID, 'Unblocked from mentioning support role');
+        await member.roles.remove(CONSTANTS.ROLES.PING_BANNED, 'Unblocked from mentioning support role');
 
         // Attempt to DM the user
         try {
