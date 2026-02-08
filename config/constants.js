@@ -51,9 +51,9 @@ const FORUM = {
   MEGATHREAD_ID: '1468548146367037472', // Add the megathread thread ID here
   TAGS: {
     INVESTIGATING: 'Investigating',
-    COLLECTION_ISSUES: 'Collection issues',
-    MOD_ISSUES: 'Mod issues',
-    INSTALLATION_ISSUES: 'Installation issues',
+    COLLECTION_ISSUES: 'Collection Issues',
+    MOD_ISSUES: 'Mod Issues',
+    INSTALLATION_ISSUES: 'Installation Issues',
   },
   // Map tag names to embed colors and section names
   TAG_CONFIG: {
