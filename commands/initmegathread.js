@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const CONSTANTS = require('../config/constants');
+const forumManager = require('../services/ForumManager');
 const logger = require('../utils/logger');
 
 module.exports = {
@@ -23,7 +24,10 @@ module.exports = {
         return;
       }
 
-      // Create the embeds
+      // Get the forum channel to fetch existing threads
+      const forumChannel = interaction.channel.parent;
+
+      // Create the static embeds first
       const embeds = [
         new EmbedBuilder()
           .setDescription('## Bugs and issues MegaThread\n\nBelow will be a compiled list of common issues our community have, and a fix/solution given by our support team.\n\nThe best solution for each thread will be pinned posts. So always double check if the thread has any pinned messages')
@@ -32,29 +36,45 @@ module.exports = {
         new EmbedBuilder()
           .setDescription('## Read here before posting\n\nIt\'s important to use discords in-built search feature to look if your issue has already been solved. Our support team will proactively update this list and set relevant tags for posts made in this forum.')
           .setColor(3066993),
-        
-        new EmbedBuilder()
-          .setDescription('## Collection Issues')
-          .setColor(10181046),
-        
-        new EmbedBuilder()
-          .setDescription('## Mod Issues')
-          .setColor(15277667),
-        
-        new EmbedBuilder()
-          .setDescription('## Installation Issues')
-          .setColor(9134176)
       ];
+
+      // Dynamically create category embeds with existing threads
+      await interaction.editReply('🔄 Scanning forum for existing threads...');
+
+      for (const [tagName, tagConfig] of Object.entries(CONSTANTS.FORUM.TAG_CONFIG)) {
+        // Fetch threads with this tag
+        const threads = await forumManager.getThreadsByTag(forumChannel, tagName);
+        
+        // Build description with thread links
+        let description = `## ${tagConfig.section}`;
+        if (threads.length > 0) {
+          description += '\n' + threads.map(t => `https://discord.com/channels/${t.guildId}/${t.id}`).join('\n');
+        }
+
+        embeds.push(
+          new EmbedBuilder()
+            .setDescription(description)
+            .setColor(tagConfig.color)
+        );
+      }
 
       // Send the embeds
       const message = await interaction.channel.send({ embeds });
 
       logger.info(`[INIT_MEGATHREAD] Created megathread embeds message: ${message.id}`);
 
+      const threadCounts = embeds.slice(2).map((embed, i) => {
+        const tagName = Object.keys(CONSTANTS.FORUM.TAG_CONFIG)[i];
+        const tagConfig = CONSTANTS.FORUM.TAG_CONFIG[tagName];
+        const threadCount = (embed.data.description.match(/https:\/\/discord\.com/g) || []).length;
+        return `• ${tagConfig.section}: ${threadCount} thread${threadCount !== 1 ? 's' : ''}`;
+      }).join('\n');
+
       await interaction.editReply({
-        content: `✅ Megathread embeds created successfully!\n\n` +
+        content: `✅ Megathread embeds created and populated with existing threads!\n\n` +
                  `**Message ID:** ${message.id}\n` +
                  `**Message URL:** ${message.url}\n\n` +
+                 `**Threads Added:**\n${threadCounts}\n\n` +
                  `The bot will now be able to update these embeds automatically when tags are added to threads.\n\n` +
                  `⚠️ **Important:** Pin this message or keep it at the top of the megathread!`
       });
