@@ -45,51 +45,51 @@ class ForumManager {
     }
   }
 
-/**
- * Send alert to bot-alerts channel for new forum posts
- */
-async sendNewThreadAlert(client, thread) {
-  try {
-    const alertChannel = await client.channels.fetch(CONSTANTS.CHANNELS.BOT_ALERTS);
-    if (!alertChannel) {
-      logger.error('[FORUM_MANAGER] Bot alerts channel not found');
-      return;
+  /**
+   * Send alert to bot-alerts channel for new forum posts
+   */
+  async sendNewThreadAlert(client, thread) {
+    try {
+      const alertChannel = await client.channels.fetch(CONSTANTS.CHANNELS.BOT_ALERTS);
+      if (!alertChannel) {
+        logger.error('[FORUM_MANAGER] Bot alerts channel not found');
+        return;
+      }
+
+      const { EmbedBuilder } = require('discord.js');
+      
+      // Get the thread author
+      const author = await client.users.fetch(thread.ownerId).catch(() => null);
+      
+      const embed = new EmbedBuilder()
+        .setColor(0xFFA500) // Orange color
+        .setTitle('🔔 New Forum Post Created')
+        .addFields(
+          { name: 'Thread', value: `[${thread.name}](https://discord.com/channels/${thread.guildId}/${thread.id})`, inline: false },
+          { name: 'Author', value: author ? `${author.tag} (${author.id})` : `<@${thread.ownerId}> (${thread.ownerId})`, inline: false },
+          { 
+            name: 'Action Required', 
+            value: `<@&${CONSTANTS.ROLES.SUPPORT}> Please check if the title needs updating and add appropriate tags:\n• ${CONSTANTS.FORUM.TAGS.COLLECTION_ISSUES}\n• ${CONSTANTS.FORUM.TAGS.MOD_ISSUES}\n• ${CONSTANTS.FORUM.TAGS.INSTALLATION_ISSUES}`,
+            inline: false 
+          }
+        )
+        .setFooter({ 
+          text: `Thread ID: ${thread.id} • ${thread.guild.name}`,
+          iconURL: thread.guild.iconURL()
+        })
+        .setTimestamp();
+
+      // Add author thumbnail if available
+      if (author) {
+        embed.setThumbnail(author.displayAvatarURL({ dynamic: true }));
+      }
+
+      await alertChannel.send({ embeds: [embed] });
+      logger.info(`[FORUM_MANAGER] Sent new thread alert for: ${thread.name}`);
+    } catch (error) {
+      logger.error('[FORUM_MANAGER] Error sending thread alert:', error);
     }
-
-    const { EmbedBuilder } = require('discord.js');
-    
-    // Get the thread author
-    const author = await client.users.fetch(thread.ownerId).catch(() => null);
-    
-    const embed = new EmbedBuilder()
-      .setColor(0xFFA500) // Orange color
-      .setTitle('🔔 New Forum Post Created')
-      .addFields(
-        { name: 'Thread', value: `[${thread.name}](https://discord.com/channels/${thread.guildId}/${thread.id})`, inline: false },
-        { name: 'Author', value: author ? `${author.tag} (${author.id})` : `<@${thread.ownerId}> (${thread.ownerId})`, inline: false },
-        { 
-          name: 'Action Required', 
-          value: `<@&${CONSTANTS.ROLES.SUPPORT}> Please check if the title needs updating and add appropriate tags:\n• ${CONSTANTS.FORUM.TAGS.COLLECTION_ISSUES}\n• ${CONSTANTS.FORUM.TAGS.MOD_ISSUES}\n• ${CONSTANTS.FORUM.TAGS.INSTALLATION_ISSUES}`,
-          inline: false 
-        }
-      )
-      .setFooter({ 
-        text: `Thread ID: ${thread.id} • ${thread.guild.name}`,
-        iconURL: thread.guild.iconURL()
-      })
-      .setTimestamp();
-
-    // Add author thumbnail if available
-    if (author) {
-      embed.setThumbnail(author.displayAvatarURL({ dynamic: true }));
-    }
-
-    await alertChannel.send({ embeds: [embed] });
-    logger.info(`[FORUM_MANAGER] Sent new thread alert for: ${thread.name}`);
-  } catch (error) {
-    logger.error('[FORUM_MANAGER] Error sending thread alert:', error);
   }
-}
 
   /**
    * Get the megathread message
@@ -220,6 +220,11 @@ async sendNewThreadAlert(client, thread) {
     const oldTagNames = getTagNames(oldTags);
     const newTagNames = getTagNames(newTags);
 
+    // DEBUG: Log what we're comparing
+    logger.info(`[FORUM_MANAGER] Tracked tags we're looking for: ${JSON.stringify(trackedTagNames)}`);
+    logger.info(`[FORUM_MANAGER] Old tags on thread: ${JSON.stringify(oldTagNames)}`);
+    logger.info(`[FORUM_MANAGER] New tags on thread: ${JSON.stringify(newTagNames)}`);
+
     // Find which tracked tags were added or removed
     const addedTags = newTagNames.filter(name => 
       !oldTagNames.includes(name) && trackedTagNames.includes(name)
@@ -227,6 +232,9 @@ async sendNewThreadAlert(client, thread) {
     const removedTags = oldTagNames.filter(name => 
       !newTagNames.includes(name) && trackedTagNames.includes(name)
     );
+
+    logger.info(`[FORUM_MANAGER] Added tracked tags: ${JSON.stringify(addedTags)}`);
+    logger.info(`[FORUM_MANAGER] Removed tracked tags: ${JSON.stringify(removedTags)}`);
 
     return { added: addedTags, removed: removedTags, shouldUpdate: addedTags.length > 0 || removedTags.length > 0 };
   }
