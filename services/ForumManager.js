@@ -45,32 +45,51 @@ class ForumManager {
     }
   }
 
-  /**
-   * Send alert to bot-alerts channel for new forum posts
-   */
-  async sendNewThreadAlert(client, thread) {
-    try {
-      const alertChannel = await client.channels.fetch(CONSTANTS.CHANNELS.BOT_ALERTS);
-      if (!alertChannel) {
-        logger.error('[FORUM_MANAGER] Bot alerts channel not found');
-        return;
-      }
-
-      const message = `🔔 **New Forum Post Created**\n\n` +
-        `**Thread:** ${thread.name}\n` +
-        `**Link:** <#${thread.id}>\n` +
-        `**Author:** <@${thread.ownerId}>\n\n` +
-        `<@&${CONSTANTS.ROLES.SUPPORT}> Please check if the title needs updating and add appropriate tags:\n` +
-        `• ${CONSTANTS.FORUM.TAGS.COLLECTION_ISSUES}\n` +
-        `• ${CONSTANTS.FORUM.TAGS.MOD_ISSUES}\n` +
-        `• ${CONSTANTS.FORUM.TAGS.INSTALLATION_ISSUES}`;
-
-      await alertChannel.send(message);
-      logger.info(`[FORUM_MANAGER] Sent new thread alert for: ${thread.name}`);
-    } catch (error) {
-      logger.error('[FORUM_MANAGER] Error sending thread alert:', error);
+/**
+ * Send alert to bot-alerts channel for new forum posts
+ */
+async sendNewThreadAlert(client, thread) {
+  try {
+    const alertChannel = await client.channels.fetch(CONSTANTS.CHANNELS.BOT_ALERTS);
+    if (!alertChannel) {
+      logger.error('[FORUM_MANAGER] Bot alerts channel not found');
+      return;
     }
+
+    const { EmbedBuilder } = require('discord.js');
+    
+    // Get the thread author
+    const author = await client.users.fetch(thread.ownerId).catch(() => null);
+    
+    const embed = new EmbedBuilder()
+      .setColor(0xFFA500) // Orange color
+      .setTitle('🔔 New Forum Post Created')
+      .addFields(
+        { name: 'Thread', value: `[${thread.name}](https://discord.com/channels/${thread.guildId}/${thread.id})`, inline: false },
+        { name: 'Author', value: author ? `${author.tag} (${author.id})` : `<@${thread.ownerId}> (${thread.ownerId})`, inline: false }
+      )
+      .setFooter({ 
+        text: `Thread ID: ${thread.id} • ${thread.guild.name}`,
+        iconURL: thread.guild.iconURL()
+      })
+      .setTimestamp();
+
+    // Add author thumbnail if available
+    if (author) {
+      embed.setThumbnail(author.displayAvatarURL({ dynamic: true }));
+    }
+
+    const message = `<@&${CONSTANTS.ROLES.SUPPORT}> Please check if the title needs updating and add appropriate tags:\n` +
+      `• ${CONSTANTS.FORUM.TAGS.COLLECTION_ISSUES}\n` +
+      `• ${CONSTANTS.FORUM.TAGS.MOD_ISSUES}\n` +
+      `• ${CONSTANTS.FORUM.TAGS.INSTALLATION_ISSUES}`;
+
+    await alertChannel.send({ content: message, embeds: [embed] });
+    logger.info(`[FORUM_MANAGER] Sent new thread alert for: ${thread.name}`);
+  } catch (error) {
+    logger.error('[FORUM_MANAGER] Error sending thread alert:', error);
   }
+}
 
   /**
    * Get the megathread message
