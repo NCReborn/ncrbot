@@ -66,7 +66,12 @@ async sendNewThreadAlert(client, thread) {
       .setTitle('🔔 New Forum Post Created')
       .addFields(
         { name: 'Thread', value: `[${thread.name}](https://discord.com/channels/${thread.guildId}/${thread.id})`, inline: false },
-        { name: 'Author', value: author ? `${author.tag} (${author.id})` : `<@${thread.ownerId}> (${thread.ownerId})`, inline: false }
+        { name: 'Author', value: author ? `${author.tag} (${author.id})` : `<@${thread.ownerId}> (${thread.ownerId})`, inline: false },
+        { 
+          name: 'Action Required', 
+          value: `<@&${CONSTANTS.ROLES.SUPPORT}> Please check if the title needs updating and add appropriate tags:\n• ${CONSTANTS.FORUM.TAGS.COLLECTION_ISSUES}\n• ${CONSTANTS.FORUM.TAGS.MOD_ISSUES}\n• ${CONSTANTS.FORUM.TAGS.INSTALLATION_ISSUES}`,
+          inline: false 
+        }
       )
       .setFooter({ 
         text: `Thread ID: ${thread.id} • ${thread.guild.name}`,
@@ -79,12 +84,7 @@ async sendNewThreadAlert(client, thread) {
       embed.setThumbnail(author.displayAvatarURL({ dynamic: true }));
     }
 
-    const message = `<@&${CONSTANTS.ROLES.SUPPORT}> Please check if the title needs updating and add appropriate tags:\n` +
-      `• ${CONSTANTS.FORUM.TAGS.COLLECTION_ISSUES}\n` +
-      `• ${CONSTANTS.FORUM.TAGS.MOD_ISSUES}\n` +
-      `• ${CONSTANTS.FORUM.TAGS.INSTALLATION_ISSUES}`;
-
-    await alertChannel.send({ content: message, embeds: [embed] });
+    await alertChannel.send({ embeds: [embed] });
     logger.info(`[FORUM_MANAGER] Sent new thread alert for: ${thread.name}`);
   } catch (error) {
     logger.error('[FORUM_MANAGER] Error sending thread alert:', error);
