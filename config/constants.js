@@ -42,6 +42,37 @@ const CHANNELS = {
   CRASH_LOG: process.env.CRASH_LOG_CHANNEL_ID || '1287876503811653785',
   LOG_SCAN: process.env.LOG_SCAN_CHANNEL_ID,
   STATUS: '1395501617523986644',
+  BOT_ALERTS: '1468304973669466184', // New: Channel for forum alerts
+};
+
+// ===== FORUM CONFIGURATION =====
+const FORUM = {
+  BUGS_AND_ISSUES_FORUM_ID: '1468547310509228204', // Add your forum channel ID here
+  MEGATHREAD_ID: '1468548146367037472', // Add the megathread thread ID here
+  TAGS: {
+    INVESTIGATING: 'Investigating',
+    COLLECTION_ISSUES: 'Collection issues',
+    MOD_ISSUES: 'Mod issues',
+    INSTALLATION_ISSUES: 'Installation issues',
+  },
+  // Map tag names to embed colors and section names
+  TAG_CONFIG: {
+    'Collection issues': {
+      color: 10181046,
+      section: 'Collection Issues',
+      embedIndex: 2
+    },
+    'Mod issues': {
+      color: 15277667,
+      section: 'Mod Issues',
+      embedIndex: 3
+    },
+    'Installation issues': {
+      color: 9134176,
+      section: 'Installation Issues',
+      embedIndex: 4
+    }
+  }
 };
 
 // ===== COOLDOWNS (in milliseconds) =====
@@ -75,6 +106,7 @@ module.exports = {
   COLLECTION_MAPPINGS,
   ROLES,
   CHANNELS,
+  FORUM,
   COOLDOWNS,
   LIMITS,
   TIME,
