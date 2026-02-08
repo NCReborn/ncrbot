@@ -57,17 +57,17 @@ const FORUM = {
   },
   // Map tag names to embed colors and section names
   TAG_CONFIG: {
-    'Collection issues': {
+    'Collection Issues': {
       color: 10181046,
       section: 'Collection Issues',
       embedIndex: 2
     },
-    'Mod issues': {
+    'Mod Issues': {
       color: 15277667,
       section: 'Mod Issues',
       embedIndex: 3
     },
-    'Installation issues': {
+    'Installation Issues': {
       color: 9134176,
       section: 'Installation Issues',
       embedIndex: 4
