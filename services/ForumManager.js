@@ -151,56 +151,59 @@ class ForumManager {
     }
   }
 
-  /**
-   * Update the megathread with new thread links organized by tags
-   */
-  async updateMegathread(client, tagName) {
-    try {
-      const megathreadData = await this.getMegathread(client);
-      if (!megathreadData || !megathreadData.message) {
-        logger.error('[FORUM_MANAGER] Cannot update megathread - message not found');
-        return false;
-      }
-
-      const { thread: megathread, message: embedMessage } = megathreadData;
-      const forumChannel = megathread.parent;
-
-      // Get the tag configuration
-      const tagConfig = CONSTANTS.FORUM.TAG_CONFIG[tagName];
-      if (!tagConfig) {
-        logger.warn(`[FORUM_MANAGER] No configuration for tag: ${tagName}`);
-        return false;
-      }
-
-      // Get all threads with this tag
-      const threads = await this.getThreadsByTag(forumChannel, tagName);
-
-      // Build the new description with thread links
-      let description = `## ${tagConfig.section}`;
-      if (threads.length > 0) {
-        description += '\n' + threads.map(t => `https://discord.com/channels/${t.guildId}/${t.id}`).join('\n');
-      }
-
-      // Update the specific embed
-      const embeds = embedMessage.embeds.map((embed, index) => {
-        if (index === tagConfig.embedIndex) {
-          return {
-            description: description,
-            color: tagConfig.color
-          };
-        }
-        // Keep other embeds as-is
-        return embed.toJSON();
-      });
-
-      await embedMessage.edit({ embeds });
-      logger.info(`[FORUM_MANAGER] Updated megathread section: ${tagConfig.section}`);
-      return true;
-    } catch (error) {
-      logger.error('[FORUM_MANAGER] Error updating megathread:', error);
+/**
+ * Update the megathread with new thread links organized by tags
+ */
+async updateMegathread(client, tagName) {
+  try {
+    const megathreadData = await this.getMegathread(client);
+    if (!megathreadData || !megathreadData.message) {
+      logger.error('[FORUM_MANAGER] Cannot update megathread - message not found');
       return false;
     }
+
+    const { thread: megathread, message: embedMessage } = megathreadData;
+    const forumChannel = megathread.parent;
+
+    // Get the tag configuration
+    const tagConfig = CONSTANTS.FORUM.TAG_CONFIG[tagName];
+    if (!tagConfig) {
+      logger.warn(`[FORUM_MANAGER] No configuration for tag: ${tagName}`);
+      return false;
+    }
+
+    // Get all threads with this tag
+    const threads = await this.getThreadsByTag(forumChannel, tagName);
+
+    // Build the new description with thread links using Markdown format
+    let description = `## ${tagConfig.section}`;
+    if (threads.length > 0) {
+      // Use bullet points with full thread names as clickable links
+      description += '\n' + threads.map(t => 
+        `• [${t.name}](https://discord.com/channels/${t.guildId}/${t.id})`
+      ).join('\n');
+    }
+
+    // Update the specific embed
+    const embeds = embedMessage.embeds.map((embed, index) => {
+      if (index === tagConfig.embedIndex) {
+        return {
+          description: description,
+          color: tagConfig.color
+        };
+      }
+      // Keep other embeds as-is
+      return embed.toJSON();
+    });
+
+    await embedMessage.edit({ embeds });
+    logger.info(`[FORUM_MANAGER] Updated megathread section: ${tagConfig.section}`);
+    return true;
+  } catch (error) {
+    logger.error('[FORUM_MANAGER] Error updating megathread:', error);
+    return false;
   }
+}
 
   /**
    * Check if a tag change affects the megathread
