@@ -220,11 +220,6 @@ class ForumManager {
     const oldTagNames = getTagNames(oldTags);
     const newTagNames = getTagNames(newTags);
 
-    // DEBUG: Log what we're comparing
-    logger.info(`[FORUM_MANAGER] Tracked tags we're looking for: ${JSON.stringify(trackedTagNames)}`);
-    logger.info(`[FORUM_MANAGER] Old tags on thread: ${JSON.stringify(oldTagNames)}`);
-    logger.info(`[FORUM_MANAGER] New tags on thread: ${JSON.stringify(newTagNames)}`);
-
     // Find which tracked tags were added or removed
     const addedTags = newTagNames.filter(name => 
       !oldTagNames.includes(name) && trackedTagNames.includes(name)
@@ -232,9 +227,6 @@ class ForumManager {
     const removedTags = oldTagNames.filter(name => 
       !newTagNames.includes(name) && trackedTagNames.includes(name)
     );
-
-    logger.info(`[FORUM_MANAGER] Added tracked tags: ${JSON.stringify(addedTags)}`);
-    logger.info(`[FORUM_MANAGER] Removed tracked tags: ${JSON.stringify(removedTags)}`);
 
     return { added: addedTags, removed: removedTags, shouldUpdate: addedTags.length > 0 || removedTags.length > 0 };
   }
