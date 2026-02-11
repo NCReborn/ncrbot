@@ -119,8 +119,10 @@ class RevisionMonitor {
       this.combineTimers.set(groupName, timer);
       logger.info(`[REVISION_MONITOR] Started ${collectionsConfig.combineWindowMs / 1000}s combine window for group ${groupName}`);
     } else {
-      // If not combined mode, process immediately
-      this.processPendingGroup(client, groupName);
+      // If not combined mode, process immediately (use setImmediate to avoid blocking)
+      setImmediate(() => {
+        this.processPendingGroup(client, groupName);
+      });
     }
   }
 
