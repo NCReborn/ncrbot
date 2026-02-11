@@ -151,7 +151,8 @@ class RevisionMonitor {
 
     logger.info(`[REVISION_MONITOR] Processing ${pendingUpdates.length} pending update(s) for group ${groupName}`);
 
-    // Sort by collection priority (if available)
+    // Sort by collection priority to ensure correct display order in changelog
+    // (e.g., NCR before ADR, NCR Lite before ADR Lite)
     pendingUpdates.sort((a, b) => {
       const priorityA = a.collection.priority || 0;
       const priorityB = b.collection.priority || 0;
@@ -209,15 +210,9 @@ class RevisionMonitor {
       // Merge updated mods
       if (diffs.updated) {
         for (const update of diffs.updated) {
-          const modId = update.before.id;
-          if (!updatedMap.has(modId)) {
+          const modId = update.before?.id || update.after?.id;
+          if (modId && !updatedMap.has(modId)) {
             updatedMap.set(modId, update);
-          } else {
-            // If already exists, keep the one with the most recent version change
-            const existing = updatedMap.get(modId);
-            if (update.after.version > existing.after.version) {
-              updatedMap.set(modId, update);
-            }
           }
         }
       }
