@@ -3,6 +3,8 @@ const { fetchRevision, processModFiles, computeDiff } = require('../utils/nexusA
 const { getCollectionRevision, setCollectionRevision, loadState } = require('../utils/revisionState');
 const collectionsConfig = require('../config/collections');
 const changelogGenerator = require('./changelog/ChangelogGenerator');
+const { updateCollectionVersionChannel, updateStatusChannel } = require('../utils/voiceChannelUpdater');
+const voiceConfig = require('../config/voiceChannels');
 
 class RevisionMonitor {
   constructor() {
@@ -71,6 +73,16 @@ class RevisionMonitor {
       const diffs = computeDiff(oldMods, newMods);
 
       setCollectionRevision(slug, currentRevision);
+
+      // Update voice channels
+      const guild = client.guilds.cache.first();
+      if (guild) {
+        const groupConfig = collectionsConfig.getGroupForCollection(slug);
+        const gameVersion = groupConfig?.gameVersion || voiceConfig.defaultGameVersion;
+        
+        await updateCollectionVersionChannel(guild, gameVersion, currentRevision);
+        await updateStatusChannel(guild, voiceConfig.statusJustUpdated, true);
+      }
 
       await this.postChangelog(client, collection, {
         oldRev: previousRevision || 0,
