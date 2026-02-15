@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
 const CONSTANTS = require('../../config/constants');
+const userActivityTracker = require('./UserActivityTracker');
 
 const CONTENT_PREVIEW_LENGTH = 100;
 
@@ -126,6 +127,9 @@ class SpamDetector {
 
     // Skip whitelisted users
     if (this.isWhitelisted(member)) return null;
+
+    // Record message in persistent activity tracker
+    userActivityTracker.recordMessage(message, member);
 
     // Track this message
     this.trackMessage(message, member);
@@ -253,8 +257,61 @@ class SpamDetector {
       }
     }
 
+    // 6. Dormant User Spam Detection
+    if (this.config.rules.dormantUserSpam?.enabled) {
+      const rule = this.config.rules.dormantUserSpam;
+      const serverAge = userActivityTracker.getServerAge(message.guildId, message.author.id);
+      
+      // Check if user has been in server long enough
+      if (serverAge >= rule.minServerAgeDays) {
+        const activity = userActivityTracker.getActivity(message.guildId, message.author.id);
+        
+        // Get current activity counts (includes this message since recordMessage was already called)
+        const totalMessages = activity ? activity.messages : 0;
+        const totalMedia = activity ? activity.media : 0;
+        
+        // Count images in current message
+        let currentImageCount = 0;
+        if (message.attachments.size > 0) {
+          const imageAttachments = Array.from(message.attachments.values()).filter(attachment => {
+            const contentType = attachment.contentType || '';
+            return contentType.startsWith('image/');
+          });
+          currentImageCount += imageAttachments.length;
+        }
+        if (message.embeds.length > 0) {
+          const embedsWithImages = message.embeds.filter(embed => embed.image || embed.thumbnail);
+          currentImageCount += embedsWithImages.length;
+        }
+        
+        // Calculate historical stats (exclude current message)
+        const historicalMessages = Math.max(0, totalMessages - 1);
+        const historicalMedia = Math.max(0, totalMedia - currentImageCount);
+        
+        // Check dormant criteria: low historical messages, no historical media, but posting multiple images now
+        if (historicalMessages <= rule.maxHistoricalMessages && 
+            historicalMedia <= rule.maxHistoricalMedia && 
+            currentImageCount >= rule.minCurrentImages) {
+          
+          triggeredRules.push({
+            name: 'Dormant User Spam',
+            description: `Dormant user (${historicalMessages} prev msg, ${historicalMedia} prev media) posting ${currentImageCount} images`,
+            severity: rule.severity || 'high'
+          });
+          
+          evidence.push({
+            messageId: message.id,
+            channelId: message.channelId,
+            content: message.content.substring(0, CONTENT_PREVIEW_LENGTH)
+          });
+        }
+      }
+    }
+
     // Return detection result
     if (triggeredRules.length > 0) {
+      const activityStats = userActivityTracker.getActivity(message.guildId, message.author.id);
+      
       return {
         detected: true,
         userId: userId,
@@ -262,7 +319,8 @@ class SpamDetector {
         evidence: evidence.length > 0 ? evidence : this.getRecentMessages(userId, 3),
         accountCreated: member.user.createdTimestamp,
         joinedServer: member.joinedTimestamp,
-        isNewAccount
+        isNewAccount,
+        activityStats: activityStats || null
       };
     }
 
