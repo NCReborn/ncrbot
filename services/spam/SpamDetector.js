@@ -266,7 +266,7 @@ class SpamDetector {
       if (serverAge >= rule.minServerAgeDays) {
         const activity = userActivityTracker.getActivity(message.guildId, message.author.id);
         
-        // Check if user is dormant (including current message)
+        // Get current activity counts (includes this message since recordMessage was already called)
         const totalMessages = activity ? activity.messages : 0;
         const totalMedia = activity ? activity.media : 0;
         
@@ -284,14 +284,18 @@ class SpamDetector {
           currentImageCount += embedsWithImages.length;
         }
         
-        // Check dormant criteria: low messages, no historical media, but posting multiple images now
-        if (totalMessages <= rule.maxHistoricalMessages && 
-            totalMedia - currentImageCount <= rule.maxHistoricalMedia && 
+        // Calculate historical stats (exclude current message)
+        const historicalMessages = Math.max(0, totalMessages - 1);
+        const historicalMedia = Math.max(0, totalMedia - currentImageCount);
+        
+        // Check dormant criteria: low historical messages, no historical media, but posting multiple images now
+        if (historicalMessages <= rule.maxHistoricalMessages && 
+            historicalMedia <= rule.maxHistoricalMedia && 
             currentImageCount >= rule.minCurrentImages) {
           
           triggeredRules.push({
             name: 'Dormant User Spam',
-            description: `Dormant user (${totalMessages} msg, ${totalMedia - currentImageCount} prev media) posting ${currentImageCount} images`,
+            description: `Dormant user (${historicalMessages} prev msg, ${historicalMedia} prev media) posting ${currentImageCount} images`,
             severity: rule.severity || 'high'
           });
           
