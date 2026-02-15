@@ -123,7 +123,10 @@ class AuditLogger {
       );
 
       if (auditEntry) {
-        executor = `${auditEntry.executor.tag} (${auditEntry.executor.id})`;
+        const executorTag = auditEntry.executor.discriminator && auditEntry.executor.discriminator !== '0' 
+          ? `${auditEntry.executor.username}#${auditEntry.executor.discriminator}`
+          : auditEntry.executor.username;
+        executor = `${executorTag} (${auditEntry.executor.id})`;
         reason = auditEntry.reason || 'No reason provided';
       }
     } catch (error) {
@@ -160,7 +163,10 @@ class AuditLogger {
       );
 
       if (auditEntry) {
-        executor = `${auditEntry.executor.tag} (${auditEntry.executor.id})`;
+        const executorTag = auditEntry.executor.discriminator && auditEntry.executor.discriminator !== '0' 
+          ? `${auditEntry.executor.username}#${auditEntry.executor.discriminator}`
+          : auditEntry.executor.username;
+        executor = `${executorTag} (${auditEntry.executor.id})`;
         reason = auditEntry.reason || 'No reason provided';
       }
     } catch (error) {
@@ -216,7 +222,10 @@ class AuditLogger {
 
       if (kickEntry) {
         wasKicked = true;
-        executor = `${kickEntry.executor.tag} (${kickEntry.executor.id})`;
+        const executorTag = kickEntry.executor.discriminator && kickEntry.executor.discriminator !== '0' 
+          ? `${kickEntry.executor.username}#${kickEntry.executor.discriminator}`
+          : kickEntry.executor.username;
+        executor = `${executorTag} (${kickEntry.executor.id})`;
         reason = kickEntry.reason || 'No reason provided';
       }
     } catch (error) {
@@ -295,7 +304,10 @@ class AuditLogger {
             );
 
             if (timeoutEntry) {
-              executor = `${timeoutEntry.executor.tag} (${timeoutEntry.executor.id})`;
+              const executorTag = timeoutEntry.executor.discriminator && timeoutEntry.executor.discriminator !== '0' 
+                ? `${timeoutEntry.executor.username}#${timeoutEntry.executor.discriminator}`
+                : timeoutEntry.executor.username;
+              executor = `${executorTag} (${timeoutEntry.executor.id})`;
               reason = timeoutEntry.reason || 'No reason provided';
             }
           } catch (error) {
