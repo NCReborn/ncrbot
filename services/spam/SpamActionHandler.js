@@ -178,6 +178,13 @@ class SpamActionHandler {
           value: activityText,
           inline: false
         }]);
+      } else {
+        // No activity history available (shouldn't happen in normal operation)
+        embed.addFields([{
+          name: '📊 Server Activity History',
+          value: '⚠️ No activity history available',
+          inline: false
+        }]);
       }
 
       // Triggered rules

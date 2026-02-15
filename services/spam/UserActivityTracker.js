@@ -76,8 +76,8 @@ class UserActivityTracker {
     activity.lastMessageAt = Date.now();
 
     // Count links in message content
-    // Use negative lookahead to avoid capturing trailing punctuation
-    const linkMatches = message.content.match(/https?:\/\/[^\s]+?(?=[.,;:!?)\]]*(?:\s|$))/g);
+    // Match URLs, stopping before trailing punctuation at end of URL
+    const linkMatches = message.content.match(/https?:\/\/[^\s]+?(?=\s|[.,;:!?)\]]+\s|[.,;:!?)\]]+$|$)/g);
     if (linkMatches) {
       activity.links += linkMatches.length;
     }

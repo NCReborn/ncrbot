@@ -320,13 +320,7 @@ class SpamDetector {
         accountCreated: member.user.createdTimestamp,
         joinedServer: member.joinedTimestamp,
         isNewAccount,
-        activityStats: activityStats || {
-          messages: 0,
-          links: 0,
-          media: 0,
-          firstMessageAt: Date.now(),
-          lastMessageAt: Date.now()
-        }
+        activityStats: activityStats || null
       };
     }
 
