@@ -162,6 +162,24 @@ class SpamActionHandler {
         }]);
       }
 
+      // Server Activity History
+      if (detectionResult.activityStats) {
+        const stats = detectionResult.activityStats;
+        const firstMessageTime = Math.floor(stats.firstMessageAt / 1000);
+        const activityText = [
+          `💬 **Messages:** ${stats.messages}`,
+          `🔗 **Links:** ${stats.links}`,
+          `📷 **Media:** ${stats.media}`,
+          `⏱️ **First Message:** <t:${firstMessageTime}:R>`
+        ].join('\n');
+
+        embed.addFields([{
+          name: '📊 Server Activity History',
+          value: activityText,
+          inline: false
+        }]);
+      }
+
       // Triggered rules
       const rulesText = detectionResult.triggeredRules
         .map(rule => {

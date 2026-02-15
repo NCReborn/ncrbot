@@ -22,22 +22,42 @@
     },
     "imageSpam": {
       "enabled": true,
-      "imageCount": 10,
+      "imageCount": 6,
       "timeWindowSeconds": 60,
       "timeoutSeconds": 43200,
       "excludeChannels": ["1285797205927792782", "1458182870605758611"]
     },
     "suspiciousPatterns": {
       "enabled": true,
-      "patterns": ["free nitro", "discord.gg/nitro", "get free discord"],
+      "patterns": [
+        "free nitro",
+        "discord.gg/nitro",
+        "get free discord",
+        "successfully received",
+        "withdrawal",
+        "congratulation",
+        "usdt",
+        "crypto",
+        "reward received",
+        "claim now"
+      ],
       "timeoutSeconds": 43200,
       "caseSensitive": false
     },
     "newAccountMonitoring": {
       "enabled": true,
-      "accountAgeDays": 7,
+      "accountAgeDays": 30,
       "requiresOtherTrigger": true,
       "timeoutSeconds": 43200
+    },
+    "dormantUserSpam": {
+      "enabled": true,
+      "minServerAgeDays": 1,
+      "maxHistoricalMessages": 2,
+      "maxHistoricalMedia": 0,
+      "minCurrentImages": 3,
+      "timeoutSeconds": 43200,
+      "severity": "high"
     }
   },
   "whitelist": {
