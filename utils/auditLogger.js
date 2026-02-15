@@ -6,6 +6,15 @@ const logger = require('./logger');
 
 const AUDIT_LOG_TIME_WINDOW_MS = 5000; // 5 seconds
 
+// Helper function to format user tag in Discord.js v14 compatible way
+function formatUserTag(user) {
+  if (!user) return 'Unknown User';
+  if (user.discriminator && user.discriminator !== '0') {
+    return `${user.username}#${user.discriminator}`;
+  }
+  return user.username || user.tag || 'Unknown User';
+}
+
 class AuditLogger {
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config', 'auditConfig.json');
@@ -107,9 +116,34 @@ class AuditLogger {
     const embed = this.createBaseEmbed('guildBanAdd', ban.user, ban.guild);
     if (!embed) return;
 
+    let executor = 'Unknown';
+    let reason = 'No reason provided';
+
+    // Fetch audit logs to get who performed the ban and the reason
+    try {
+      const auditLogs = await ban.guild.fetchAuditLogs({
+        type: AuditLogEvent.MemberBanAdd,
+        limit: 5
+      });
+
+      const auditEntry = auditLogs.entries.find(entry => 
+        entry.target.id === ban.user.id &&
+        Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS
+      );
+
+      if (auditEntry) {
+        executor = `${formatUserTag(auditEntry.executor)} (${auditEntry.executor.id})`;
+        reason = auditEntry.reason || 'No reason provided';
+      }
+    } catch (error) {
+      logger.error('Failed to fetch audit logs for ban:', error);
+      executor = 'Unknown (bot needs View Audit Log permission)';
+    }
+
     embed.addFields([
-      { name: 'User', value: `${ban.user.tag} (${ban.user.id})`, inline: true },
-      { name: 'Reason', value: ban.reason || 'No reason provided', inline: true }
+      { name: 'User', value: `${formatUserTag(ban.user)} (${ban.user.id})`, inline: true },
+      { name: 'Banned By', value: executor, inline: true },
+      { name: 'Reason', value: reason, inline: false }
     ]);
 
     await this.sendAuditLog(client, 'guildBanAdd', embed);
@@ -119,8 +153,34 @@ class AuditLogger {
     const embed = this.createBaseEmbed('guildBanRemove', ban.user, ban.guild);
     if (!embed) return;
 
+    let executor = 'Unknown';
+    let reason = 'No reason provided';
+
+    // Fetch audit logs to get who performed the unban and the reason
+    try {
+      const auditLogs = await ban.guild.fetchAuditLogs({
+        type: AuditLogEvent.MemberBanRemove,
+        limit: 5
+      });
+
+      const auditEntry = auditLogs.entries.find(entry => 
+        entry.target.id === ban.user.id &&
+        Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS
+      );
+
+      if (auditEntry) {
+        executor = `${formatUserTag(auditEntry.executor)} (${auditEntry.executor.id})`;
+        reason = auditEntry.reason || 'No reason provided';
+      }
+    } catch (error) {
+      logger.error('Failed to fetch audit logs for unban:', error);
+      executor = 'Unknown (bot needs View Audit Log permission)';
+    }
+
     embed.addFields([
-      { name: 'User', value: `${ban.user.tag} (${ban.user.id})`, inline: true }
+      { name: 'User', value: `${formatUserTag(ban.user)} (${ban.user.id})`, inline: true },
+      { name: 'Unbanned By', value: executor, inline: true },
+      { name: 'Reason', value: reason, inline: false }
     ]);
 
     await this.sendAuditLog(client, 'guildBanRemove', embed);
@@ -147,11 +207,43 @@ class AuditLogger {
 
     const joinedTimestamp = member.joinedTimestamp ? Math.floor(member.joinedTimestamp / 1000) : null;
     
+    let executor = null;
+    let reason = null;
+    let wasKicked = false;
+
+    // Check audit logs to see if this was a kick
+    try {
+      const auditLogs = await member.guild.fetchAuditLogs({
+        type: AuditLogEvent.MemberKick,
+        limit: 5
+      });
+
+      const kickEntry = auditLogs.entries.find(entry => 
+        entry.target.id === member.user.id &&
+        Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS
+      );
+
+      if (kickEntry) {
+        wasKicked = true;
+        executor = `${formatUserTag(kickEntry.executor)} (${kickEntry.executor.id})`;
+        reason = kickEntry.reason || 'No reason provided';
+      }
+    } catch (error) {
+      logger.error('Failed to fetch audit logs for member leave:', error);
+    }
+
     embed.addFields([
-      { name: 'User', value: `${member.user.tag} (${member.user.id})`, inline: true },
+      { name: 'User', value: `${formatUserTag(member.user)} (${member.user.id})`, inline: true },
       { name: 'Joined', value: joinedTimestamp ? `<t:${joinedTimestamp}:R>` : 'Unknown', inline: true },
       { name: 'Member Count', value: `${member.guild.memberCount}`, inline: true }
     ]);
+
+    if (wasKicked && executor) {
+      embed.addFields([
+        { name: 'Kicked By', value: executor, inline: true },
+        { name: 'Reason', value: reason, inline: false }
+      ]);
+    }
 
     if (member.roles.cache.size > 1) {
       const roles = member.roles.cache
@@ -195,9 +287,36 @@ class AuditLogger {
         // Use timeout-specific event for this
         const timeoutEmbed = this.createBaseEmbed('guildMemberTimeout', newMember.user, newMember.guild);
         if (timeoutEmbed) {
+          let executor = 'Unknown';
+          let reason = 'No reason provided';
+
+          // Fetch audit logs to get who applied the timeout and the reason
+          try {
+            const auditLogs = await newMember.guild.fetchAuditLogs({
+              type: AuditLogEvent.MemberUpdate,
+              limit: 5
+            });
+
+            const timeoutEntry = auditLogs.entries.find(entry => 
+              entry.target.id === newMember.user.id &&
+              Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS &&
+              entry.changes?.some(change => change.key === 'communication_disabled_until')
+            );
+
+            if (timeoutEntry) {
+              executor = `${formatUserTag(timeoutEntry.executor)} (${timeoutEntry.executor.id})`;
+              reason = timeoutEntry.reason || 'No reason provided';
+            }
+          } catch (error) {
+            logger.error('Failed to fetch audit logs for timeout:', error);
+            executor = 'Unknown (bot needs View Audit Log permission)';
+          }
+
           timeoutEmbed.addFields([
-            { name: 'User', value: `${newMember.user.tag} (${newMember.user.id})`, inline: true },
-            { name: 'Timeout Until', value: `<t:${timeoutUntil}:F> (<t:${timeoutUntil}:R>)`, inline: true }
+            { name: 'User', value: `${formatUserTag(newMember.user)} (${newMember.user.id})`, inline: true },
+            { name: 'Timed Out By', value: executor, inline: true },
+            { name: 'Timeout Until', value: `<t:${timeoutUntil}:F> (<t:${timeoutUntil}:R>)`, inline: false },
+            { name: 'Reason', value: reason, inline: false }
           ]);
           await this.sendAuditLog(client, 'guildMemberTimeout', timeoutEmbed);
         }
