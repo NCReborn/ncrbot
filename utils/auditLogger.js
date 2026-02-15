@@ -6,6 +6,15 @@ const logger = require('./logger');
 
 const AUDIT_LOG_TIME_WINDOW_MS = 5000; // 5 seconds
 
+// Helper function to format user tag in Discord.js v14 compatible way
+function formatUserTag(user) {
+  if (!user) return 'Unknown User';
+  if (user.discriminator && user.discriminator !== '0') {
+    return `${user.username}#${user.discriminator}`;
+  }
+  return user.username || user.tag || 'Unknown User';
+}
+
 class AuditLogger {
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config', 'auditConfig.json');
@@ -123,10 +132,7 @@ class AuditLogger {
       );
 
       if (auditEntry) {
-        const executorTag = auditEntry.executor.discriminator && auditEntry.executor.discriminator !== '0' 
-          ? `${auditEntry.executor.username}#${auditEntry.executor.discriminator}`
-          : auditEntry.executor.username;
-        executor = `${executorTag} (${auditEntry.executor.id})`;
+        executor = `${formatUserTag(auditEntry.executor)} (${auditEntry.executor.id})`;
         reason = auditEntry.reason || 'No reason provided';
       }
     } catch (error) {
@@ -135,7 +141,7 @@ class AuditLogger {
     }
 
     embed.addFields([
-      { name: 'User', value: `${ban.user.tag} (${ban.user.id})`, inline: true },
+      { name: 'User', value: `${formatUserTag(ban.user)} (${ban.user.id})`, inline: true },
       { name: 'Banned By', value: executor, inline: true },
       { name: 'Reason', value: reason, inline: false }
     ]);
@@ -163,10 +169,7 @@ class AuditLogger {
       );
 
       if (auditEntry) {
-        const executorTag = auditEntry.executor.discriminator && auditEntry.executor.discriminator !== '0' 
-          ? `${auditEntry.executor.username}#${auditEntry.executor.discriminator}`
-          : auditEntry.executor.username;
-        executor = `${executorTag} (${auditEntry.executor.id})`;
+        executor = `${formatUserTag(auditEntry.executor)} (${auditEntry.executor.id})`;
         reason = auditEntry.reason || 'No reason provided';
       }
     } catch (error) {
@@ -175,7 +178,7 @@ class AuditLogger {
     }
 
     embed.addFields([
-      { name: 'User', value: `${ban.user.tag} (${ban.user.id})`, inline: true },
+      { name: 'User', value: `${formatUserTag(ban.user)} (${ban.user.id})`, inline: true },
       { name: 'Unbanned By', value: executor, inline: true },
       { name: 'Reason', value: reason, inline: false }
     ]);
@@ -222,10 +225,7 @@ class AuditLogger {
 
       if (kickEntry) {
         wasKicked = true;
-        const executorTag = kickEntry.executor.discriminator && kickEntry.executor.discriminator !== '0' 
-          ? `${kickEntry.executor.username}#${kickEntry.executor.discriminator}`
-          : kickEntry.executor.username;
-        executor = `${executorTag} (${kickEntry.executor.id})`;
+        executor = `${formatUserTag(kickEntry.executor)} (${kickEntry.executor.id})`;
         reason = kickEntry.reason || 'No reason provided';
       }
     } catch (error) {
@@ -233,7 +233,7 @@ class AuditLogger {
     }
 
     embed.addFields([
-      { name: 'User', value: `${member.user.tag} (${member.user.id})`, inline: true },
+      { name: 'User', value: `${formatUserTag(member.user)} (${member.user.id})`, inline: true },
       { name: 'Joined', value: joinedTimestamp ? `<t:${joinedTimestamp}:R>` : 'Unknown', inline: true },
       { name: 'Member Count', value: `${member.guild.memberCount}`, inline: true }
     ]);
@@ -304,10 +304,7 @@ class AuditLogger {
             );
 
             if (timeoutEntry) {
-              const executorTag = timeoutEntry.executor.discriminator && timeoutEntry.executor.discriminator !== '0' 
-                ? `${timeoutEntry.executor.username}#${timeoutEntry.executor.discriminator}`
-                : timeoutEntry.executor.username;
-              executor = `${executorTag} (${timeoutEntry.executor.id})`;
+              executor = `${formatUserTag(timeoutEntry.executor)} (${timeoutEntry.executor.id})`;
               reason = timeoutEntry.reason || 'No reason provided';
             }
           } catch (error) {
@@ -316,7 +313,7 @@ class AuditLogger {
           }
 
           timeoutEmbed.addFields([
-            { name: 'User', value: `${newMember.user.tag} (${newMember.user.id})`, inline: true },
+            { name: 'User', value: `${formatUserTag(newMember.user)} (${newMember.user.id})`, inline: true },
             { name: 'Timed Out By', value: executor, inline: true },
             { name: 'Timeout Until', value: `<t:${timeoutUntil}:F> (<t:${timeoutUntil}:R>)`, inline: false },
             { name: 'Reason', value: reason, inline: false }
