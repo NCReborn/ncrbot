@@ -128,10 +128,20 @@ class ForumManager {
 
   /**
    * Get all threads with a specific tag
+   * FIXED: Now fetches both active AND archived threads
    */
   async getThreadsByTag(forumChannel, tagName) {
     try {
-      const threads = await forumChannel.threads.fetchActive();
+      // Fetch both active and archived threads
+      const activeThreads = await forumChannel.threads.fetchActive();
+      const archivedThreads = await forumChannel.threads.fetchArchived();
+      
+      // Combine both collections
+      const allThreads = new Map([
+        ...activeThreads.threads,
+        ...archivedThreads.threads
+      ]);
+      
       const tag = forumChannel.availableTags.find(t => t.name === tagName);
       
       if (!tag) {
@@ -139,12 +149,13 @@ class ForumManager {
         return [];
       }
 
-      const filteredThreads = threads.threads.filter(thread => 
+      const filteredThreads = Array.from(allThreads.values()).filter(thread => 
         thread.appliedTags.includes(tag.id) && 
         thread.id !== CONSTANTS.FORUM.MEGATHREAD_ID // Exclude megathread itself
       );
 
-      return Array.from(filteredThreads.values());
+      logger.info(`[FORUM_MANAGER] Found ${filteredThreads.length} threads with tag: ${tagName}`);
+      return filteredThreads;
     } catch (error) {
       logger.error('[FORUM_MANAGER] Error fetching threads by tag:', error);
       return [];
@@ -197,7 +208,7 @@ async updateMegathread(client, tagName) {
     });
 
     await embedMessage.edit({ embeds });
-    logger.info(`[FORUM_MANAGER] Updated megathread section: ${tagConfig.section}`);
+    logger.info(`[FORUM_MANAGER] Updated megathread section: ${tagConfig.section} with ${threads.length} threads`);
     return true;
   } catch (error) {
     logger.error('[FORUM_MANAGER] Error updating megathread:', error);
