@@ -12,6 +12,7 @@ module.exports = {
   async execute(message, client) {
     if (botcontrol.botStatus.muted) return;
 
+    // Log analysis for crash log channel
     if (
       message.channelId === CONSTANTS.CHANNELS.CRASH_LOG &&
       !message.author.bot &&
@@ -46,29 +47,29 @@ module.exports = {
       }
     }
 
+    // Autoresponder (mods only) — use if-block instead of early return
     try {
-      if (message.author.bot) return;
-      if (!PermissionChecker.hasModRole(message.member)) return;
+      if (!message.author.bot && PermissionChecker.hasModRole(message.member)) {
+        const responses = loadResponses();
+        for (const entry of responses) {
+          const msgContent = message.content.toLowerCase();
+          const trigger = entry.trigger.toLowerCase();
 
-      const responses = loadResponses();
-      for (const entry of responses) {
-        const msgContent = message.content.toLowerCase();
-        const trigger = entry.trigger.toLowerCase();
+          const isMatch = entry.wildcard
+            ? msgContent.includes(trigger)
+            : msgContent === trigger;
 
-        const isMatch = entry.wildcard
-          ? msgContent.includes(trigger)
-          : msgContent === trigger;
-
-        if (isMatch) {
-          await message.channel.send({ content: entry.response });
-          break;
+          if (isMatch) {
+            await message.channel.send({ content: entry.response });
+            break;
+          }
         }
       }
     } catch (err) {
       logger.error(`[MESSAGE_CREATE][AUTORESPONDER] Uncaught error: ${err.stack || err}`);
     }
 
-    // Anti-spam detection
+    // Anti-spam detection — now always reached for non-bot guild messages
     try {
       if (message.author.bot || !message.guild) return;
       
