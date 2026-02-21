@@ -1,102 +1,16 @@
+const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 const { EmbedBuilder } = require('discord.js');
 
-// Map error patterns to suggested solutions (expand as needed)
-const ERROR_PATTERNS = [
-  {
-    tool: 'redscript',
-    patterns: [
-      /\[UNRESOLVED_TYPE\]/i,
-      /\[UNRESOLVED_METHOD\]/i,
-      /REDScript compilation has failed/i,
-    ],
-    solution: `Redscript compilation failed. This is usually caused by outdated mods, missing dependencies, or incompatible mod/game versions. Update all your mods (especially those listed in the error), check for new versions of Redscript and dependencies, and uninstall or disable mods one by one to isolate the problem.`
-  },
-  {
-    tool: 'ArchiveXL',
-    patterns: [
-      /\[ArchiveXL\]/i,
-      /ArchiveXL.*error/i
-    ],
-    solution: `ArchiveXL error detected. Make sure you have the latest ArchiveXL, all its requirements, and that all dependent mods are compatible with your game version.`
-  },
-  {
-    tool: 'TweakXL',
-    patterns: [
-      /\[TweakXL\]/i,
-      /TweakXL.*error/i
-    ],
-    solution: `TweakXL error detected. Ensure you have the latest TweakXL and compatible mods.`
-  },
-  {
-    tool: 'RED4ext',
-    patterns: [
-      /\[RED4ext\]/i,
-      /red4ext.*error/i
-    ],
-    solution: `RED4ext error detected. Update RED4ext and all native mods.`
-  },
-  {
-    tool: 'Cyber Engine Tweaks',
-    patterns: [
-      /\[Cyber Engine Tweaks\]/i,
-      /\[CET\]/i,
-      /cyber engine tweaks.*error/i,
-      /CET.*error/i
-    ],
-    solution: `Cyber Engine Tweaks (CET) error detected. Update CET and check for mod version compatibility.`
-  },
-  {
-    tool: 'REDmod',
-    patterns: [
-      /\[REDmod\]/i,
-      /REDmod.*error/i
-    ],
-    solution: `REDmod error detected. Make sure REDmod is enabled in your launcher and your mods are in the correct directory.`
-  }
-];
+const KNOWLEDGE_PATH = path.join(__dirname, '../config/crashKnowledge.json');
 
-// AI Diagnostics integration
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 /**
- * Calls OpenAI for a diagnostic summary of the given log snippet.
- * Logs detailed API errors for troubleshooting but never exposes secrets.
- * @param {string} logSnippet
- * @returns {Promise<string>}
+ * Load the crash knowledge base from disk.
+ * @returns {Object} The parsed knowledge base object.
  */
-async function getAIDiagnostic(logSnippet) {
-  if (!OPENAI_API_KEY) {
-    return "AI diagnostics unavailable: no OpenAI API key configured.";
-  }
-  const prompt = `This is a crash log from a Cyberpunk 2077 modded setup. What does the following error mean and how do I fix it? Please keep your answer concise and actionable for a non-programmer.\n\nError snippet:\n${logSnippet}`;
-  try {
-    const resp = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-3.5-turbo',
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 300,
-        temperature: 0.2,
-      },
-      { headers: { Authorization: `Bearer ${OPENAI_API_KEY}` } }
-    );
-    return resp.data.choices[0].message.content.trim();
-  } catch (err) {
-    // Enhanced logging for diagnostics (never log the API key or prompt)
-    const logger = require('./logger');
-    if (err.response) {
-      logger.error(`OpenAI API error: Status ${err.response.status} - ${err.response.statusText}`);
-      if (err.response.data && err.response.data.error) {
-        logger.error(`OpenAI API error details: ${JSON.stringify(err.response.data.error)}`);
-      }
-    } else if (err.request) {
-      logger.error('OpenAI API error: No response received from OpenAI API.');
-    } else {
-      logger.error(`OpenAI API error: ${err.message}`);
-    }
-    // Show a generic message to the user
-    return "AI diagnostics failed: An error occurred while contacting the OpenAI API. Please try again later.";
-  }
+function loadKnowledge() {
+  return JSON.parse(fs.readFileSync(KNOWLEDGE_PATH, 'utf8'));
 }
 
 async function fetchLogAttachment(attachment) {
@@ -111,65 +25,100 @@ async function fetchLogAttachment(attachment) {
 }
 
 /**
- * Analyze the log for known errors and always supplement with an AI summary.
- * Returns an object: { matches, aiSummary }
+ * Detect which log type this content belongs to.
+ * @param {string} logContent
+ * @param {Object} logTypes - logTypes map from knowledge base
+ * @returns {string|null} logType key or null
  */
-async function analyzeLogForErrors(logContent) {
-  const lines = logContent.split(/\r?\n/);
-  // Flexible error line detection:
-  const errorLines = lines.filter(line =>
-    line.toUpperCase().includes('[ERROR') ||
-    line.toUpperCase().includes('ERROR')
-  );
-
-  let matches = [];
-  errorLines.forEach((line, i) => {
-    for (const err of ERROR_PATTERNS) {
-      for (const pattern of err.patterns) {
-        const result = pattern.test(line);
-        if (result) {
-          matches.push({
-            tool: err.tool,
-            lineNumber: i + 1,
-            line,
-            solution: err.solution
-          });
-        }
-      }
+function detectLogType(logContent, logTypes) {
+  const lower = logContent.toLowerCase();
+  for (const [key, def] of Object.entries(logTypes)) {
+    for (const id of def.identifiers) {
+      if (lower.includes(id.toLowerCase())) return key;
     }
-  });
-
-  if (
-    logContent.match(/REDScript compilation has failed/i) &&
-    !matches.some(m => m.tool === 'redscript')
-  ) {
-    matches.push({
-      tool: 'redscript',
-      lineNumber: null,
-      line: 'REDScript compilation has failed.',
-      solution: ERROR_PATTERNS.find(p => p.tool === 'redscript').solution
-    });
   }
-
-  // Always get an AI summary of the error lines (or logContent if no error lines)
-  let aiSummary = null;
-  if (matches.length > 0) {
-    aiSummary = await getAIDiagnostic(
-      matches.map(m => m.line).join('\n').slice(0, 2000)
-    );
-  }
-
-  return { matches, aiSummary };
+  return null;
 }
 
+/**
+ * Extract loaded plugins list from RED4ext log content.
+ * @param {string} logContent
+ * @returns {string[]}
+ */
+function extractPlugins(logContent) {
+  const plugins = [];
+  const lines = logContent.split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/\[RED4ext\].*Loaded plugin[:\s]+(.+)/i);
+    if (m) plugins.push(m[1].trim());
+  }
+  return plugins;
+}
+
+/**
+ * Extract version info (RED4ext version, game version) from log content.
+ * @param {string} logContent
+ * @returns {Object}
+ */
+function extractVersions(logContent) {
+  const versions = {};
+  const red4extMatch = logContent.match(/\[RED4ext\].*version[:\s]+([\d.]+)/i);
+  if (red4extMatch) versions.red4ext = red4extMatch[1];
+  const gameMatch = logContent.match(/game version[:\s]+([\d.]+)/i);
+  if (gameMatch) versions.game = gameMatch[1];
+  return versions;
+}
+
+/**
+ * Extract mod list from log content if present.
+ * @param {string} logContent
+ * @returns {string[]}
+ */
 function extractModList(logContent) {
-  // Optionally, add a list of mods reported in the log as problematic:
   const modFailMatch = logContent.match(/This error has been caused by mods listed below:\n- ([\s\S]+)/i);
   if (modFailMatch) {
-    const modList = modFailMatch[1].split('\n').filter(l => l.trim().startsWith('-')).map(l => l.replace(/^- /, '').trim());
-    return modList;
+    return modFailMatch[1].split('\n')
+      .filter(l => l.trim().startsWith('-'))
+      .map(l => l.replace(/^- /, '').trim());
   }
   return [];
+}
+
+/**
+ * Analyze the log using the knowledge base.
+ * Returns: { logType, matchedRules, plugins, versions, modList }
+ */
+async function analyzeLogForErrors(logContent) {
+  const kb = loadKnowledge();
+  const logType = detectLogType(logContent, kb.logTypes);
+  const lower = logContent.toLowerCase();
+
+  const seenIds = new Set();
+  const matchedRules = [];
+
+  for (const rule of kb.rules) {
+    if (rule.logType !== 'any' && rule.logType !== logType) continue;
+    if (seenIds.has(rule.id)) continue;
+
+    const patterns = rule.patterns.map(p => p.toLowerCase());
+    let matched = false;
+    if (rule.matchMode === 'all') {
+      matched = patterns.every(p => lower.includes(p));
+    } else {
+      matched = patterns.some(p => lower.includes(p));
+    }
+
+    if (matched) {
+      seenIds.add(rule.id);
+      matchedRules.push(rule);
+    }
+  }
+
+  const plugins = extractPlugins(logContent);
+  const versions = extractVersions(logContent);
+  const modList = extractModList(logContent);
+
+  return { logType, matchedRules, plugins, versions, modList };
 }
 
 // Helper to ensure all embed fields are valid and within size limits
@@ -183,85 +132,82 @@ function safeField(name, value, inline = false) {
 }
 
 /**
- * Builds an error analysis embed for a log file, including an AI summary field.
+ * Builds an error analysis embed for a log file using the knowledge base.
  * @param {Object} attachment - {name, url}
- * @param {Object} analysisResult - Output of analyzeLogForErrors: { matches, aiSummary }
+ * @param {Object} analysisResult - Output of analyzeLogForErrors: { logType, matchedRules, plugins, versions, modList }
  * @param {string} logContent - The log's full content
  * @param {string} messageUrl - The "jump to message" URL, or empty string if ephemeral
  * @param {boolean} showOriginalMessage - If false, don't show "Original Message" block (for ephemeral replies)
  */
 function buildErrorEmbed(attachment, analysisResult, logContent, messageUrl = '', showOriginalMessage = true) {
-  const { matches, aiSummary } = analysisResult;
+  const { logType, matchedRules, plugins, versions, modList } = analysisResult;
+  const kb = loadKnowledge();
+
+  const hasCritical = matchedRules.some(r => r.severity === 'critical');
+  const color = hasCritical ? 0xff0000 : matchedRules.length > 0 ? 0xff8c00 : 0x00bb55;
+
+  const logTypeLabel = logType ? (kb.logTypes[logType]?.description || logType) : 'Unknown';
 
   const embed = new EmbedBuilder()
     .setTitle(`Crash Log Analysis: ${attachment.name}`)
-    .setColor(0xff0000)
+    .setColor(color)
     .setTimestamp();
 
-  if (matches.length > 0) {
-    embed.setDescription(`Detected **${matches.length} critical error(s)** that may prevent the game from launching.\n\n**Summary:**`);
+  if (matchedRules.length > 0) {
+    embed.setDescription(
+      `**Log type:** ${logTypeLabel}\n` +
+      `Detected **${matchedRules.length} issue(s)** in this log file.\n\n**Details:**`
+    );
 
-    matches.slice(0, 5).forEach(error => {
-      const field = safeField(
-        `❌ ${error.tool} (Line ${error.lineNumber || '?'})`,
-        `\`\`\`${(error.line || '').toString().trim().slice(0, 200)}\`\`\`\n**Solution:** ${error.solution || 'No solution provided.'}`
-      );
+    for (const rule of matchedRules) {
+      const severityIcon = rule.severity === 'critical' ? '❌' : rule.severity === 'warning' ? '⚠️' : 'ℹ️';
+      let fieldValue = rule.solution;
+      if (rule.links && rule.links.length > 0) {
+        const linkParts = rule.links.map(l => `<#${l.channelId}>`);
+        fieldValue += `\n\n**See also:** ${linkParts.join(' • ')}`;
+      }
+      const field = safeField(`${severityIcon} ${rule.name}`, fieldValue);
       if (field) embed.addFields(field);
-    });
-
-    if (matches.length > 5) {
-      const moreField = safeField("Note", `Showing only the first 5 errors. There may be more in your log.`);
-      if (moreField) embed.addFields(moreField);
     }
 
-    const modList = extractModList(logContent);
-    if (modList.length) {
+    if (modList.length > 0) {
       const modsField = safeField(
-        "Mods Possibly Causing the Crash",
+        'Mods Possibly Causing the Crash',
         modList.map(m => `• ${m}`).join('\n')
       );
       if (modsField) embed.addFields(modsField);
     }
 
-    if (matches.some(m => m.tool === 'redscript')) {
-      const solutionsField = safeField(
-        "Possible Solutions",
-        [
-          ":warning: **If you are seeing a Redscript compilation failed error, please attempt a clean install as described in <#1399435694472040509>. This resolves most persistent script errors!**",
-          "",
-          "It may also be worth looking in <#1379124580051845130> for a list of common issues that can cause errors."
-        ].join('\n')
-      );
-      if (solutionsField) embed.addFields(solutionsField);
-    }
+    const helpfulLinks = [
+      `• <#${kb.channels.commonFixes}> — Common fixes`,
+      `• <#${kb.channels.cleanInstall}> — Clean install guide`,
+      `• <#${kb.channels.bisect}> — Bisect your collection`,
+      `• <#${kb.channels.bugsAndIssues}> — Post in Bugs & Issues`
+    ].join('\n');
+    const resourcesField = safeField('📌 Helpful Resources', helpfulLinks);
+    if (resourcesField) embed.addFields(resourcesField);
   } else {
-    embed
-      .setDescription(`✅ **No critical errors were detected in this log file.**
-      
-If you are still experiencing issues:
-- Please post any additional log files mentioned in the pinned comments of this channel.
-- Or, head to <#1285796905640788030> and describe the issue you are having for further assistance.`);
-  }
-
-  // Always add the AI summary, if present and not empty
-  if (aiSummary && matches.length > 0) {
-    const aiField = safeField(
-      "🤖 AI Summary of Potential Issues/Fixes",
-      aiSummary.length > 1024 ? aiSummary.slice(0, 1021) + '...' : aiSummary
+    embed.setDescription(
+      `**Log type:** ${logTypeLabel}\n\n` +
+      `✅ **No known issues were detected in this log file.**\n\n` +
+      `If you are still experiencing problems, try the common fixes below or post your log in <#${kb.channels.bugsAndIssues}> for further assistance.\n\n` +
+      `• <#${kb.channels.commonFixes}> — Common fixes\n` +
+      `• <#${kb.channels.cleanInstall}> — Clean install guide\n` +
+      `• <#${kb.channels.bugsAndIssues}> — Bugs & Issues forum`
     );
-    if (aiField) embed.addFields(aiField);
   }
 
-  // Only show "Original Message" section for non-ephemeral messages with a valid URL
   if (showOriginalMessage && messageUrl) {
-    const origField = safeField(
-      "Original Message",
-      `[Jump to message](${messageUrl})`
-    );
+    const origField = safeField('Original Message', `[Jump to message](${messageUrl})`);
     if (origField) embed.addFields(origField);
   }
 
-  embed.setFooter({ text: 'This log analysis is AI-generated and currently in beta.', iconURL: null });
+  // Footer with version info + plugin count
+  const footerParts = ['Powered by NCRBot Knowledge Base'];
+  if (versions.red4ext) footerParts.push(`RED4ext ${versions.red4ext}`);
+  if (versions.game) footerParts.push(`Game ${versions.game}`);
+  if (plugins.length > 0) footerParts.push(`${plugins.length} plugin(s) loaded`);
+  embed.setFooter({ text: footerParts.join(' • '), iconURL: null });
 
   return embed;
 }
@@ -269,5 +215,6 @@ If you are still experiencing issues:
 module.exports = {
   fetchLogAttachment,
   analyzeLogForErrors,
-  buildErrorEmbed
+  buildErrorEmbed,
+  loadKnowledge
 };
