@@ -30,7 +30,7 @@ module.exports = {
           const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
           embeds.push(embed);
 
-          if (analysisResult.matches.length > 0) hasErrors = true;
+          if (analysisResult.matchedRules.length > 0) hasErrors = true;
         }
 
         if (embeds.length) {

@@ -1,0 +1,173 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2026-02-20",
+  "channels": {
+    "cleanInstall": "1417639414678687885",
+    "latestRevision": "1454669232926097419",
+    "bisect": "1417639726806077573",
+    "commonFixes": "1285797091750187039",
+    "bugsAndIssues": "1468547310509228204"
+  },
+  "logTypes": {
+    "red4ext": { "identifiers": ["[RED4ext]"], "description": "RED4ext" },
+    "redscript": { "identifiers": ["[redscript]", "REDScript compilation"], "description": "Redscript" },
+    "archivexl": { "identifiers": ["[ArchiveXL]"], "description": "ArchiveXL" },
+    "tweakxl": { "identifiers": ["[TweakXL]"], "description": "TweakXL" },
+    "cet": { "identifiers": ["[Cyber Engine Tweaks]", "[CET]"], "description": "Cyber Engine Tweaks" },
+    "redmod": { "identifiers": ["[REDmod]"], "description": "REDmod" }
+  },
+  "rules": [
+    {
+      "id": "red4ext-waituntilloaded",
+      "logType": "red4ext",
+      "name": "WaitUntilLoaded Thread Error",
+      "severity": "critical",
+      "patterns": ["WaitUntilLoaded can only be called on main thread"],
+      "matchMode": "any",
+      "solution": "A native plugin is calling WaitUntilLoaded on a background thread. Identify the plugin causing this using bisect and update or remove it.",
+      "recommendation": "bisect",
+      "links": [
+        { "label": "Bisect Your Collection", "channelId": "1417639726806077573" },
+        { "label": "Common Fixes", "channelId": "1285797091750187039" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "red4ext-could-not-open-thread",
+      "logType": "red4ext",
+      "name": "Could Not Open Thread",
+      "severity": "warning",
+      "patterns": ["Could not open a thread. The transaction will continue"],
+      "matchMode": "any",
+      "solution": "This warning is harmless on its own and the transaction will continue. No action needed unless combined with other errors.",
+      "recommendation": null,
+      "links": [],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "red4ext-version-mismatch",
+      "logType": "red4ext",
+      "name": "Plugin Version Mismatch",
+      "severity": "critical",
+      "patterns": [
+        "is not compatible with the current game version",
+        "plugin API version mismatch"
+      ],
+      "matchMode": "any",
+      "solution": "One or more RED4ext plugins are not compatible with your current game version. Update RED4ext and all native plugins to their latest versions.",
+      "recommendation": "latestRevision",
+      "links": [
+        { "label": "Update to Latest Revision", "channelId": "1454669232926097419" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "red4ext-plugin-load-failed",
+      "logType": "red4ext",
+      "name": "Plugin Failed to Load",
+      "severity": "critical",
+      "patterns": [
+        "failed to load plugin",
+        "could not load plugin"
+      ],
+      "matchMode": "any",
+      "solution": "RED4ext could not load one or more plugins. This is often caused by a corrupted or missing plugin file. Try a clean install to restore all files.",
+      "recommendation": "cleanInstall",
+      "links": [
+        { "label": "Clean Install Guide", "channelId": "1417639414678687885" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "redscript-compilation-failed",
+      "logType": "redscript",
+      "name": "Redscript Compilation Failed",
+      "severity": "critical",
+      "patterns": ["REDScript compilation has failed"],
+      "matchMode": "any",
+      "solution": "Redscript failed to compile. This is usually caused by an outdated or conflicting script mod. A clean install resolves most persistent script errors.",
+      "recommendation": "cleanInstall",
+      "links": [
+        { "label": "Clean Install Guide", "channelId": "1417639414678687885" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "redscript-unresolved-type",
+      "logType": "redscript",
+      "name": "Unresolved Type or Method",
+      "severity": "critical",
+      "patterns": [
+        "[UNRESOLVED_TYPE]",
+        "[UNRESOLVED_METHOD]"
+      ],
+      "matchMode": "any",
+      "solution": "A script mod references a type or method that doesn't exist. This is usually caused by a missing dependency or an outdated mod. Update all mods to their latest versions.",
+      "recommendation": "latestRevision",
+      "links": [
+        { "label": "Update to Latest Revision", "channelId": "1454669232926097419" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "redscript-duplicate",
+      "logType": "redscript",
+      "name": "Duplicate Definition",
+      "severity": "critical",
+      "patterns": [
+        "already defined in",
+        "duplicate definition"
+      ],
+      "matchMode": "any",
+      "solution": "Two or more mods define the same script class or function. Use bisect to identify which mod is conflicting and remove or replace it.",
+      "recommendation": "bisect",
+      "links": [
+        { "label": "Bisect Your Collection", "channelId": "1417639726806077573" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "cet-version-mismatch",
+      "logType": "cet",
+      "name": "CET Version Mismatch",
+      "severity": "critical",
+      "patterns": [
+        "version mismatch",
+        "is outdated"
+      ],
+      "matchMode": "any",
+      "solution": "Cyber Engine Tweaks or one of its mods is outdated. Update CET and all CET mods to their latest versions.",
+      "recommendation": "latestRevision",
+      "links": [
+        { "label": "Update to Latest Revision", "channelId": "1454669232926097419" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    },
+    {
+      "id": "archivexl-load-failed",
+      "logType": "archivexl",
+      "name": "ArchiveXL Load Failed",
+      "severity": "critical",
+      "patterns": [
+        "Failed to load archive",
+        "ArchiveXL error"
+      ],
+      "matchMode": "any",
+      "solution": "ArchiveXL failed to load one or more archive files. Make sure ArchiveXL is up to date and all dependent mods are compatible with your game version. A clean install may be needed.",
+      "recommendation": "cleanInstall",
+      "links": [
+        { "label": "Clean Install Guide", "channelId": "1417639414678687885" }
+      ],
+      "addedBy": "system",
+      "addedAt": "2026-02-20"
+    }
+  ]
+}
