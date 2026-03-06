@@ -2,6 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
+const spamDetector = require('./SpamDetector');
 
 const CONTENT_PREVIEW_LENGTH = 100;
 const MAX_DETECTION_HISTORY = 100;
@@ -330,8 +331,22 @@ class SpamActionHandler {
       case 'false':
         // Remove timeout
         await member.timeout(null, `False positive - cleared by ${interaction.user.tag}`);
+
+        // Auto-whitelist the user to prevent future false positives
+        try {
+          const configPath = path.join(__dirname, '../../config/spamConfig.json');
+          const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          if (!configData.whitelist.users.includes(member.user.id)) {
+            configData.whitelist.users.push(member.user.id);
+            await fs.promises.writeFile(configPath, JSON.stringify(configData, null, 2));
+            spamDetector.reloadConfig();
+          }
+        } catch (err) {
+          logger.error('[SPAM] Failed to auto-whitelist user:', err);
+        }
+
         await interaction.reply({ 
-          content: `❌ Timeout removed from ${member.user.tag}. Spam detection marked as false positive.`,
+          content: `❌ Timeout removed from ${member.user.tag}. Spam detection marked as false positive. User has been auto-whitelisted.`,
           ephemeral: true 
         });
         logger.info(`[SPAM] Moderator ${interaction.user.tag} marked detection as false positive for ${member.user.tag}`);
