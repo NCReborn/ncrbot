@@ -42,7 +42,9 @@
         "claim now"
       ],
       "timeoutSeconds": 43200,
-      "caseSensitive": false
+      "caseSensitive": false,
+      "minMessagesExempt": 50,
+      "requiresOtherTrigger": false
     },
     "newAccountMonitoring": {
       "enabled": true,

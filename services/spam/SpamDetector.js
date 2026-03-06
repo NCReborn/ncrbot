@@ -50,6 +50,11 @@ class SpamDetector {
       return true;
     }
 
+    // Auto-whitelist server boosters
+    if (member.premiumSince) {
+      return true;
+    }
+
     return false;
   }
 
@@ -220,23 +225,40 @@ class SpamDetector {
     // 4. Suspicious Pattern Detection
     if (this.config.rules.suspiciousPatterns?.enabled) {
       const rule = this.config.rules.suspiciousPatterns;
-      const content = rule.caseSensitive ? message.content : message.content.toLowerCase();
-      
-      for (const pattern of rule.patterns) {
-        const searchPattern = rule.caseSensitive ? pattern : pattern.toLowerCase();
-        if (content.includes(searchPattern)) {
-          triggeredRules.push({
-            name: 'Suspicious Pattern',
-            description: `"${pattern}" detected`,
-            severity: 'critical'
-          });
-          
-          evidence.push({
-            messageId: message.id,
-            channelId: message.channelId,
-            content: message.content.substring(0, CONTENT_PREVIEW_LENGTH)
-          });
-          break;
+
+      // Skip pattern check for established users
+      let skipPatterns = false;
+      if (rule.minMessagesExempt) {
+        const activityStats = userActivityTracker.getActivity(message.guildId, message.author.id);
+        if (activityStats && activityStats.messages >= rule.minMessagesExempt) {
+          skipPatterns = true;
+        }
+      }
+
+      if (!skipPatterns) {
+        const content = rule.caseSensitive ? message.content : message.content.toLowerCase();
+
+        for (const pattern of rule.patterns) {
+          const searchPattern = rule.caseSensitive ? pattern : pattern.toLowerCase();
+          if (content.includes(searchPattern)) {
+            // Skip if requiresOtherTrigger is set and no other rules have fired yet
+            if (rule.requiresOtherTrigger && triggeredRules.length === 0) {
+              break;
+            }
+
+            triggeredRules.push({
+              name: 'Suspicious Pattern',
+              description: `"${pattern}" detected`,
+              severity: 'critical'
+            });
+
+            evidence.push({
+              messageId: message.id,
+              channelId: message.channelId,
+              content: message.content.substring(0, CONTENT_PREVIEW_LENGTH)
+            });
+            break;
+          }
         }
       }
     }
