@@ -2,6 +2,7 @@
   "enabled": true,
   "alertChannelId": "1468304973669466184",
   "defaultTimeoutSeconds": 43200,
+  "confidenceThreshold": 3,
   "protectedChannels": {
     "showcase": "1285797205927792782",
     "gifs": "1458182870605758611"

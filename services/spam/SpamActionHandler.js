@@ -46,8 +46,16 @@ class SpamActionHandler {
   }
 
   async handleSpamDetection(client, message, member, detectionResult) {
+    if (detectionResult.confidenceLevel === 'high') {
+      await this.handleHighConfidenceDetection(client, message, member, detectionResult);
+    } else {
+      await this.handleLowConfidenceDetection(client, message, member, detectionResult);
+    }
+  }
+
+  async handleHighConfidenceDetection(client, message, member, detectionResult) {
     try {
-      logger.info(`[SPAM] Spam detected for user ${member.user.tag} (${member.user.id})`);
+      logger.info(`[SPAM] High-confidence spam detected for user ${member.user.tag} (${member.user.id})`);
 
       // 1. Delete recent spam messages
       const deletedMessages = await this.deleteRecentMessages(message.guild, member.user.id, detectionResult);
@@ -67,7 +75,162 @@ class SpamActionHandler {
       this.recordDetection(member.user.id, detectionResult);
 
     } catch (error) {
-      logger.error('[SPAM] Error handling spam detection:', error);
+      logger.error('[SPAM] Error handling high-confidence spam detection:', error);
+    }
+  }
+
+  async handleLowConfidenceDetection(client, message, member, detectionResult) {
+    try {
+      logger.info(`[SPAM] Low-confidence detection for user ${member.user.tag} (${member.user.id}) — review required`);
+
+      const alertChannelId = this.config.alertChannelId;
+      if (!alertChannelId) {
+        logger.warn('[SPAM] No alert channel configured');
+        return;
+      }
+
+      const channel = await client.channels.fetch(alertChannelId);
+      if (!channel) {
+        logger.warn(`[SPAM] Alert channel ${alertChannelId} not found`);
+        return;
+      }
+
+      const threshold = this.config.confidenceThreshold ?? 3;
+
+      // Build review embed
+      const embed = new EmbedBuilder()
+        .setTitle('⚠️ Suspicious Activity — Review Required')
+        .setColor(0xFFA500)
+        .setTimestamp()
+        .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 128 }));
+
+      // User info
+      embed.addFields([
+        { 
+          name: 'User', 
+          value: `${member.user.tag} (${member.user.id})`,
+          inline: true 
+        },
+        { 
+          name: 'Account Created', 
+          value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`,
+          inline: true 
+        }
+      ]);
+
+      if (member.joinedTimestamp) {
+        embed.addFields([{
+          name: 'Joined Server',
+          value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`,
+          inline: true
+        }]);
+      }
+
+      // Server Activity History
+      if (detectionResult.activityStats) {
+        const stats = detectionResult.activityStats;
+        const firstMessageTime = Math.floor(stats.firstMessageAt / 1000);
+        const activityText = [
+          `💬 **Messages:** ${stats.messages}`,
+          `🔗 **Links:** ${stats.links}`,
+          `📷 **Media:** ${stats.media}`,
+          `⏱️ **First Message:** <t:${firstMessageTime}:R>`
+        ].join('\n');
+
+        embed.addFields([{
+          name: '📊 Server Activity History',
+          value: activityText,
+          inline: false
+        }]);
+      } else {
+        embed.addFields([{
+          name: '📊 Server Activity History',
+          value: '⚠️ No activity history available',
+          inline: false
+        }]);
+      }
+
+      // Triggered rules
+      const rulesText = detectionResult.triggeredRules
+        .map(rule => {
+          const emoji = rule.severity === 'critical' ? '❌' : 
+                       rule.severity === 'high' ? '⚠️' : 
+                       rule.severity === 'warning' ? '⚠️' : '•';
+          return `${emoji} **${rule.name}**: ${rule.description}`;
+        })
+        .join('\n');
+
+      embed.addFields([{
+        name: 'Triggered Rules',
+        value: rulesText,
+        inline: false
+      }]);
+
+      // Evidence
+      if (detectionResult.evidence.length > 0) {
+        const evidenceText = detectionResult.evidence
+          .slice(0, 3)
+          .map((ev, idx) => {
+            const channelMention = `<#${ev.channelId}>`;
+            const content = ev.content ? `"${ev.content}${ev.content.length >= 100 ? '...' : ''}"` : '[No text content]';
+            return `**Message ${idx + 1}** (in ${channelMention}): ${content}`;
+          })
+          .join('\n\n');
+
+        embed.addFields([{
+          name: 'Evidence',
+          value: evidenceText,
+          inline: false
+        }]);
+      }
+
+      // No action taken notice
+      embed.addFields([
+        {
+          name: 'Status',
+          value: 'ℹ️ **No automatic action taken** — This detection had low confidence. Please review and take action if needed.',
+          inline: false
+        },
+        {
+          name: 'Confidence',
+          value: `📊 **Confidence:** Low (score: ${detectionResult.confidenceScore}/${threshold})`,
+          inline: false
+        }
+      ]);
+
+      // Review action buttons
+      const actionRow = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId(`spam_timeout_${member.user.id}`)
+            .setLabel('⏱️ Timeout User')
+            .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+            .setCustomId(`spam_ban_${member.user.id}`)
+            .setLabel('⛔ Ban User')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`spam_dismiss_${member.user.id}`)
+            .setLabel('✅ Dismiss')
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`spam_reviewwhitelist_${member.user.id}`)
+            .setLabel('🛡️ Whitelist User')
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+      await channel.send({
+        embeds: [embed],
+        components: [actionRow]
+      });
+
+      logger.info(`[SPAM] Review alert sent to channel ${alertChannelId}`);
+
+      // Record stats
+      this.recordDetection(member.user.id, detectionResult);
+
+    } catch (error) {
+      logger.error('[SPAM] Error handling low-confidence detection:', error);
     }
   }
 
@@ -233,11 +396,18 @@ class SpamActionHandler {
         `✅ Timeout expires <t:${timeoutTimestamp}:R>`
       ].join('\n');
 
-      embed.addFields([{
-        name: 'Actions Taken',
-        value: actionsText,
-        inline: false
-      }]);
+      embed.addFields([
+        {
+          name: 'Actions Taken',
+          value: actionsText,
+          inline: false
+        },
+        {
+          name: 'Confidence',
+          value: `📊 **Confidence:** High (score: ${detectionResult.confidenceScore ?? 'N/A'})`,
+          inline: false
+        }
+      ]);
 
       // Create action buttons
       const actionRow = new ActionRowBuilder()
@@ -364,6 +534,54 @@ class SpamActionHandler {
           content: `⏱️ To adjust timeout for ${member.user.tag}, use the /timeout command or right-click > Timeout.`,
           ephemeral: true 
         });
+        break;
+
+      case 'timeout': {
+        const timeoutDuration = this.config.defaultTimeoutSeconds * 1000;
+        const timeoutUntil = new Date(Date.now() + timeoutDuration);
+        const timeoutHours = this.config.defaultTimeoutSeconds / 3600;
+
+        await member.timeout(timeoutDuration, `Manual timeout by ${interaction.user.tag} via review alert`);
+
+        // Delete recent messages
+        const emptyDetectionResult = { evidence: [] };
+        await this.deleteRecentMessages(interaction.guild, member.user.id, emptyDetectionResult);
+
+        await interaction.reply({
+          content: `⏱️ User ${member.user.tag} has been timed out for ${timeoutHours} hours.`,
+          ephemeral: true
+        });
+        logger.info(`[SPAM] Moderator ${interaction.user.tag} manually timed out ${member.user.tag} until ${timeoutUntil.toISOString()}`);
+        break;
+      }
+
+      case 'dismiss':
+        await interaction.reply({
+          content: `✅ Alert dismissed by ${interaction.user.tag}. No action taken.`,
+          ephemeral: true
+        });
+        logger.info(`[SPAM] Moderator ${interaction.user.tag} dismissed review alert for ${member.user.tag}`);
+        break;
+
+      case 'reviewwhitelist':
+        // Add user to whitelist and reload config
+        try {
+          const configPath = path.join(__dirname, '../../config/spamConfig.json');
+          const configData = JSON.parse(await fs.promises.readFile(configPath, 'utf8'));
+          if (!configData.whitelist.users.includes(member.user.id)) {
+            configData.whitelist.users.push(member.user.id);
+            await fs.promises.writeFile(configPath, JSON.stringify(configData, null, 2));
+            spamDetector.reloadConfig();
+          }
+        } catch (err) {
+          logger.error('[SPAM] Failed to whitelist user:', err);
+        }
+
+        await interaction.reply({
+          content: `🛡️ ${member.user.tag} has been whitelisted and will no longer be flagged.`,
+          ephemeral: true
+        });
+        logger.info(`[SPAM] Moderator ${interaction.user.tag} whitelisted ${member.user.tag} via review alert`);
         break;
     }
   }

@@ -333,7 +333,22 @@ class SpamDetector {
     // Return detection result
     if (triggeredRules.length > 0) {
       const activityStats = userActivityTracker.getActivity(message.guildId, message.author.id);
-      
+
+      // Calculate confidence score based on severity of triggered rules
+      const severityPoints = { critical: 3, high: 2, warning: 1 };
+      const confidenceScore = triggeredRules.reduce((sum, rule) => {
+        return sum + (severityPoints[rule.severity] || 0);
+      }, 0);
+
+      const threshold = this.config.confidenceThreshold ?? 3;
+
+      // If the only triggered rule is a Suspicious Pattern, force low confidence
+      // regardless of score — keyword-only matches are the primary source of false positives
+      const onlySuspiciousPattern =
+        triggeredRules.length === 1 && triggeredRules[0].name === 'Suspicious Pattern';
+
+      const confidenceLevel = (onlySuspiciousPattern || confidenceScore < threshold) ? 'low' : 'high';
+
       return {
         detected: true,
         userId: userId,
@@ -342,7 +357,9 @@ class SpamDetector {
         accountCreated: member.user.createdTimestamp,
         joinedServer: member.joinedTimestamp,
         isNewAccount,
-        activityStats: activityStats || null
+        activityStats: activityStats || null,
+        confidenceScore,
+        confidenceLevel
       };
     }
 
