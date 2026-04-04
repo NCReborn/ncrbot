@@ -116,7 +116,7 @@ class NsfwDetector {
       ctx.drawImage(image, 0, 0);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       imageTensor = tf.browser.fromPixels({
-        data: imageData.data,
+        data: new Uint8Array(imageData.data.buffer),
         width: canvas.width,
         height: canvas.height,
       }, 3);
