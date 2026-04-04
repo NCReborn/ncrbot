@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "monitoredChannels": ["1285797205927792782"],
+  "nsfwChannel": "1488110174999806003",
+  "alertChannelId": "1468304973669466184",
+  "thresholds": {
+    "high": 0.85,
+    "medium": 0.50
+  }
+}
