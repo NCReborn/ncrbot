@@ -1,5 +1,6 @@
 const nsfwjs = require('nsfwjs');
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
+const { createCanvas, loadImage } = require('canvas');
 const axios = require('axios');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -109,7 +110,16 @@ class NsfwDetector {
 
     let imageTensor;
     try {
-      imageTensor = tf.node.decodeImage(imageBuffer, 3);
+      const image = await loadImage(imageBuffer);
+      const canvas = createCanvas(image.width, image.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(image, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      imageTensor = tf.browser.fromPixels({
+        data: imageData.data,
+        width: canvas.width,
+        height: canvas.height,
+      }, 3);
       const predictions = await this.model.classify(imageTensor);
       const confidenceLevel = this.getConfidenceLevel(predictions);
       return { predictions, hash, skipped: false, confidenceLevel };
