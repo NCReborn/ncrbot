@@ -78,7 +78,8 @@ class SpamDetector {
       channelId: message.channelId,
       content: message.content,
       timestamp: now,
-      hasImage: message.attachments.size > 0 || this.hasImageEmbed(message)
+      hasImage: message.attachments.size > 0 || this.hasImageEmbed(message),
+      attachments: Array.from(message.attachments.values()).map(a => ({ url: a.url, name: a.name }))
     });
 
     // Track channel
@@ -170,7 +171,8 @@ class SpamDetector {
           evidence.push({
             messageId: msg.id,
             channelId: msg.channelId,
-            content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH)
+            content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH),
+            attachments: msg.attachments || []
           });
         });
       }
@@ -255,7 +257,8 @@ class SpamDetector {
             evidence.push({
               messageId: message.id,
               channelId: message.channelId,
-              content: message.content.substring(0, CONTENT_PREVIEW_LENGTH)
+              content: message.content.substring(0, CONTENT_PREVIEW_LENGTH),
+              attachments: Array.from(message.attachments.values()).map(a => ({ url: a.url, name: a.name }))
             });
             break;
           }
@@ -324,7 +327,8 @@ class SpamDetector {
           evidence.push({
             messageId: message.id,
             channelId: message.channelId,
-            content: message.content.substring(0, CONTENT_PREVIEW_LENGTH)
+            content: message.content.substring(0, CONTENT_PREVIEW_LENGTH),
+            attachments: Array.from(message.attachments.values()).map(a => ({ url: a.url, name: a.name }))
           });
         }
       }
@@ -375,7 +379,8 @@ class SpamDetector {
       .map(msg => ({
         messageId: msg.id,
         channelId: msg.channelId,
-        content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH)
+        content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH),
+        attachments: msg.attachments || []
       }));
   }
 
