@@ -93,7 +93,7 @@ class NsfwDetector {
       const response = await axios.get(imageUrl, {
         responseType: 'arraybuffer',
         timeout: 10000,
-        maxContentLength: 10 * 1024 * 1024, // 10 MB cap
+        maxContentLength: 25 * 1024 * 1024, // 10 MB cap
       });
       imageBuffer = Buffer.from(response.data);
     } catch (error) {
