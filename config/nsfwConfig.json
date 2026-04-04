@@ -5,6 +5,6 @@
   "alertChannelId": "1468304973669466184",
   "thresholds": {
     "high": 0.85,
-    "medium": 0.50
+    "medium": 0.70
   }
 }
