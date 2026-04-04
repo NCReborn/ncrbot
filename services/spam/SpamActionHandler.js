@@ -243,6 +243,14 @@ class SpamActionHandler {
       // Get all channels mentioned in evidence
       const channelIds = new Set(detectionResult.evidence.map(e => e.channelId));
 
+      // Also include ALL channels from the detector's tracked activity
+      const userActivity = spamDetector.getUserActivity(userId);
+      if (userActivity) {
+        for (const channelId of userActivity.channels) {
+          channelIds.add(channelId);
+        }
+      }
+
       for (const channelId of channelIds) {
         try {
           const channel = await guild.channels.fetch(channelId);
