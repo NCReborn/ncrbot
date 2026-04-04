@@ -168,12 +168,15 @@ class SpamActionHandler {
 
       // Evidence
       if (detectionResult.evidence.length > 0) {
-        const evidenceText = detectionResult.evidence
-          .slice(0, 3)
+        const evidenceItems = detectionResult.evidence.slice(0, 3);
+        const evidenceText = evidenceItems
           .map((ev, idx) => {
             const channelMention = `<#${ev.channelId}>`;
             const content = ev.content ? `"${ev.content}${ev.content.length >= 100 ? '...' : ''}"` : '[No text content]';
-            return `**Message ${idx + 1}** (in ${channelMention}): ${content}`;
+            const attachmentLine = ev.attachments && ev.attachments.length > 0
+              ? `\n📎 Attachments: ${ev.attachments.map(a => a.name).join(', ')}`
+              : '';
+            return `**Message ${idx + 1}** (in ${channelMention}): ${content}${attachmentLine}`;
           })
           .join('\n\n');
 
@@ -182,6 +185,14 @@ class SpamActionHandler {
           value: evidenceText,
           inline: false
         }]);
+
+        // Show first image attachment as a preview
+        const firstImageAttachment = evidenceItems
+          .flatMap(ev => ev.attachments || [])
+          .find(a => a.name && /\.(jpe?g|png|gif|webp)$/i.test(a.name));
+        if (firstImageAttachment) {
+          embed.setImage(firstImageAttachment.url);
+        }
       }
 
       // No action taken notice
@@ -377,12 +388,15 @@ class SpamActionHandler {
 
       // Evidence
       if (detectionResult.evidence.length > 0) {
-        const evidenceText = detectionResult.evidence
-          .slice(0, 3)
+        const evidenceItems = detectionResult.evidence.slice(0, 3);
+        const evidenceText = evidenceItems
           .map((ev, idx) => {
             const channelMention = `<#${ev.channelId}>`;
             const content = ev.content ? `"${ev.content}${ev.content.length >= 100 ? '...' : ''}"` : '[No text content]';
-            return `**Message ${idx + 1}** (in ${channelMention}): ${content}`;
+            const attachmentLine = ev.attachments && ev.attachments.length > 0
+              ? `\n📎 Attachments: ${ev.attachments.map(a => a.name).join(', ')}`
+              : '';
+            return `**Message ${idx + 1}** (in ${channelMention}): ${content}${attachmentLine}`;
           })
           .join('\n\n');
 
@@ -391,6 +405,14 @@ class SpamActionHandler {
           value: evidenceText,
           inline: false
         }]);
+
+        // Show first image attachment as a preview
+        const firstImageAttachment = evidenceItems
+          .flatMap(ev => ev.attachments || [])
+          .find(a => a.name && /\.(jpe?g|png|gif|webp)$/i.test(a.name));
+        if (firstImageAttachment) {
+          embed.setImage(firstImageAttachment.url);
+        }
       }
 
       // Actions taken
