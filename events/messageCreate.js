@@ -6,6 +6,8 @@ const { PermissionChecker } = require('../utils/permissions');
 const CONSTANTS = require('../config/constants');
 const spamDetector = require('../services/spam/SpamDetector');
 const spamActionHandler = require('../services/spam/SpamActionHandler');
+const nsfwDetector = require('../services/nsfw/NsfwDetector');
+const nsfwActionHandler = require('../services/nsfw/NsfwActionHandler');
 
 module.exports = {
   name: 'messageCreate',
@@ -80,6 +82,32 @@ module.exports = {
       }
     } catch (err) {
       logger.error('[SPAM] Error:', err);
+    }
+
+    // NSFW image scanning for monitored channels (e.g. #showcase)
+    try {
+      if (
+        !message.author.bot &&
+        message.guild &&
+        !PermissionChecker.hasModRole(message.member) &&
+        nsfwDetector.isMonitoredChannel(message.channelId) &&
+        message.attachments.size > 0
+      ) {
+        for (const [, attachment] of message.attachments) {
+          if (!attachment.contentType?.startsWith('image/')) continue;
+
+          const result = await nsfwDetector.classifyImage(attachment.url);
+          if (!result || result.skipped) continue;
+
+          if (result.confidenceLevel === 'high') {
+            await nsfwActionHandler.handleHighConfidence(client, message, result.predictions, attachment.url, result.hash);
+          } else if (result.confidenceLevel === 'medium') {
+            await nsfwActionHandler.handleMediumConfidence(client, message, result.predictions, attachment.url, result.hash);
+          }
+        }
+      }
+    } catch (err) {
+      logger.error('[NSFW] Error during image scanning:', err);
     }
   }
 };

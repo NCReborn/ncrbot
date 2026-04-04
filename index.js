@@ -119,9 +119,13 @@ logger.info(`✨ Events loaded successfully`);
 // Bot Control Panel: Repost control panel on startup if saved
 const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
 const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
+const nsfwDetector = require('./services/nsfw/NsfwDetector');
 
 client.once('clientReady', async () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
+
+  // Load the NSFW model (heavy, must happen once at startup)
+  await nsfwDetector.initialize();
 
   // Load saved message info
   const controlMsgInfo = loadMessageInfo();

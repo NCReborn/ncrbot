@@ -2,6 +2,7 @@ const logger = require('../utils/logger');
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const botcontrol = require('../commands/botcontrol');
 const spamActionHandler = require('../services/spam/SpamActionHandler');
+const nsfwActionHandler = require('../services/nsfw/NsfwActionHandler');
 
 class ButtonHandlers {
   async handle(interaction, client) {
@@ -11,6 +12,8 @@ class ButtonHandlers {
       await this.handleBotControl(interaction, client);
     } else if (customId.startsWith('spam_')) {
       await spamActionHandler.handleModAction(interaction);
+    } else if (customId.startsWith('nsfw_')) {
+      await nsfwActionHandler.handleModAction(interaction, client);
     }
   }
 
