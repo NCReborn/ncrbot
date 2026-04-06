@@ -61,6 +61,18 @@
       "minCurrentImages": 3,
       "timeoutSeconds": 43200,
       "severity": "high"
+    },
+    "channelCarpetBomb": {
+      "enabled": true,
+      "watchedChannels": [
+        "1375515740064448592",
+        "1304172034737180764",
+        "1441496591012859935"
+      ],
+      "minChannelHits": 2,
+      "timeWindowSeconds": 120,
+      "timeoutSeconds": 43200,
+      "severity": "critical"
     }
   },
   "whitelist": {
