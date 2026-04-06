@@ -334,6 +334,38 @@ class SpamDetector {
       }
     }
 
+    // 7. Channel Carpet-Bomb Detection
+    if (this.config.rules.channelCarpetBomb?.enabled) {
+      const rule = this.config.rules.channelCarpetBomb;
+      const timeWindow = rule.timeWindowSeconds * 1000;
+      const watchedSet = new Set(rule.watchedChannels);
+
+      const recentWatchedMessages = activity.messages.filter(msg =>
+        now - msg.timestamp < timeWindow && watchedSet.has(msg.channelId)
+      );
+
+      const uniqueWatchedChannels = new Set(recentWatchedMessages.map(msg => msg.channelId));
+
+      if (uniqueWatchedChannels.size >= rule.minChannelHits) {
+        const earliestTimestamp = Math.min(...recentWatchedMessages.map(m => m.timestamp));
+        const timeSpan = ((now - earliestTimestamp) / 1000).toFixed(0);
+        triggeredRules.push({
+          name: 'Channel Carpet-Bomb',
+          description: `Posted in ${uniqueWatchedChannels.size} watched entry-point channels in ${timeSpan} seconds`,
+          severity: rule.severity || 'critical'
+        });
+
+        recentWatchedMessages.forEach(msg => {
+          evidence.push({
+            messageId: msg.id,
+            channelId: msg.channelId,
+            content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH),
+            attachments: msg.attachments || []
+          });
+        });
+      }
+    }
+
     // Return detection result
     if (triggeredRules.length > 0) {
       const activityStats = userActivityTracker.getActivity(message.guildId, message.author.id);
