@@ -26,7 +26,7 @@
       "imageCount": 6,
       "timeWindowSeconds": 60,
       "timeoutSeconds": 43200,
-      "excludeChannels": ["1285797205927792782", "1458182870605758611"]
+      "excludeChannels": ["1285797205927792782", "1458182870605758611", "1488110174999806003", "1400001005285801985", "1489747895975546950"]
     },
     "suspiciousPatterns": {
       "enabled": true,
