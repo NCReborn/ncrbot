@@ -629,6 +629,25 @@ async function getLeaderboard(guildId, page = 1, pageSize = 10, activeOnly = tru
 }
 
 /**
+ * Returns all ACTIVE members for a guild, ordered by effective_score DESC.
+ * Used by the "Members only" leaderboard filter to allow in-memory filtering
+ * and pagination after excluding staff by Discord role.
+ * @param {string} guildId
+ * @returns {Array}
+ */
+async function getAllActive(guildId) {
+  const pool = await getPool();
+  const [rows] = await pool.execute(
+    `SELECT user_id, tier, effective_score, messages, status
+       FROM street_cred
+      WHERE guild_id = ? AND status = 'ACTIVE'
+      ORDER BY effective_score DESC`,
+    [guildId]
+  );
+  return rows;
+}
+
+/**
  * Returns a member's rank (1-indexed) in the leaderboard.
  */
 async function getUserRank(userId, guildId, activeOnly = true) {
@@ -718,6 +737,7 @@ module.exports = {
   // Queries
   getProfile,
   getLeaderboard,
+  getAllActive,
   getUserRank,
   getStatusStats,
   // Config
