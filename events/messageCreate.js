@@ -8,6 +8,7 @@ const spamDetector = require('../services/spam/SpamDetector');
 const spamActionHandler = require('../services/spam/SpamActionHandler');
 const nsfwDetector = require('../services/nsfw/NsfwDetector');
 const nsfwActionHandler = require('../services/nsfw/NsfwActionHandler');
+const streetCredService = require('../services/StreetCredService');
 
 module.exports = {
   name: 'messageCreate',
@@ -108,6 +109,13 @@ module.exports = {
       }
     } catch (err) {
       logger.error('[NSFW] Error during image scanning:', err);
+    }
+
+    // Street Creed forward-tracking — fire-and-forget, non-blocking
+    if (!message.author.bot && message.guild) {
+      streetCredService.trackMessage(message).catch(err =>
+        logger.error(`[STREET_CRED] trackMessage uncaught: ${err.message}`)
+      );
     }
   }
 };

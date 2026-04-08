@@ -1,6 +1,8 @@
 const logger = require('../utils/logger');
 const { sendLogScanButton } = require('../utils/logScanTicket');
 const revisionMonitor = require('../services/RevisionMonitor');
+const cron = require('node-cron');
+const streetCredService = require('../services/StreetCredService');
 
 module.exports = {
   name: 'clientReady',
@@ -25,5 +27,18 @@ module.exports = {
     } catch (err) {
       logger.error('[READY] Error starting revision monitor:', err);
     }
+
+    // Daily dormancy check — runs at 03:00 every day
+    cron.schedule('0 3 * * *', async () => {
+      logger.info('[STREET_CRED] Running daily dormancy check…');
+      for (const [, guild] of client.guilds.cache) {
+        try {
+          await streetCredService.runDormancyCheck(guild);
+        } catch (err) {
+          logger.error(`[STREET_CRED] Dormancy check failed for guild ${guild.id}: ${err.message}`);
+        }
+      }
+    });
+    logger.info('[READY] Street Creed daily dormancy cron registered (runs at 03:00)');
   }
 };
