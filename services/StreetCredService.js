@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 const { getPool } = require('../utils/database');
 const streetCredConfig = require('../config/streetCredConfig.json');
 
-const TIERS = [100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5];
+const TIERS = [100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 1];
 const THRESHOLDS = streetCredConfig.thresholds;
 const ROLE_MAP = streetCredConfig.roles; // tier -> roleId
 const DORMANCY_DAYS = streetCredConfig.dormancyDays;
@@ -46,7 +46,7 @@ function effectiveScore(messageCount, months) {
 
 /**
  * Map an effective score to the highest matching Street Creed tier.
- * Returns 1 when below the SC-5 threshold (no role assigned for SC-1).
+ * Returns 0 for lurkers with no messages (below SC-1 threshold).
  * @param {number} score
  * @returns {number}
  */
@@ -54,7 +54,7 @@ function getTier(score) {
   for (const tier of TIERS) {
     if (score >= Number(THRESHOLDS[tier])) return tier;
   }
-  return 1;
+  return 0;
 }
 
 // ─── Role management ──────────────────────────────────────────────────────────
@@ -68,9 +68,9 @@ function allStreetCredRoleIds() {
 
 /**
  * Remove every Street Creed role from a guild member, then assign the one
- * correct role (if tier >= 5). Handles the duplicate-cleanup requirement.
+ * correct role (if tier >= 1). Handles the duplicate-cleanup requirement.
  * @param {GuildMember} member
- * @param {number} tier  — 1 means "no role"
+ * @param {number} tier  — 0 means "no role" (lurker/unranked)
  */
 async function applyTierRole(member, tier) {
   try {
@@ -82,8 +82,8 @@ async function applyTierRole(member, tier) {
       await member.roles.remove([...toRemove.keys()], 'Street Creed tier update');
     }
 
-    // Assign the correct tier role (none for tier 1 — below SC-5)
-    if (tier >= 5) {
+    // Assign the correct tier role (none for tier 0 — lurker/unranked)
+    if (tier >= 1) {
       const roleId = ROLE_MAP[String(tier)];
       if (roleId && !roleId.startsWith('PLACEHOLDER')) {
         await member.roles.add(roleId, `Street Creed tier ${tier}`);
@@ -641,7 +641,8 @@ async function getStatusStats(guildId) {
  */
 function nextTierThreshold(currentTier) {
   const idx = TIERS.indexOf(currentTier);
-  if (idx <= 0) return null; // already at 100 or not found
+  if (idx === 0) return null; // already at SC-100 (max tier)
+  if (idx === -1) return Number(THRESHOLDS[1]); // tier 0 (unranked) → show progress to SC-1
   return Number(THRESHOLDS[TIERS[idx - 1]]);
 }
 
@@ -649,7 +650,7 @@ function nextTierThreshold(currentTier) {
  * Returns the effective score threshold for the current tier.
  */
 function currentTierThreshold(tier) {
-  return tier >= 5 ? Number(THRESHOLDS[tier]) : 0;
+  return tier >= 1 ? Number(THRESHOLDS[tier]) : 0;
 }
 
 module.exports = {
