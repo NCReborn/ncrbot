@@ -9,6 +9,7 @@ const spamActionHandler = require('../services/spam/SpamActionHandler');
 const nsfwDetector = require('../services/nsfw/NsfwDetector');
 const nsfwActionHandler = require('../services/nsfw/NsfwActionHandler');
 const streetCredService = require('../services/StreetCredService');
+const analyticsService = require('../services/AnalyticsService');
 
 module.exports = {
   name: 'messageCreate',
@@ -115,6 +116,9 @@ module.exports = {
     if (!message.author.bot && message.guild) {
       streetCredService.trackMessage(message).catch(err =>
         logger.error(`[STREET_CRED] trackMessage uncaught: ${err.message}`)
+      );
+      analyticsService.trackMessageAnalytics(message).catch(err =>
+        logger.error(`[ANALYTICS] trackMessageAnalytics uncaught: ${err.message}`)
       );
     }
   }
