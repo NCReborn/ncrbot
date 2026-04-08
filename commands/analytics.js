@@ -4,6 +4,7 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   MessageFlags,
+  PermissionFlagsBits,
 } = require('discord.js');
 const { PermissionChecker } = require('../utils/permissions');
 const analytics = require('../services/AnalyticsService');
@@ -29,6 +30,7 @@ const analyticsCommand = {
   data: new SlashCommandBuilder()
     .setName('analytics')
     .setDescription('Server analytics (mod/admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub =>
       sub.setName('members')
         .setDescription('Members joined per month for a given year')
