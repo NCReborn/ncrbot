@@ -597,7 +597,7 @@ async function getUserRank(userId, guildId, activeOnly = true) {
   const pool = await getPool();
   const whereClause = activeOnly ? "guild_id = ? AND status = 'ACTIVE'" : 'guild_id = ?';
   const [rows] = await pool.execute(
-    `SELECT COUNT(*) + 1 AS `rank` FROM street_cred
+      `SELECT COUNT(*) + 1 AS \`rank\` FROM street_cred
       WHERE ${whereClause} AND effective_score > (
         SELECT COALESCE(effective_score, 0) FROM street_cred WHERE user_id = ? AND guild_id = ?
       )`,
