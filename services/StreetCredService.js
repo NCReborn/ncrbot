@@ -7,9 +7,11 @@ const streetCredConfig = require('../config/streetCredConfig.json');
 const TIERS = [100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5];
 const THRESHOLDS = streetCredConfig.thresholds;
 const ROLE_MAP = streetCredConfig.roles; // tier -> roleId
-const DORMANCY_DAYS = streetCredConfig.dormancyDays;
+let DORMANCY_DAYS = streetCredConfig.dormancyDays;
 const TENURE_DIVISOR = streetCredConfig.formula.tenureDivisor;
 const BASE_MULTIPLIER = streetCredConfig.formula.baseMultiplier;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // ─── Pure calculation helpers ─────────────────────────────────────────────────
 
@@ -209,12 +211,12 @@ async function trackMessage(message) {
       joinedAt,
     });
 
-    if (result.changed || result.prevTier === 0) {
+    if (result.changed || (result.prevTier <= 1 && result.tier >= 5)) {
       // Re-fetch the member in case the cache is stale
       const freshMember = await guild.members.fetch(userId).catch(() => member);
       await applyTierRole(freshMember, result.tier);
 
-      if (result.changed && result.tier > result.prevTier && result.prevTier !== 0) {
+      if (result.changed && result.tier > result.prevTier && result.prevTier > 1) {
         logger.info(
           `[STREET_CRED] ${author.tag} levelled up: SC-${result.prevTier} → SC-${result.tier} ` +
           `(score: ${result.score.toFixed(0)}, messages: ${result.messages})`
@@ -252,7 +254,7 @@ async function trackMessage(message) {
 async function runDormancyCheck(guild) {
   try {
     const pool = await getPool();
-    const cutoff = new Date(Date.now() - DORMANCY_DAYS * 24 * 60 * 60 * 1000);
+    const cutoff = new Date(Date.now() - DORMANCY_DAYS * MS_PER_DAY);
 
     const [rows] = await pool.execute(
       `SELECT user_id FROM street_cred
@@ -449,7 +451,7 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
   }
 
   // Phase 4: Assign roles
-  const cutoff = new Date(Date.now() - DORMANCY_DAYS * 24 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - DORMANCY_DAYS * MS_PER_DAY);
   const [activeCandidates] = await pool.execute(
     `SELECT user_id, tier, last_message_at FROM street_cred WHERE guild_id = ? AND messages > 0`,
     [guild.id]
@@ -634,12 +636,26 @@ async function getStatusStats(guildId) {
 
 /**
  * Returns the effective score threshold for the next tier above currentTier.
- * Returns null if already at max tier.
+ * Returns null if already at max tier (SC-100).
+ * For unranked (tier 1), returns the SC-5 threshold so progress is shown.
  */
 function nextTierThreshold(currentTier) {
+  if (currentTier < 5) return Number(THRESHOLDS[5]); // unranked → show SC-5 goal
   const idx = TIERS.indexOf(currentTier);
-  if (idx <= 0) return null; // already at 100 or not found
+  if (idx <= 0) return null; // already at SC-100
   return Number(THRESHOLDS[TIERS[idx - 1]]);
+}
+
+/**
+ * Returns the label for the next tier above currentTier.
+ * @param {number} currentTier
+ * @returns {string|null}
+ */
+function nextTierLabel(currentTier) {
+  if (currentTier < 5) return 'SC-5';
+  const idx = TIERS.indexOf(currentTier);
+  if (idx <= 0) return null;
+  return `SC-${TIERS[idx - 1]}`;
 }
 
 /**
@@ -649,6 +665,14 @@ function currentTierThreshold(tier) {
   return tier >= 5 ? Number(THRESHOLDS[tier]) : 0;
 }
 
+/**
+ * Update the in-memory dormancy threshold. Useful after admin changes the config.
+ * @param {number} days
+ */
+function setDormancyDays(days) {
+  DORMANCY_DAYS = days;
+}
+
 module.exports = {
   // Calculations
   tenureMonths,
@@ -656,6 +680,7 @@ module.exports = {
   effectiveScore,
   getTier,
   nextTierThreshold,
+  nextTierLabel,
   currentTierThreshold,
   // Role management
   applyTierRole,
@@ -668,6 +693,7 @@ module.exports = {
   trackMessage,
   // Dormancy
   runDormancyCheck,
+  setDormancyDays,
   // Admin
   stripAllRoles,
   runRetroactiveScan,
@@ -682,5 +708,5 @@ module.exports = {
   TIERS,
   THRESHOLDS,
   ROLE_MAP,
-  DORMANCY_DAYS,
+  get DORMANCY_DAYS() { return DORMANCY_DAYS; },
 };

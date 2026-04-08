@@ -53,7 +53,7 @@ async function buildProfileEmbed(guild, member, user) {
 
   const statusEmoji = profile.status === 'ACTIVE' ? '🟢' : profile.status === 'DORMANT' ? '🔴' : '⚫';
   const tierLabel   = tier >= 5 ? `SC-${tier}` : 'Unranked';
-  const nextLabel   = nextThreshold ? `SC-${scs.TIERS[scs.TIERS.indexOf(tier) - 1]}` : 'Max Tier';
+  const nextLabel   = scs.nextTierLabel(tier) ?? 'Max Tier';
 
   // Try to get the role colour
   let embedColor = 0xf1c40f;
@@ -236,6 +236,11 @@ async function handleAdminScan(interaction) {
   // Run async in background
   (async () => {
     let progressMsg = null;
+    // Track channel total for progress reporting during phase 4
+    let scanChannelsDone = 0;
+    let scanChannelTotal = 0;
+    let scanMessages = 0;
+
     try {
       progressMsg = await interaction.channel.send({ embeds: [scanEmbed('STRIP', 0, 0, 0, 0)] });
 
@@ -252,11 +257,14 @@ async function handleAdminScan(interaction) {
       const result = await scs.runRetroactiveScan(
         guild,
         (chDone, chTotal, msgs) => {
+          scanChannelsDone = chDone;
+          scanChannelTotal = chTotal;
+          scanMessages = msgs;
           progressMsg.edit({ embeds: [scanEmbed('SCAN', stripped, stripTotal, chDone, chTotal, msgs, 0, 0)] }).catch(() => {});
         },
         (assigned, assignTotal) => {
           if (assigned % 50 === 0 || assigned === assignTotal) {
-            progressMsg.edit({ embeds: [scanEmbed('ASSIGN', stripped, stripTotal, result?.channelsDone ?? 0, result?.total ?? 0, result?.totalMessages ?? 0, assigned, assignTotal)] }).catch(() => {});
+            progressMsg.edit({ embeds: [scanEmbed('ASSIGN', stripped, stripTotal, scanChannelsDone, scanChannelTotal, scanMessages, assigned, assignTotal)] }).catch(() => {});
           }
         }
       );
@@ -380,17 +388,16 @@ async function handleAdminRecalculate(interaction) {
 async function handleAdminDormancy(interaction) {
   const days = interaction.options.getInteger('days');
 
-  // Mutate the in-memory config (takes effect until next restart)
-  const config = require('../config/streetCredConfig.json');
-  config.dormancyDays = days;
-
   // Persist to disk
   const fs   = require('fs');
   const path = require('path');
-  fs.writeFileSync(
-    path.join(__dirname, '../config/streetCredConfig.json'),
-    JSON.stringify(config, null, 2)
-  );
+  const configPath = path.join(__dirname, '../config/streetCredConfig.json');
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  config.dormancyDays = days;
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+  // Update the in-memory constant inside the service so the change is immediate
+  scs.setDormancyDays(days);
 
   await interaction.reply({
     content: `✅ Dormancy threshold updated to **${days} days**. (Effective immediately — bot restart not required.)`,
