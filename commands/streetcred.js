@@ -249,14 +249,21 @@ async function handleAdminScan(interaction) {
       await progressMsg.edit({ embeds: [scanEmbed('SCAN', stripped, stripTotal, 0, 0)] });
 
       // Phase 2–4: Scan + calculate + assign
+      let scanChannelsDone = 0;
+      let scanChannelsTotal = 0;
+      let scanTotalMessages = 0;
+
       const result = await scs.runRetroactiveScan(
         guild,
         (chDone, chTotal, msgs) => {
+          scanChannelsDone = chDone;
+          scanChannelsTotal = chTotal;
+          scanTotalMessages = msgs;
           progressMsg.edit({ embeds: [scanEmbed('SCAN', stripped, stripTotal, chDone, chTotal, msgs, 0, 0)] }).catch(() => {});
         },
         (assigned, assignTotal) => {
           if (assigned % 50 === 0 || assigned === assignTotal) {
-            progressMsg.edit({ embeds: [scanEmbed('ASSIGN', stripped, stripTotal, result?.channelsDone ?? 0, result?.total ?? 0, result?.totalMessages ?? 0, assigned, assignTotal)] }).catch(() => {});
+            progressMsg.edit({ embeds: [scanEmbed('ASSIGN', stripped, stripTotal, scanChannelsDone, scanChannelsTotal, scanTotalMessages, assigned, assignTotal)] }).catch(() => {});
           }
         }
       );
