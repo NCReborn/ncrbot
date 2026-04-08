@@ -13,6 +13,7 @@ const logger = require('../utils/logger');
 const { PermissionChecker } = require('../utils/permissions');
 const scs = require('../services/StreetCredService');
 const analyticsService = require('../services/AnalyticsService');
+const CONSTANTS = require('../config/constants');
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -105,7 +106,8 @@ const streetcredCommand = {
       return interaction.reply({ content: '❌ Member not found in this server.', flags: MessageFlags.Ephemeral });
     }
 
-    await interaction.deferReply();
+    const isPublic = interaction.channelId === CONSTANTS.CHANNELS.BOT_SPAM;
+    await interaction.deferReply({ flags: isPublic ? undefined : MessageFlags.Ephemeral });
     const embed = await buildProfileEmbed(interaction.guild, targetMember, targetUser);
     await interaction.editReply({ embeds: [embed] });
   },
@@ -130,7 +132,8 @@ const leaderboardCommand = {
   async execute(interaction) {
     const show      = interaction.options.getString('show') || 'active';
     const activeOnly = show === 'active';
-    await interaction.deferReply();
+    const isPublic  = interaction.channelId === CONSTANTS.CHANNELS.BOT_SPAM;
+    await interaction.deferReply({ flags: isPublic ? undefined : MessageFlags.Ephemeral });
     const embed = await buildLeaderboardEmbed(interaction.guild, interaction.user, 1, activeOnly);
     const row   = buildLeaderboardButtons(1, activeOnly);
     await interaction.editReply({ embeds: [embed], components: [row] });
