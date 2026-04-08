@@ -5,8 +5,8 @@ const CONSTANTS = require('../config/constants');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('listsupportblocked')
-        .setDescription('List users who are ping-banned from mentioning the support role.'),
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        .setDescription('List users who are ping-banned from mentioning the support role.')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
     async execute(interaction) {
         if (!PermissionChecker.hasModRole(interaction.member)) {
             return interaction.reply({ content: "You don't have permission to use this command.", flags: MessageFlags.Ephemeral });
