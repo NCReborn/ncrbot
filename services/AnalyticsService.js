@@ -292,8 +292,8 @@ async function getTopChannels(guildId, limit = 5) {
       WHERE guild_id = ?
       GROUP BY channel_id
       ORDER BY count DESC
-      LIMIT ?`,
-    [guildId, safeLimit]
+      LIMIT ${safeLimit}`,
+    [guildId]
   );
   return rows;
 }
