@@ -8,6 +8,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('convertembed')
     .setDescription('Fetches embeds from one or more messages and converts them to Nexus-ready Markdown')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(option =>
       option.setName('message_ids')
         .setDescription('One or more message IDs (space, comma, or newline separated)')
