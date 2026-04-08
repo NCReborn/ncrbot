@@ -7,6 +7,7 @@ const {
   ButtonStyle,
   ActionRowBuilder,
   MessageFlags,
+  PermissionFlagsBits,
 } = require('discord.js');
 const logger = require('../utils/logger');
 const { PermissionChecker } = require('../utils/permissions');
@@ -186,6 +187,7 @@ const adminCommand = {
   data: new SlashCommandBuilder()
     .setName('streetcred-admin')
     .setDescription('Admin commands for Street Creed (mod/admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub =>
       sub.setName('scan')
         .setDescription('Start the one-time retroactive message scan')
