@@ -3,6 +3,7 @@ const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const botcontrol = require('../commands/botcontrol');
 const spamActionHandler = require('../services/spam/SpamActionHandler');
 const nsfwActionHandler = require('../services/nsfw/NsfwActionHandler');
+const { handleLeaderboardButton } = require('../commands/streetcred');
 
 class ButtonHandlers {
   async handle(interaction, client) {
@@ -14,6 +15,8 @@ class ButtonHandlers {
       await spamActionHandler.handleModAction(interaction);
     } else if (customId.startsWith('nsfw_')) {
       await nsfwActionHandler.handleModAction(interaction, client);
+    } else if (customId.startsWith('sc_lb_')) {
+      await handleLeaderboardButton(interaction);
     }
   }
 
