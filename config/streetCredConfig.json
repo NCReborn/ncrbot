@@ -33,7 +33,7 @@
     "90":  "1406262861054873702",
     "100": "1406262944521523230"
   },
-  "dormancyDays": 30,
+  "dormancyDays": 120,
   "formula": {
     "tenureDivisor": 10,
     "baseMultiplier": 1.0
