@@ -46,6 +46,8 @@ async function runMessageScan(guild, onProgress) {
     let lastId = null;
     let channelMessages = 0;
 
+    logger.info(`[ANALYTICS] Scanning channel ${ch.name} (${ch.id})...`);
+
     try {
       while (true) {
         const fetchOptions = { limit: 100 };
@@ -54,14 +56,22 @@ async function runMessageScan(guild, onProgress) {
         const batch = await ch.messages.fetch(fetchOptions);
         if (batch.size === 0) break;
 
+        // Collect rows from this batch
+        const rows = [];
         for (const [, msg] of batch) {
           if (msg.author.bot) continue;
+          rows.push([msg.id, msg.author.id, guild.id, ch.id, new Date(msg.createdAt)]);
+        }
+
+        // Batch insert all rows at once
+        if (rows.length > 0) {
+          const placeholders = rows.map(() => '(?, ?, ?, ?, ?)').join(', ');
+          const flatValues = rows.flat();
           await pool.execute(
-            `INSERT IGNORE INTO message_analytics (message_id, user_id, guild_id, channel_id, created_at)
-             VALUES (?, ?, ?, ?, ?)`,
-            [msg.id, msg.author.id, guild.id, ch.id, new Date(msg.createdAt)]
+            `INSERT IGNORE INTO message_analytics (message_id, user_id, guild_id, channel_id, created_at) VALUES ${placeholders}`,
+            flatValues
           );
-          channelMessages++;
+          channelMessages += rows.length;
         }
 
         lastId = batch.last().id;
