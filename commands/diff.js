@@ -14,6 +14,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('diff')
     .setDescription('Show mod differences between collection revisions (Admin only)')
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
     .addStringOption(option =>
       option.setName('collection1').setDescription('First collection name (e.g. NCR, ADR)').setRequired(true))
     .addIntegerOption(option =>
