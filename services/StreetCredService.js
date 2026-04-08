@@ -197,7 +197,7 @@ async function recalculate(userId, guildId, opts = {}) {
 async function trackMessage(message) {
   try {
     const { author, guild, member } = message;
-    if (!guild || !member) return;
+    if (!guild || !member) return null;
 
     const userId  = author.id;
     const guildId = guild.id;
@@ -237,8 +237,11 @@ async function trackMessage(message) {
       await applyTierRole(freshMember, result.tier);
       logger.info(`[STREET_CRED] ${author.tag} reactivated from DORMANT`);
     }
+
+    return result;
   } catch (err) {
     logger.error(`[STREET_CRED] trackMessage error: ${err.message}`);
+    return null;
   }
 }
 
