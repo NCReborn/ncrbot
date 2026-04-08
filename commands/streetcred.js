@@ -53,7 +53,8 @@ async function buildProfileEmbed(guild, member, user) {
 
   const statusEmoji = profile.status === 'ACTIVE' ? '🟢' : profile.status === 'DORMANT' ? '🔴' : '⚫';
   const tierLabel   = tier >= 1 ? `SC-${tier}` : 'Unranked';
-  const nextLabel   = nextThreshold ? (tier === 0 ? 'SC-1' : `SC-${scs.TIERS[scs.TIERS.indexOf(tier) - 1]}`) : 'Max Tier';
+  const nextTierNum = tier === 0 ? 1 : scs.TIERS[scs.TIERS.indexOf(tier) - 1];
+  const nextLabel   = nextThreshold ? `SC-${nextTierNum}` : 'Max Tier';
 
   // Try to get the role colour
   let embedColor = 0xf1c40f;
