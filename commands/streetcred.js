@@ -12,6 +12,7 @@ const {
 const logger = require('../utils/logger');
 const { PermissionChecker } = require('../utils/permissions');
 const scs = require('../services/StreetCredService');
+const analyticsService = require('../services/AnalyticsService');
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -210,6 +211,14 @@ const adminCommand = {
       sub.setName('dormancy')
         .setDescription('Change the dormancy threshold')
         .addIntegerOption(o => o.setName('days').setDescription('Days of inactivity before going dormant').setRequired(true).setMinValue(1))
+    )
+    .addSubcommand(sub =>
+      sub.setName('rescan')
+        .setDescription('Rescan all channels for message timestamps (analytics only — no role changes)')
+    )
+    .addSubcommand(sub =>
+      sub.setName('rescan-reset')
+        .setDescription('Reset analytics scan progress to allow a full rescan')
     ),
 
   async execute(interaction) {
@@ -220,11 +229,13 @@ const adminCommand = {
 
     const sub = interaction.options.getSubcommand();
 
-    if (sub === 'scan')        return handleAdminScan(interaction);
-    if (sub === 'sync')        return handleAdminSync(interaction);
-    if (sub === 'status')      return handleAdminStatus(interaction);
-    if (sub === 'recalculate') return handleAdminRecalculate(interaction);
-    if (sub === 'dormancy')    return handleAdminDormancy(interaction);
+    if (sub === 'scan')          return handleAdminScan(interaction);
+    if (sub === 'sync')          return handleAdminSync(interaction);
+    if (sub === 'status')        return handleAdminStatus(interaction);
+    if (sub === 'recalculate')   return handleAdminRecalculate(interaction);
+    if (sub === 'dormancy')      return handleAdminDormancy(interaction);
+    if (sub === 'rescan')        return handleAdminRescan(interaction);
+    if (sub === 'rescan-reset')  return handleAdminRescanReset(interaction);
   },
 };
 
@@ -406,6 +417,70 @@ async function handleAdminDormancy(interaction) {
     flags: MessageFlags.Ephemeral,
   });
   logger.info(`[STREET_CRED] Dormancy threshold changed to ${days} days`);
+}
+
+// ── Admin: rescan ─────────────────────────────────────────────────────────────
+
+async function handleAdminRescan(interaction) {
+  await interaction.reply({ content: '🔍 Starting analytics message scan…', embeds: [] });
+
+  const guild = interaction.guild;
+
+  // Run async in background
+  (async () => {
+    let progressMsg = null;
+    try {
+      progressMsg = await interaction.channel.send({
+        embeds: [analyticsRescanEmbed(0, 0, 0)],
+      });
+
+      const result = await analyticsService.runMessageScan(guild, (chDone, chTotal, msgs) => {
+        progressMsg.edit({ embeds: [analyticsRescanEmbed(chDone, chTotal, msgs)] }).catch(() => {});
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('✅ Analytics Message Scan Complete')
+        .addFields(
+          { name: 'Channels Scanned', value: result.channelsDone.toLocaleString(), inline: true },
+          { name: 'Messages Stored',  value: result.totalMessages.toLocaleString(), inline: true },
+        )
+        .setTimestamp();
+      await progressMsg.edit({ embeds: [embed] });
+
+    } catch (err) {
+      logger.error(`[ANALYTICS] Admin rescan failed: ${err.stack || err}`);
+      const errEmbed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('❌ Analytics Scan Failed')
+        .setDescription(`An error occurred: ${err.message}`);
+      if (progressMsg) progressMsg.edit({ embeds: [errEmbed] }).catch(() => {});
+    }
+  })();
+}
+
+function analyticsRescanEmbed(chDone, chTotal, msgs) {
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle('🔍 Analytics Message Scan In Progress')
+    .addFields(
+      { name: 'Channels Scanned', value: `${chDone.toLocaleString()} / ${chTotal.toLocaleString()}`, inline: true },
+      { name: 'Messages Stored',  value: msgs.toLocaleString(), inline: true },
+    )
+    .setTimestamp();
+}
+
+// ── Admin: rescan-reset ───────────────────────────────────────────────────────
+
+async function handleAdminRescanReset(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  await analyticsService.resetScan(interaction.guild.id);
+
+  await interaction.editReply({
+    content: '✅ Analytics scan progress reset. You can now run `/streetcred-admin rescan` for a full rescan.',
+  });
+  logger.info(`[ANALYTICS] Scan progress reset by ${interaction.user.tag}`);
 }
 
 // ─── Button handler registration ──────────────────────────────────────────────

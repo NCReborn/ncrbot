@@ -59,6 +59,28 @@ async function ensureSchema(p) {
     )
   `);
 
+  await p.execute(`
+    CREATE TABLE IF NOT EXISTS message_analytics (
+      message_id   VARCHAR(20)  NOT NULL,
+      user_id      VARCHAR(20)  NOT NULL,
+      guild_id     VARCHAR(20)  NOT NULL,
+      channel_id   VARCHAR(20)  NOT NULL,
+      created_at   DATETIME     NOT NULL,
+      PRIMARY KEY (message_id)
+    )
+  `);
+
+  await p.execute(`
+    CREATE TABLE IF NOT EXISTS analytics_scan (
+      guild_id      VARCHAR(20)  NOT NULL,
+      channel_id    VARCHAR(20)  NOT NULL,
+      completed     TINYINT(1)   DEFAULT 0,
+      messages_read INT          DEFAULT 0,
+      updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (guild_id, channel_id)
+    )
+  `);
+
   logger.info('[DB] street_cred schema verified');
 }
 
