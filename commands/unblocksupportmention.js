@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { PermissionChecker } = require('../utils/permissions');
 const CONSTANTS = require('../config/constants');
 
@@ -6,6 +6,7 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('unblocksupportmention')
         .setDescription('Allow a user to mention the support role again by removing the Ping Banned role')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
         .addUserOption(option =>
             option.setName('user')
                 .setDescription('User to un-ping-ban')
