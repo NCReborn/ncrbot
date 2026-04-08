@@ -1,8 +1,10 @@
 'use strict';
 
+const { EmbedBuilder } = require('discord.js');
 const logger = require('../utils/logger');
 const { getPool } = require('../utils/database');
 const streetCredConfig = require('../config/streetCredConfig.json');
+const { CHANNELS, HELPER_ROLES } = require('../config/constants');
 
 const TIERS = [100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 1];
 const THRESHOLDS = streetCredConfig.thresholds;
@@ -279,6 +281,39 @@ async function runDormancyCheck(guild) {
           [row.user_id, guild.id]
         );
         dormantCount++;
+
+        // Check if the dormant member holds any helper roles and alert #admin-chat
+        if (member) {
+          const matchedRoles = Object.entries(HELPER_ROLES)
+            .filter(([, roleId]) => member.roles.cache.has(roleId))
+            .map(([roleName]) => roleName);
+
+          if (matchedRoles.length > 0) {
+            try {
+              const adminChannel = guild.channels.cache.get(CHANNELS.ADMIN_CHAT)
+                ?? await guild.client.channels.fetch(CHANNELS.ADMIN_CHAT).catch(() => null);
+
+              if (adminChannel) {
+                const embed = new EmbedBuilder()
+                  .setColor(0xe74c3c)
+                  .setTitle('⚠️ Dormant Helper Alert')
+                  .setDescription(
+                    `<@${row.user_id}> has been marked as **DORMANT** and holds the following helper role(s): **${matchedRoles.join(', ')}**.\n\n` +
+                    `They have not sent a message in over ${DORMANCY_DAYS} days. Consider reviewing their helper role assignment.`
+                  )
+                  .setFooter({ text: 'Street Cred Dormancy System' })
+                  .setTimestamp();
+
+                await adminChannel.send({ embeds: [embed] });
+                logger.info(`[STREET_CRED] Dormant helper alert sent for ${row.user_id} (roles: ${matchedRoles.join(', ')})`);
+              } else {
+                logger.warn('[STREET_CRED] Dormant helper alert: admin-chat channel not found');
+              }
+            } catch (alertErr) {
+              logger.warn(`[STREET_CRED] Dormant helper alert failed for ${row.user_id}: ${alertErr.message}`);
+            }
+          }
+        }
       } catch (err) {
         logger.warn(`[STREET_CRED] Dormancy: failed for ${row.user_id}: ${err.message}`);
       }

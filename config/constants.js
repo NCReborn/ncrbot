@@ -46,6 +46,7 @@ const CHANNELS = {
   SHOWCASE: '1285797205927792782',
   SHOWCASE_NSFW: '1488110174999806003',
   BOT_SPAM: '1406269920211374080',
+  ADMIN_CHAT: '1324990321393930240',
 };
 
 // ===== FORUM CONFIGURATION =====
@@ -76,6 +77,12 @@ const FORUM = {
       embedIndex: 4
     }
   }
+};
+
+// ===== HELPER ROLES (monitored for dormancy alerts) =====
+const HELPER_ROLES = {
+  'Ripperdoc': '1288633895910375464',
+  // Add more helper roles here as needed
 };
 
 // ===== COOLDOWNS (in milliseconds) =====
@@ -110,6 +117,7 @@ module.exports = {
   ROLES,
   CHANNELS,
   FORUM,
+  HELPER_ROLES,
   COOLDOWNS,
   LIMITS,
   TIME,
