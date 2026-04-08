@@ -125,23 +125,69 @@ const leaderboardCommand = {
         .setRequired(false)
         .addChoices(
           { name: 'Active only (default)', value: 'active' },
-          { name: 'All (including dormant)', value: 'all' }
+          { name: 'All (including dormant)', value: 'all' },
+          { name: 'Members only (no staff)', value: 'members' }
         )
     ),
 
   async execute(interaction) {
     const show      = interaction.options.getString('show') || 'active';
-    const activeOnly = show === 'active';
     const isPublic  = interaction.channelId === CONSTANTS.CHANNELS.BOT_SPAM;
     await interaction.deferReply({ flags: isPublic ? undefined : MessageFlags.Ephemeral });
-    const embed = await buildLeaderboardEmbed(interaction.guild, interaction.user, 1, activeOnly);
-    const row   = buildLeaderboardButtons(1, activeOnly);
+    const embed = await buildLeaderboardEmbed(interaction.guild, interaction.user, 1, show);
+    const row   = buildLeaderboardButtons(1, show);
     await interaction.editReply({ embeds: [embed], components: [row] });
   },
 };
 
-async function buildLeaderboardEmbed(guild, requestingUser, page, activeOnly) {
+async function buildLeaderboardEmbed(guild, requestingUser, page, show) {
   const PAGE_SIZE = 10;
+
+  // ── Members-only mode: fetch all active, filter out staff in-memory ──────────
+  if (show === 'members') {
+    const allActive = await scs.getAllActive(guild.id);
+    const staffRoleIds = new Set(Object.values(CONSTANTS.HELPER_ROLES));
+
+    // Pre-fetch all guild members into cache to avoid N+1 per-user fetches
+    await guild.members.fetch().catch(() => {});
+
+    const filtered = [];
+    for (const rec of allActive) {
+      const member = guild.members.cache.get(rec.user_id);
+      const isStaff = member && member.roles.cache.some(r => staffRoleIds.has(r.id));
+      if (!isStaff) filtered.push(rec);
+    }
+
+    const totalCount = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    const start = (page - 1) * PAGE_SIZE;
+    const pageRows = filtered.slice(start, start + PAGE_SIZE);
+
+    const lines = [];
+    for (let i = 0; i < pageRows.length; i++) {
+      const rec   = pageRows[i];
+      const rank  = start + i + 1;
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**#${rank}**`;
+      lines.push(`${medal} <@${rec.user_id}> — SC-${rec.tier} · ${formatScore(rec.effective_score)}`);
+    }
+
+    const userIdx = filtered.findIndex(r => r.user_id === requestingUser.id);
+    const userLine = userIdx !== -1
+      ? (() => {
+          const r = filtered[userIdx];
+          return `\n\n> Your rank: **#${userIdx + 1}** — SC-${r.tier} · ${formatScore(r.effective_score)}`;
+        })()
+      : '';
+
+    return new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle('🏙️ Street Creed Leaderboard')
+      .setDescription((lines.join('\n') || 'No data yet.') + userLine)
+      .setFooter({ text: `Page ${page}/${totalPages} · Members only (no staff)` });
+  }
+
+  // ── Standard modes: active or all ────────────────────────────────────────────
+  const activeOnly = show !== 'all';
   const { rows, totalCount } = await scs.getLeaderboard(guild.id, page, PAGE_SIZE, activeOnly);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -152,8 +198,7 @@ async function buildLeaderboardEmbed(guild, requestingUser, page, activeOnly) {
     const rank   = start + i;
     const medal  = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `**#${rank}**`;
     const status = rec.status === 'DORMANT' ? ' *(dormant)*' : '';
-    let username = `<@${rec.user_id}>`;
-    lines.push(`${medal} ${username} — SC-${rec.tier} · ${formatScore(rec.effective_score)}${status}`);
+    lines.push(`${medal} <@${rec.user_id}> — SC-${rec.tier} · ${formatScore(rec.effective_score)}${status}`);
   }
 
   const userRank  = await scs.getUserRank(requestingUser.id, guild.id, activeOnly);
@@ -162,23 +207,23 @@ async function buildLeaderboardEmbed(guild, requestingUser, page, activeOnly) {
     ? `\n\n> Your rank: **#${userRank}** — SC-${userProf?.tier ?? 1} · ${formatScore(userProf?.effective_score ?? 0)}`
     : '';
 
+  const footerLabel = show === 'active' ? 'Active members' : 'All members';
   return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle('🏙️ Street Creed Leaderboard')
     .setDescription((lines.join('\n') || 'No data yet.') + userLine)
-    .setFooter({ text: `Page ${page}/${totalPages} · ${activeOnly ? 'Active members' : 'All members'}` });
+    .setFooter({ text: `Page ${page}/${totalPages} · ${footerLabel}` });
 }
 
-function buildLeaderboardButtons(page, activeOnly) {
-  const showVal = activeOnly ? 'active' : 'all';
+function buildLeaderboardButtons(page, show) {
   const prev = new ButtonBuilder()
-    .setCustomId(`sc_lb_${page - 1}_${showVal}`)
+    .setCustomId(`sc_lb_${page - 1}_${show}`)
     .setLabel('◀️ Prev')
     .setStyle(ButtonStyle.Secondary)
     .setDisabled(page <= 1);
 
   const next = new ButtonBuilder()
-    .setCustomId(`sc_lb_${page + 1}_${showVal}`)
+    .setCustomId(`sc_lb_${page + 1}_${show}`)
     .setLabel('Next ▶️')
     .setStyle(ButtonStyle.Secondary);
 
@@ -490,13 +535,13 @@ async function handleAdminRescanReset(interaction) {
 // Exports a handleButton function that buttonHandlers.js will call for sc_lb_* IDs.
 
 async function handleLeaderboardButton(interaction) {
-  const parts    = interaction.customId.split('_'); // sc_lb_<page>_<show>
-  const page     = parseInt(parts[2], 10);
-  const activeOnly = parts[3] === 'active';
+  const parts = interaction.customId.split('_'); // sc_lb_<page>_<show>
+  const page  = parseInt(parts[2], 10);
+  const show  = parts[3]; // 'active', 'all', or 'members'
 
   await interaction.deferUpdate();
-  const embed = await buildLeaderboardEmbed(interaction.guild, interaction.user, page, activeOnly);
-  const row   = buildLeaderboardButtons(page, activeOnly);
+  const embed = await buildLeaderboardEmbed(interaction.guild, interaction.user, page, show);
+  const row   = buildLeaderboardButtons(page, show);
   await interaction.editReply({ embeds: [embed], components: [row] });
 }
 
