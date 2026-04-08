@@ -56,6 +56,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('botcontrol')
     .setDescription('Post the bot control panel in this channel (admin only)'),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 
   async execute(interaction) {
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
