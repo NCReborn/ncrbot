@@ -575,13 +575,16 @@ async function getLeaderboard(guildId, page = 1, pageSize = 10, activeOnly = tru
   );
   const totalCount = countRows[0].cnt;
 
+  const safeLimit = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 10));
+  const safeOffset = Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, parseInt(offset, 10) || 0));
+
   const [rows] = await pool.execute(
     `SELECT user_id, tier, effective_score, messages, status
        FROM street_cred
       ${whereClause}
       ORDER BY effective_score DESC
-      LIMIT ? OFFSET ?`,
-    [guildId, pageSize, offset]
+      LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    [guildId]
   );
 
   return { rows, totalCount };
