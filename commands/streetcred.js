@@ -52,12 +52,12 @@ async function buildProfileEmbed(guild, member, user) {
   const bar = progressBar(score - curThreshold, nextThreshold ? nextThreshold - curThreshold : 1);
 
   const statusEmoji = profile.status === 'ACTIVE' ? '🟢' : profile.status === 'DORMANT' ? '🔴' : '⚫';
-  const tierLabel   = tier >= 5 ? `SC-${tier}` : 'Unranked';
-  const nextLabel   = nextThreshold ? `SC-${scs.TIERS[scs.TIERS.indexOf(tier) - 1]}` : 'Max Tier';
+  const tierLabel   = tier >= 1 ? `SC-${tier}` : 'Unranked';
+  const nextLabel   = nextThreshold ? (tier === 0 ? 'SC-1' : `SC-${scs.TIERS[scs.TIERS.indexOf(tier) - 1]}`) : 'Max Tier';
 
   // Try to get the role colour
   let embedColor = 0xf1c40f;
-  if (tier >= 5) {
+  if (tier >= 1) {
     const roleId = scs.ROLE_MAP[String(tier)];
     const role = roleId && guild.roles.cache.get(roleId);
     if (role && role.color) embedColor = role.color;
@@ -334,7 +334,7 @@ async function handleAdminSync(interaction) {
     .addFields(
       { name: 'Member',   value: member.displayName,         inline: true },
       { name: 'Messages', value: messageCount.toLocaleString(), inline: true },
-      { name: 'New Tier', value: result.tier >= 5 ? `SC-${result.tier}` : 'Unranked', inline: true },
+      { name: 'New Tier', value: result.tier >= 1 ? `SC-${result.tier}` : 'Unranked', inline: true },
       { name: 'Score',    value: formatScore(result.score),  inline: true },
     );
 
