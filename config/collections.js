@@ -1,44 +1,39 @@
-// Collection + grouping configuration for multi-collection revision monitoring.
-// Adjust slugs and display names to match real Nexus collection identifiers.
+// Collection + grouping configuration for modular revision monitoring.
+// NCR now uses a simple 3-collection system: Core, Extras, Body
 module.exports = {
-  combineWindowMs: parseInt(process.env.COMBINE_WINDOW_MS || '300000', 10),
+  combineWindowMs: parseInt(process.env.COMBINE_WINDOW_MS || '5000', 10),
 
   groups: [
     {
-      name: 'FULL',
-      displayName: 'NCR & ADR',
-      channelId: process.env.FULL_GROUP_CHANNEL_ID || '1285797113879334962',
-      members: ['rcuccp', 'srpv39'],
+      name: 'NCR_CORE',
+      displayName: 'NCR Core',
+      channelId: process.env.NCR_CORE_CHANGELOG_CHANNEL_ID || '1285797113879334962',
+      members: ['rcuccp'],
       template: 'ncr',
-      gameVersion: '2.3',
-      combined: true
+      gameVersion: '2.3'
     },
     {
-      name: 'LITE',
-      displayName: 'NCR Lite & ADR Lite',
-      channelId: process.env.LITE_GROUP_CHANNEL_ID || '1387411802035585086',
-      members: ['vfy7w1', 'ezxduq'],
+      name: 'NCR_EXTRAS',
+      displayName: 'NCR Extras',
+      channelId: process.env.NCR_EXTRAS_CHANGELOG_CHANNEL_ID || '1285797113879334962',
+      members: ['srpv39'],
       template: 'ncr',
-      gameVersion: '2.3',
-      combined: true
+      gameVersion: '2.3'
     },
     {
-      name: 'EXPEDITION_33',
-      displayName: 'Expedition 33',
-      channelId: process.env.E33_GROUP_CHANNEL_ID || '1461274886281629902',
-      members: ['jzmqt4'],
-      template: 'e33',
-      gameVersion: '1.5.1',
-      combined: false
+      name: 'NCR_BODY',
+      displayName: 'NCR Body',
+      channelId: process.env.NCR_BODY_CHANGELOG_CHANNEL_ID || '1285797113879334962',
+      members: ['vfy7w1'],
+      template: 'ncr',
+      gameVersion: '2.3'
     }
   ],
 
   collections: [
-    { slug: 'rcuccp', display: 'NCR', group: 'FULL', priority: 1 },
-    { slug: 'srpv39', display: 'ADR', group: 'FULL', priority: 2 },
-    { slug: 'vfy7w1', display: 'NCR Lite', group: 'LITE', priority: 1 },
-    { slug: 'ezxduq', display: 'ADR Lite', group: 'LITE', priority: 2 },
-    { slug: 'jzmqt4', display: 'Expedition 33', group: 'EXPEDITION_33', priority: 1 }
+    { slug: 'rcuccp', display: 'NCR Core', group: 'NCR_CORE', priority: 1 },
+    { slug: 'srpv39', display: 'NCR Extras', group: 'NCR_EXTRAS', priority: 1 },
+    { slug: 'vfy7w1', display: 'NCR Body', group: 'NCR_BODY', priority: 1 }
   ],
 
   getCollection(slug) {
