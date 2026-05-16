@@ -1,6 +1,6 @@
 const nsfwjs = require('nsfwjs');
 const { createCanvas, loadImage } = require('canvas');
-const logger = require('../../utils/logger'); // adjust path to your logger
+const logger = require('../../utils/logger'); // adjust path as needed
 const config = require('../../config/nsfwConfig.json');
 
 class NsfwDetector {
@@ -11,23 +11,24 @@ class NsfwDetector {
     }
 
     /**
-     * Loads the nsfwjs model with InceptionV3 (better for anime/stylized images)
+     * Loads the nsfwjs model with MobileNetV2Mid (balanced memory/accuracy)
+     * Using { type: 'graph' } is required for this model variant.
      */
     async initialize() {
         if (this.initialized) return;
 
         try {
-            logger.info('[NSFW] Loading InceptionV3 model (better for anime/Cyberpunk)...');
-            // 'InceptionV3' is a built-in option in nsfwjs – no extra download needed
-            this.model = await nsfwjs.load('InceptionV3');
-            logger.info('[NSFW] InceptionV3 model loaded successfully');
+            logger.info('[NSFW] Loading MobileNetV2Mid model (optimized for memory & anime detection)...');
+            // 'MobileNetV2Mid' with graph type is memory-efficient and accurate
+            this.model = await nsfwjs.load('MobileNetV2Mid', { type: 'graph' });
+            logger.info('[NSFW] MobileNetV2Mid model loaded successfully');
             this.initialized = true;
         } catch (err) {
-            logger.error('[NSFW] Failed to load InceptionV3, falling back to default MobileNet:', err.message);
-            // Fallback to default model if InceptionV3 fails
+            logger.error('[NSFW] Failed to load MobileNetV2Mid, falling back to default MobileNetV1:', err.message);
+            // Ultimate fallback to default model (smallest memory footprint)
             this.model = await nsfwjs.load();
             this.initialized = true;
-            logger.info('[NSFW] Default MobileNet model loaded as fallback');
+            logger.info('[NSFW] Default MobileNetV1 model loaded as fallback');
         }
     }
 
@@ -62,7 +63,7 @@ class NsfwDetector {
                 skipped: false,
                 confidenceLevel: confidenceLevel,
                 nsfwScore: nsfwScore,
-                modelUsed: 'InceptionV3'
+                modelUsed: 'MobileNetV2Mid'
             };
         } catch (error) {
             logger.error(`[NSFW] Classification failed for hash ${hash}: ${error.message}`);
