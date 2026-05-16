@@ -1,10 +1,11 @@
 {
-    "useAnimeModel": false,
     "thresholds": {
         "high": 0.65,
         "medium": 0.45
     },
+    "timeout": 10000,
+    "maxRetries": 2,
+    "monitoredChannels": ["1285797205927792782"], 
     "logSkipped": false,
-    "cacheResults": true,
-    "monitoredChannels": ["1285797205927792782"] 
+    "cacheResults": true
 }
