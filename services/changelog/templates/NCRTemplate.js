@@ -46,7 +46,7 @@ class NCRTemplate extends BaseTemplate {
     const updateEmbed = new EmbedBuilder()
       .setTitle("Updating collection")
       .setDescription(
-        "**⚠️ Important** - For a quick guide on updating your collection, follow the section at the end of this channel. <#1503018857567354921>\n\n" +
+        "**⚠️ Important** - For a quick guide on updating your collection, follow the section at the end of this channel. <#1503018857567354921>\n\n" 
       )
       .setColor(this.getColor('warning'));
 
