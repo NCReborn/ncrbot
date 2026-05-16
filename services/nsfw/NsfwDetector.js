@@ -7,9 +7,18 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
 
+// Optional: For anime NSFW detection
+let yolov8Anime = null;
+try {
+  yolov8Anime = require('yolov8-anime-nsfw');
+} catch (e) {
+  logger.warn('[NSFW] YOLOv8 Anime model not installed. Install with: npm install yolov8-anime-nsfw');
+}
+
 class NsfwDetector {
   constructor() {
     this.model = null;
+    this.animeModel = null;
     this.configPath = path.join(__dirname, '../../config/nsfwConfig.json');
     this.whitelistPath = path.join(__dirname, '../../data/nsfwWhitelist.json');
     this.config = this.loadConfig();
@@ -22,7 +31,12 @@ class NsfwDetector {
       return JSON.parse(data);
     } catch (error) {
       logger.error('[NSFW] Failed to load nsfwConfig.json:', error);
-      return { enabled: false, monitoredChannels: [], thresholds: { high: 0.85, medium: 0.50 } };
+      return { 
+        enabled: false, 
+        monitoredChannels: [], 
+        thresholds: { high: 0.85, medium: 0.50 },
+        useAnimeModel: true // New option to enable anime detection
+      };
     }
   }
 
@@ -47,15 +61,25 @@ class NsfwDetector {
   }
 
   /**
-   * Load the nsfwjs model. Call once at bot startup.
+   * Load NSFW models. Call once at bot startup.
    */
   async initialize() {
     try {
-      logger.info('[NSFW] Loading NSFW model...');
+      logger.info('[NSFW] Loading NSFW models...');
       this.model = await nsfwjs.load();
-      logger.info('[NSFW] Model loaded successfully');
+      logger.info('[NSFW] nsfwjs model loaded successfully');
+
+      // Try to load anime-specific model if enabled
+      if (this.config.useAnimeModel && yolov8Anime) {
+        try {
+          this.animeModel = await yolov8Anime.load();
+          logger.info('[NSFW] YOLOv8 Anime model loaded successfully');
+        } catch (e) {
+          logger.warn('[NSFW] Failed to load anime model, will use nsfwjs only:', e.message);
+        }
+      }
     } catch (error) {
-      logger.error('[NSFW] Failed to load NSFW model:', error);
+      logger.error('[NSFW] Failed to load NSFW models:', error);
     }
   }
 
@@ -79,12 +103,13 @@ class NsfwDetector {
   }
 
   /**
-   * Download and classify an image URL.
-   * @returns {{ predictions, hash, skipped, confidenceLevel } | null}
+   * Download and classify an image URL using anime-specific model first.
+   * Falls back to nsfwjs if anime model unavailable.
+   * @returns {{ predictions, hash, skipped, confidenceLevel, modelUsed } | null}
    */
   async classifyImage(imageUrl) {
-    if (!this.model) {
-      logger.warn('[NSFW] Model not loaded, skipping classification');
+    if (!this.model && !this.animeModel) {
+      logger.warn('[NSFW] No models loaded, skipping classification');
       return null;
     }
 
@@ -93,7 +118,7 @@ class NsfwDetector {
       const response = await axios.get(imageUrl, {
         responseType: 'arraybuffer',
         timeout: 10000,
-        maxContentLength: 25 * 1024 * 1024, // 10 MB cap
+        maxContentLength: 25 * 1024 * 1024,
       });
       imageBuffer = Buffer.from(response.data);
     } catch (error) {
@@ -105,9 +130,36 @@ class NsfwDetector {
 
     if (this.isWhitelisted(hash)) {
       logger.info(`[NSFW] Image ${hash} is whitelisted, skipping`);
-      return { skipped: true, hash, predictions: null, confidenceLevel: 'safe' };
+      return { skipped: true, hash, predictions: null, confidenceLevel: 'safe', modelUsed: 'whitelist' };
     }
 
+    // Try anime model first if available
+    if (this.animeModel) {
+      try {
+        const result = await this.classifyWithAnimeModel(imageBuffer, hash);
+        if (result) return result;
+      } catch (error) {
+        logger.warn('[NSFW] Anime model classification failed, falling back to nsfwjs:', error.message);
+      }
+    }
+
+    // Fallback to nsfwjs
+    if (this.model) {
+      try {
+        return await this.classifyWithNsfwjs(imageBuffer, hash);
+      } catch (error) {
+        logger.error(`[NSFW] nsfwjs classification failed: ${error.message}`);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Classify using YOLOv8 Anime NSFW model (optimized for game content)
+   */
+  async classifyWithAnimeModel(imageBuffer, hash) {
     let imageTensor;
     try {
       const image = await loadImage(imageBuffer);
@@ -120,11 +172,15 @@ class NsfwDetector {
         width: canvas.width,
         height: canvas.height,
       }, 3);
-      const predictions = await this.model.classify(imageTensor);
-      const confidenceLevel = this.getConfidenceLevel(predictions);
-      return { predictions, hash, skipped: false, confidenceLevel };
+
+      const predictions = await this.animeModel.classify(imageTensor);
+      const confidenceLevel = this.getAnimeConfidenceLevel(predictions);
+      
+      logger.info(`[NSFW] Anime model: ${predictions[0].className} (${(predictions[0].probability * 100).toFixed(1)}%)`);
+      
+      return { predictions, hash, skipped: false, confidenceLevel, modelUsed: 'yolov8_anime' };
     } catch (error) {
-      logger.error(`[NSFW] Failed to classify image ${imageUrl}: ${error.message}`);
+      logger.error(`[NSFW] Anime model classification failed: ${error.message}`);
       return null;
     } finally {
       if (imageTensor) imageTensor.dispose();
@@ -132,11 +188,59 @@ class NsfwDetector {
   }
 
   /**
-   * Determine confidence level from nsfwjs prediction results.
-   * @param {Array<{className: string, probability: number}>} predictions
-   * @returns {'high' | 'medium' | 'safe'}
+   * Classify using nsfwjs (fallback)
    */
-  getConfidenceLevel(predictions) {
+  async classifyWithNsfwjs(imageBuffer, hash) {
+    let imageTensor;
+    try {
+      const image = await loadImage(imageBuffer);
+      const canvas = createCanvas(image.width, image.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(image, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      imageTensor = tf.browser.fromPixels({
+        data: new Uint8Array(imageData.data.buffer),
+        width: canvas.width,
+        height: canvas.height,
+      }, 3);
+
+      const predictions = await this.model.classify(imageTensor);
+      const confidenceLevel = this.getNsfwjsConfidenceLevel(predictions);
+      
+      logger.info(`[NSFW] nsfwjs: ${predictions[0].className} (${(predictions[0].probability * 100).toFixed(1)}%)`);
+      
+      return { predictions, hash, skipped: false, confidenceLevel, modelUsed: 'nsfwjs' };
+    } catch (error) {
+      logger.error(`[NSFW] nsfwjs classification failed: ${error.message}`);
+      return null;
+    } finally {
+      if (imageTensor) imageTensor.dispose();
+    }
+  }
+
+  /**
+   * Determine confidence level from YOLOv8 Anime predictions
+   * Classes: [sfw, nsfw, questionable]
+   */
+  getAnimeConfidenceLevel(predictions) {
+    const { high, medium } = this.config.thresholds;
+
+    const score = (name) =>
+      predictions.find((p) => p.className === name)?.probability ?? 0;
+
+    const nsfw = score('nsfw');
+    const questionable = score('questionable');
+
+    if (nsfw > high) return 'high';
+    if (nsfw > medium || questionable > high) return 'medium';
+    return 'safe';
+  }
+
+  /**
+   * Determine confidence level from nsfwjs predictions (excluding "Sexy")
+   * Classes: [Porn, Hentai, Neutral, Drawing]
+   */
+  getNsfwjsConfidenceLevel(predictions) {
     const { high, medium } = this.config.thresholds;
 
     const score = (name) =>
@@ -144,10 +248,10 @@ class NsfwDetector {
 
     const porn = score('Porn');
     const hentai = score('Hentai');
-    const sexy = score('Sexy');
+    // Removed Sexy - too many false positives
 
-    if (porn > high || hentai > high || sexy > high) return 'high';
-    if (porn > medium || hentai > medium || sexy > medium) return 'medium';
+    if (porn > high || hentai > high) return 'high';
+    if (porn > medium || hentai > medium) return 'medium';
     return 'safe';
   }
 
