@@ -1,9 +1,9 @@
 {
-  "enabled": true,
-  "monitoredChannels": ["1285797205927792782"],
-  "thresholds": {
-    "high": 0.80,
-    "medium": 0.50
-  },
-  "useAnimeModel": true
+    "useAnimeModel": true,
+    "thresholds": {
+        "high": 0.75,
+        "medium": 0.55
+    },
+    "logSkipped": false,
+    "cacheResults": true
 }
