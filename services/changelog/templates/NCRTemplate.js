@@ -28,7 +28,6 @@ class NCRTemplate extends BaseTemplate {
     const headerEmbed = new EmbedBuilder()
       .setTitle(revisionTitle)
       .setDescription(
-        "**⚠️ Important** - For a quick guide on updating your collection, follow the section at the end of this channel. <#1503018857567354921>\n\n" +
         "**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n" +
         "Any issues with updating please refer to <#1400940644565782599> & <#1285797091750187039>\n\n" +
         "If you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>"
