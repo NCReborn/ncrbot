@@ -1,263 +1,185 @@
 const nsfwjs = require('nsfwjs');
-const tf = require('@tensorflow/tfjs');
+const { pipeline } = require('@huggingface/transformers');
 const { createCanvas, loadImage } = require('canvas');
-const axios = require('axios');
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const logger = require('../../utils/logger');
-
-// Optional: For anime NSFW detection
-let yolov8Anime = null;
-try {
-  yolov8Anime = require('yolov8-anime-nsfw');
-} catch (e) {
-  logger.warn('[NSFW] YOLOv8 Anime model not installed. Install with: npm install yolov8-anime-nsfw');
-}
+const logger = require('../../utils/logger'); // adjust path to your logger
+const config = require('../../config/nsfwConfig.json');
 
 class NsfwDetector {
-  constructor() {
-    this.model = null;
-    this.animeModel = null;
-    this.configPath = path.join(__dirname, '../../config/nsfwConfig.json');
-    this.whitelistPath = path.join(__dirname, '../../data/nsfwWhitelist.json');
-    this.config = this.loadConfig();
-    this.whitelist = this.loadWhitelist();
-  }
-
-  loadConfig() {
-    try {
-      const data = fs.readFileSync(this.configPath, 'utf8');
-      return JSON.parse(data);
-    } catch (error) {
-      logger.error('[NSFW] Failed to load nsfwConfig.json:', error);
-      return { 
-        enabled: false, 
-        monitoredChannels: [], 
-        thresholds: { high: 0.85, medium: 0.50 },
-        useAnimeModel: true // New option to enable anime detection
-      };
+    constructor() {
+        this.model = null;
+        this.animeModel = null;      // will hold Hugging Face pipeline
+        this.config = config;
+        this.initialized = false;
     }
-  }
 
-  loadWhitelist() {
-    try {
-      if (fs.existsSync(this.whitelistPath)) {
-        const data = fs.readFileSync(this.whitelistPath, 'utf8');
-        return JSON.parse(data);
-      }
-    } catch (error) {
-      logger.error('[NSFW] Failed to load nsfwWhitelist.json:', error);
-    }
-    return [];
-  }
+    async initialize() {
+        if (this.initialized) return;
 
-  saveWhitelist() {
-    try {
-      fs.writeFileSync(this.whitelistPath, JSON.stringify(this.whitelist, null, 2));
-    } catch (error) {
-      logger.error('[NSFW] Failed to save nsfwWhitelist.json:', error);
-    }
-  }
-
-  /**
-   * Load NSFW models. Call once at bot startup.
-   */
-  async initialize() {
-    try {
-      logger.info('[NSFW] Loading NSFW models...');
-      this.model = await nsfwjs.load();
-      logger.info('[NSFW] nsfwjs model loaded successfully');
-
-      // Try to load anime-specific model if enabled
-      if (this.config.useAnimeModel && yolov8Anime) {
+        // 1. Load general nsfwjs model (fallback)
         try {
-          this.animeModel = await yolov8Anime.load();
-          logger.info('[NSFW] YOLOv8 Anime model loaded successfully');
-        } catch (e) {
-          logger.warn('[NSFW] Failed to load anime model, will use nsfwjs only:', e.message);
+            logger.info('[NSFW] Loading nsfwjs model...');
+            this.model = await nsfwjs.load();
+            logger.info('[NSFW] nsfwjs model loaded');
+        } catch (err) {
+            logger.error('[NSFW] Failed to load nsfwjs model:', err);
+            throw err;
         }
-      }
-    } catch (error) {
-      logger.error('[NSFW] Failed to load NSFW models:', error);
-    }
-  }
 
-  /**
-   * Compute an MD5 fingerprint from raw image bytes.
-   */
-  computeImageHash(imageBuffer) {
-    return crypto.createHash('md5').update(imageBuffer).digest('hex');
-  }
+        // 2. Load Hugging Face anime-specific model
+        if (this.config.useAnimeModel) {
+            try {
+                logger.info('[NSFW] Loading prithivMLmods/Mature-Content-Detection...');
+                // This pipeline returns an array of { label, score }
+                this.animeModel = await pipeline('image-classification', 'prithivMLmods/Mature-Content-Detection');
+                logger.info('[NSFW] Mature-Content-Detection model ready');
+            } catch (err) {
+                logger.warn('[NSFW] Failed to load anime model, will use only nsfwjs:', err.message);
+                this.animeModel = null;
+            }
+        }
 
-  isWhitelisted(hash) {
-    return this.whitelist.includes(hash);
-  }
-
-  addToWhitelist(hash) {
-    if (!this.whitelist.includes(hash)) {
-      this.whitelist.push(hash);
-      this.saveWhitelist();
-      logger.info(`[NSFW] Added image hash ${hash} to whitelist`);
-    }
-  }
-
-  /**
-   * Download and classify an image URL using anime-specific model first.
-   * Falls back to nsfwjs if anime model unavailable.
-   * @returns {{ predictions, hash, skipped, confidenceLevel, modelUsed } | null}
-   */
-  async classifyImage(imageUrl) {
-    if (!this.model && !this.animeModel) {
-      logger.warn('[NSFW] No models loaded, skipping classification');
-      return null;
+        this.initialized = true;
     }
 
-    let imageBuffer;
-    try {
-      const response = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
-        timeout: 10000,
-        maxContentLength: 25 * 1024 * 1024,
-      });
-      imageBuffer = Buffer.from(response.data);
-    } catch (error) {
-      logger.error(`[NSFW] Failed to download image ${imageUrl}: ${error.message}`);
-      return null;
+    /**
+     * Main classification method – uses anime model first, then falls back to nsfwjs.
+     */
+    async classifyImage(imageBuffer, hash) {
+        await this.initialize();
+
+        // Try anime model first if available
+        if (this.animeModel && this.config.useAnimeModel) {
+            const result = await this.classifyWithAnimeModel(imageBuffer, hash);
+            if (result && !result.skipped) {
+                return result;
+            }
+        }
+
+        // Fallback to nsfwjs
+        return this.classifyWithNsfwjs(imageBuffer, hash);
     }
 
-    const hash = this.computeImageHash(imageBuffer);
+    /**
+     * NEW: Classification using Hugging Face mature-content-detection model.
+     */
+    async classifyWithAnimeModel(imageBuffer, hash) {
+        if (!this.animeModel) return null;
 
-    if (this.isWhitelisted(hash)) {
-      logger.info(`[NSFW] Image ${hash} is whitelisted, skipping`);
-      return { skipped: true, hash, predictions: null, confidenceLevel: 'safe', modelUsed: 'whitelist' };
+        try {
+            // Convert buffer to a canvas element (what the pipeline expects)
+            const image = await loadImage(imageBuffer);
+            const canvas = createCanvas(image.width, image.height);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0, image.width, image.height);
+
+            // Run inference – returns array like:
+            // [{ label: "Hentai", score: 0.95 }, { label: "Pornography", score: 0.03 }, ...]
+            const predictions = await this.animeModel(canvas);
+
+            // Convert to your internal confidence levels
+            const confidenceLevel = this.getConfidenceLevelFromHFPredictions(predictions);
+
+            logger.info(`[NSFW] Anime model result: ${predictions[0].label} = ${(predictions[0].score * 100).toFixed(1)}%`);
+
+            return {
+                predictions: predictions,      // full raw output
+                hash: hash,
+                skipped: false,
+                confidenceLevel: confidenceLevel,
+                modelUsed: 'mature-content-detection'
+            };
+        } catch (error) {
+            logger.error(`[NSFW] Anime model error: ${error.message}`);
+            return null;  // fallback to nsfwjs
+        }
     }
 
-    // Try anime model first if available
-    if (this.animeModel) {
-      try {
-        const result = await this.classifyWithAnimeModel(imageBuffer, hash);
-        if (result) return result;
-      } catch (error) {
-        logger.warn('[NSFW] Anime model classification failed, falling back to nsfwjs:', error.message);
-      }
+    /**
+     * Original nsfwjs method (keep as is, but rename if needed).
+     */
+    async classifyWithNsfwjs(imageBuffer, hash) {
+        try {
+            const image = await loadImage(imageBuffer);
+            const canvas = createCanvas(image.width, image.height);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0, image.width, image.height);
+
+            const predictions = await this.model.classify(canvas);
+            const nsfwScore = this.getNsfwScore(predictions);
+            const confidenceLevel = this.getConfidenceLevel(nsfwScore);
+
+            return {
+                predictions: predictions,
+                hash: hash,
+                skipped: false,
+                confidenceLevel: confidenceLevel,
+                modelUsed: 'nsfwjs'
+            };
+        } catch (error) {
+            logger.error(`[NSFW] nsfwjs error: ${error.message}`);
+            return {
+                predictions: [],
+                hash: hash,
+                skipped: true,
+                confidenceLevel: 'safe',
+                modelUsed: 'none',
+                error: error.message
+            };
+        }
     }
 
-    // Fallback to nsfwjs
-    if (this.model) {
-      try {
-        return await this.classifyWithNsfwjs(imageBuffer, hash);
-      } catch (error) {
-        logger.error(`[NSFW] nsfwjs classification failed: ${error.message}`);
-        return null;
-      }
+    /**
+     * Map the 5-class Hugging Face output to your high/medium/safe levels.
+     * Expected labels: "Hentai", "Pornography", "Enticing or Sensual", "Sexy", "Neutral" (or "Safe")
+     */
+    getConfidenceLevelFromHFPredictions(predictions) {
+        const { high, medium } = this.config.thresholds;
+
+        // Helper to get score for a label
+        const score = (label) => {
+            const pred = predictions.find(p => p.label === label);
+            return pred ? pred.score : 0;
+        };
+
+        const hentaiScore = score('Hentai');
+        const pornScore = score('Pornography');
+        const enticingScore = score('Enticing or Sensual');
+        const sexyScore = score('Sexy');
+
+        // High confidence if explicit hentai or porn above high threshold
+        if (hentaiScore > high || pornScore > high) return 'high';
+
+        // Medium confidence if:
+        // - hentai/porn above medium threshold, OR
+        // - "enticing" or "sexy" above high threshold (these are borderline)
+        if (hentaiScore > medium || pornScore > medium || 
+            enticingScore > high || sexyScore > high) {
+            return 'medium';
+        }
+
+        return 'safe';
     }
 
-    return null;
-  }
-
-  /**
-   * Classify using YOLOv8 Anime NSFW model (optimized for game content)
-   */
-  async classifyWithAnimeModel(imageBuffer, hash) {
-    let imageTensor;
-    try {
-      const image = await loadImage(imageBuffer);
-      const canvas = createCanvas(image.width, image.height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(image, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      imageTensor = tf.browser.fromPixels({
-        data: new Uint8Array(imageData.data.buffer),
-        width: canvas.width,
-        height: canvas.height,
-      }, 3);
-
-      const predictions = await this.animeModel.classify(imageTensor);
-      const confidenceLevel = this.getAnimeConfidenceLevel(predictions);
-      
-      logger.info(`[NSFW] Anime model: ${predictions[0].className} (${(predictions[0].probability * 100).toFixed(1)}%)`);
-      
-      return { predictions, hash, skipped: false, confidenceLevel, modelUsed: 'yolov8_anime' };
-    } catch (error) {
-      logger.error(`[NSFW] Anime model classification failed: ${error.message}`);
-      return null;
-    } finally {
-      if (imageTensor) imageTensor.dispose();
+    /**
+     * Original nsfwjs scoring logic – keep yours, but here's a typical version.
+     */
+    getNsfwScore(predictions) {
+        const nsfwCategories = ['Hentai', 'Porn', 'Sexy'];
+        let score = 0;
+        for (const pred of predictions) {
+            if (nsfwCategories.includes(pred.className)) {
+                score += pred.probability;
+            }
+        }
+        return Math.min(score, 1);
     }
-  }
 
-  /**
-   * Classify using nsfwjs (fallback)
-   */
-  async classifyWithNsfwjs(imageBuffer, hash) {
-    let imageTensor;
-    try {
-      const image = await loadImage(imageBuffer);
-      const canvas = createCanvas(image.width, image.height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(image, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      imageTensor = tf.browser.fromPixels({
-        data: new Uint8Array(imageData.data.buffer),
-        width: canvas.width,
-        height: canvas.height,
-      }, 3);
-
-      const predictions = await this.model.classify(imageTensor);
-      const confidenceLevel = this.getNsfwjsConfidenceLevel(predictions);
-      
-      logger.info(`[NSFW] nsfwjs: ${predictions[0].className} (${(predictions[0].probability * 100).toFixed(1)}%)`);
-      
-      return { predictions, hash, skipped: false, confidenceLevel, modelUsed: 'nsfwjs' };
-    } catch (error) {
-      logger.error(`[NSFW] nsfwjs classification failed: ${error.message}`);
-      return null;
-    } finally {
-      if (imageTensor) imageTensor.dispose();
+    getConfidenceLevel(score) {
+        const { high, medium } = this.config.thresholds;
+        if (score > high) return 'high';
+        if (score > medium) return 'medium';
+        return 'safe';
     }
-  }
-
-  /**
-   * Determine confidence level from YOLOv8 Anime predictions
-   * Classes: [sfw, nsfw, questionable]
-   */
-  getAnimeConfidenceLevel(predictions) {
-    const { high, medium } = this.config.thresholds;
-
-    const score = (name) =>
-      predictions.find((p) => p.className === name)?.probability ?? 0;
-
-    const nsfw = score('nsfw');
-    const questionable = score('questionable');
-
-    if (nsfw > high) return 'high';
-    if (nsfw > medium || questionable > high) return 'medium';
-    return 'safe';
-  }
-
-  /**
-   * Determine confidence level from nsfwjs predictions (excluding "Sexy")
-   * Classes: [Porn, Hentai, Neutral, Drawing]
-   */
-  getNsfwjsConfidenceLevel(predictions) {
-    const { high, medium } = this.config.thresholds;
-
-    const score = (name) =>
-      predictions.find((p) => p.className === name)?.probability ?? 0;
-
-    const porn = score('Porn');
-    const hentai = score('Hentai');
-    // Removed Sexy - too many false positives
-
-    if (porn > high || hentai > high) return 'high';
-    if (porn > medium || hentai > medium) return 'medium';
-    return 'safe';
-  }
-
-  isMonitoredChannel(channelId) {
-    return this.config.enabled && this.config.monitoredChannels.includes(channelId);
-  }
 }
 
 module.exports = new NsfwDetector();
