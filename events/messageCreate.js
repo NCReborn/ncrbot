@@ -78,7 +78,7 @@ function buildStreetCredAnnouncement(member, result) {
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
-    if (botcontrol.botStatus.muted) return;
+    // 🚫 Removed botcontrol check – no longer exists
 
     // Log analysis for crash log channel
     if (
