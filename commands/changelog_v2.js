@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
-const buildChangelogEmbed = require("../../utils/changelogBuilder_v2");
+const buildChangelogEmbed = require("../utils/changelogBuilder_v2");
+
 
 module.exports = {
     name: "changelogv2",
