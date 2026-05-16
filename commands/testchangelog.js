@@ -1,4 +1,4 @@
-const buildChangelogEmbed = require("../../utils/changelogBuilder_v2");
+const buildChangelogEmbed = require("../utils/changelogBuilder_v2");
 
 module.exports = {
     name: "testchangelog",
