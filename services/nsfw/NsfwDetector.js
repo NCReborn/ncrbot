@@ -1,5 +1,6 @@
 const axios = require('axios');
-const logger = require('../../utils/logger'); // adjust path
+const crypto = require('crypto');
+const logger = require('../../utils/logger'); // adjust path if needed
 const config = require('../../config/nsfwConfig.json');
 
 class NsfwDetector {
@@ -7,17 +8,49 @@ class NsfwDetector {
         this.config = config;
     }
 
-    // Dummy initialize method to keep compatibility with existing bot code
+    // Dummy initialize for compatibility
     async initialize() {
-        // Nothing to load – external API only
-        logger.info('[NSFW] External API detector ready (no local model)');
-        return;
+        logger.info('[NSFW] External API detector ready');
     }
 
-    async classifyImage(imageBuffer, hash) {
+    /**
+     * Compatibility method: accepts a URL, fetches the image, computes hash,
+     * then calls the main classifyImage method.
+     * @param {string} url - Direct image URL from Discord attachment
+     * @returns {Promise<Object>}
+     */
+    async classifyImage(url) {
+        try {
+            // Fetch the image from Discord CDN
+            const response = await axios.get(url, {
+                responseType: 'arraybuffer',
+                timeout: 15000
+            });
+            const imageBuffer = Buffer.from(response.data);
+            const hash = crypto.createHash('md5').update(imageBuffer).digest('hex');
+            return this.classifyImageFromBuffer(imageBuffer, hash);
+        } catch (error) {
+            logger.error(`[NSFW] Failed to fetch URL ${url}: ${error.message}`);
+            return {
+                predictions: [],
+                skipped: true,
+                confidenceLevel: 'safe',
+                nsfwScore: 0,
+                modelUsed: 'none',
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Core method – accepts a buffer and hash (used by the URL method above).
+     * @param {Buffer} imageBuffer
+     * @param {string} hash
+     * @returns {Promise<Object>}
+     */
+    async classifyImageFromBuffer(imageBuffer, hash) {
         try {
             const base64Image = imageBuffer.toString('base64');
-
             const response = await axios.post('https://nsfwjs.dooo.ng/classify', {
                 image: base64Image
             }, {
@@ -52,6 +85,11 @@ class NsfwDetector {
                 error: error.message
             };
         }
+    }
+
+    // Optional: method to check if channel is monitored (read from config)
+    isMonitoredChannel(channelId) {
+        return this.config.monitoredChannels?.includes(channelId) || false;
     }
 
     calculateNsfwScore(predictions) {
