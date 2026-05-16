@@ -2,7 +2,6 @@ const logger = require('../utils/logger');
 const { EmbedBuilder } = require('discord.js');
 const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 const { loadResponses } = require('../utils/autoResponder');
-const botcontrol = require('../commands/botcontrol.js');
 const { PermissionChecker } = require('../utils/permissions');
 const CONSTANTS = require('../config/constants');
 const spamDetector = require('../services/spam/SpamDetector');
