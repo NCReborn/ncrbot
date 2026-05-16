@@ -4,29 +4,28 @@
  */
 
 const VERSION_INFO = {
-  version: "1.0.5",
-  changes: "Added Crash-Log Scanning and other backend auto-revision scans"
+  version: "1.1.0",
+  changes: "Migrated to modular 3-collection system (NCR Core/Extras/Body)"
 };
 
 const VERSION_COOLDOWN_TIME = 60 * 60 * 1000; // 60 minutes in milliseconds
 
 const COLLECTION_MAPPINGS = {
   slugs: {
-    'ncr': 'rcuccp',
-    'adr': 'srpv39',
-    'ncr lite': 'vfy7w1',
-    'adr lite': 'ezxduq',
-    'ncrlite': 'vfy7w1',
-    'adrlite': 'ezxduq',
-    'e33': 'jzmqt4',
-    'expedition33': 'jzmqt4'
+    'ncr core': 'rcuccp',
+    'ncrcore': 'rcuccp',
+    'core': 'rcuccp',
+    'ncr extras': 'srpv39',
+    'ncrextras': 'srpv39',
+    'extras': 'srpv39',
+    'ncr body': 'vfy7w1',
+    'ncrbody': 'vfy7w1',
+    'body': 'vfy7w1'
   },
   names: {
-    'rcuccp': 'NCR',
-    'srpv39': 'ADR',
-    'vfy7w1': 'NCR Lite',
-    'ezxduq': 'ADR Lite',
-    'jzmqt4': 'Expedition 33'
+    'rcuccp': 'NCR Core',
+    'srpv39': 'NCR Extras',
+    'vfy7w1': 'NCR Body'
   }
 };
 
@@ -88,26 +87,7 @@ const HELPER_ROLES = {
 // ===== COOLDOWNS (in milliseconds) =====
 const COOLDOWNS = {
   USER_COMMAND: 30 * 1000,
-  GLOBAL_COMMAND: 30 * 1000,
-  LOG_SCAN: 15 * 1000,
-  STATUS_UPDATE: 5 * 60 * 1000,
-};
-
-// ===== DISCORD LIMITS =====
-const LIMITS = {
-  MESSAGE_LENGTH: 2000,
-  EMBED_DESCRIPTION: 4096,
-  EMBED_FIELD_VALUE: 1024,
-  EMBED_TITLE: 256,
-};
-
-// ===== TIME CONSTANTS =====
-const TIME = {
-  SECOND: 1000,
-  MINUTE: 60 * 1000,
-  HOUR: 60 * 60 * 1000,
-  DAY: 24 * 60 * 60 * 1000,
-  WEEK: 7 * 24 * 60 * 60 * 1000,
+  GLOBAL_COMMAND: 5 * 1000,
 };
 
 module.exports = {
@@ -118,7 +98,5 @@ module.exports = {
   CHANNELS,
   FORUM,
   HELPER_ROLES,
-  COOLDOWNS,
-  LIMITS,
-  TIME,
+  COOLDOWNS
 };
