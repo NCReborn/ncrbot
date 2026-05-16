@@ -1,5 +1,4 @@
 const nsfwjs = require('nsfwjs');
-const { pipeline } = require('@huggingface/transformers');
 const { createCanvas, loadImage } = require('canvas');
 const logger = require('../../utils/logger'); // adjust path to your logger
 const config = require('../../config/nsfwConfig.json');
@@ -7,121 +6,72 @@ const config = require('../../config/nsfwConfig.json');
 class NsfwDetector {
     constructor() {
         this.model = null;
-        this.animeModel = null;      // will hold Hugging Face pipeline
         this.config = config;
         this.initialized = false;
     }
 
+    /**
+     * Loads the nsfwjs model with InceptionV3 (better for anime/stylized images)
+     */
     async initialize() {
         if (this.initialized) return;
 
-        // 1. Load general nsfwjs model (fallback)
         try {
-            logger.info('[NSFW] Loading nsfwjs model...');
-            this.model = await nsfwjs.load();
-            logger.info('[NSFW] nsfwjs model loaded');
+            logger.info('[NSFW] Loading InceptionV3 model (better for anime/Cyberpunk)...');
+            // 'InceptionV3' is a built-in option in nsfwjs – no extra download needed
+            this.model = await nsfwjs.load('InceptionV3');
+            logger.info('[NSFW] InceptionV3 model loaded successfully');
+            this.initialized = true;
         } catch (err) {
-            logger.error('[NSFW] Failed to load nsfwjs model:', err);
-            throw err;
+            logger.error('[NSFW] Failed to load InceptionV3, falling back to default MobileNet:', err.message);
+            // Fallback to default model if InceptionV3 fails
+            this.model = await nsfwjs.load();
+            this.initialized = true;
+            logger.info('[NSFW] Default MobileNet model loaded as fallback');
         }
-
-        // 2. Load Hugging Face anime-specific model
-        if (this.config.useAnimeModel) {
-            try {
-                logger.info('[NSFW] Loading prithivMLmods/Mature-Content-Detection...');
-                // This pipeline returns an array of { label, score }
-                this.animeModel = await pipeline('image-classification', 'prithivMLmods/Mature-Content-Detection');
-                logger.info('[NSFW] Mature-Content-Detection model ready');
-            } catch (err) {
-                logger.warn('[NSFW] Failed to load anime model, will use only nsfwjs:', err.message);
-                this.animeModel = null;
-            }
-        }
-
-        this.initialized = true;
     }
 
     /**
-     * Main classification method – uses anime model first, then falls back to nsfwjs.
+     * Main classification method – processes an image buffer and returns results.
+     * @param {Buffer} imageBuffer - Raw image data from Discord attachment
+     * @param {string} hash - Unique hash of the image (for caching)
+     * @returns {Promise<Object>} Classification result
      */
     async classifyImage(imageBuffer, hash) {
         await this.initialize();
 
-        // Try anime model first if available
-        if (this.animeModel && this.config.useAnimeModel) {
-            const result = await this.classifyWithAnimeModel(imageBuffer, hash);
-            if (result && !result.skipped) {
-                return result;
-            }
-        }
-
-        // Fallback to nsfwjs
-        return this.classifyWithNsfwjs(imageBuffer, hash);
-    }
-
-    /**
-     * NEW: Classification using Hugging Face mature-content-detection model.
-     */
-    async classifyWithAnimeModel(imageBuffer, hash) {
-        if (!this.animeModel) return null;
-
         try {
-            // Convert buffer to a canvas element (what the pipeline expects)
+            // Convert buffer to a canvas (what nsfwjs expects)
             const image = await loadImage(imageBuffer);
             const canvas = createCanvas(image.width, image.height);
             const ctx = canvas.getContext('2d');
             ctx.drawImage(image, 0, 0, image.width, image.height);
 
-            // Run inference – returns array like:
-            // [{ label: "Hentai", score: 0.95 }, { label: "Pornography", score: 0.03 }, ...]
-            const predictions = await this.animeModel(canvas);
-
-            // Convert to your internal confidence levels
-            const confidenceLevel = this.getConfidenceLevelFromHFPredictions(predictions);
-
-            logger.info(`[NSFW] Anime model result: ${predictions[0].label} = ${(predictions[0].score * 100).toFixed(1)}%`);
-
-            return {
-                predictions: predictions,      // full raw output
-                hash: hash,
-                skipped: false,
-                confidenceLevel: confidenceLevel,
-                modelUsed: 'mature-content-detection'
-            };
-        } catch (error) {
-            logger.error(`[NSFW] Anime model error: ${error.message}`);
-            return null;  // fallback to nsfwjs
-        }
-    }
-
-    /**
-     * Original nsfwjs method (keep as is, but rename if needed).
-     */
-    async classifyWithNsfwjs(imageBuffer, hash) {
-        try {
-            const image = await loadImage(imageBuffer);
-            const canvas = createCanvas(image.width, image.height);
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(image, 0, 0, image.width, image.height);
-
+            // Run classification
             const predictions = await this.model.classify(canvas);
-            const nsfwScore = this.getNsfwScore(predictions);
+            const nsfwScore = this.calculateNsfwScore(predictions);
             const confidenceLevel = this.getConfidenceLevel(nsfwScore);
+
+            // Log the top prediction for debugging
+            const topPred = predictions[0];
+            logger.info(`[NSFW] Top: ${topPred.className} = ${(topPred.probability * 100).toFixed(1)}% | Score: ${nsfwScore.toFixed(2)} | Level: ${confidenceLevel}`);
 
             return {
                 predictions: predictions,
                 hash: hash,
                 skipped: false,
                 confidenceLevel: confidenceLevel,
-                modelUsed: 'nsfwjs'
+                nsfwScore: nsfwScore,
+                modelUsed: 'InceptionV3'
             };
         } catch (error) {
-            logger.error(`[NSFW] nsfwjs error: ${error.message}`);
+            logger.error(`[NSFW] Classification failed for hash ${hash}: ${error.message}`);
             return {
                 predictions: [],
                 hash: hash,
                 skipped: true,
                 confidenceLevel: 'safe',
+                nsfwScore: 0,
                 modelUsed: 'none',
                 error: error.message
             };
@@ -129,56 +79,47 @@ class NsfwDetector {
     }
 
     /**
-     * Map the 5-class Hugging Face output to your high/medium/safe levels.
-     * Expected labels: "Hentai", "Pornography", "Enticing or Sensual", "Sexy", "Neutral" (or "Safe")
+     * Calculate a combined NSFW score from the model's predictions.
+     * The model returns: ['Drawing', 'Hentai', 'Neutral', 'Porn', 'Sexy']
+     * @param {Array} predictions - Array of {className, probability}
+     * @returns {number} Weighted score between 0 and 1
      */
-    getConfidenceLevelFromHFPredictions(predictions) {
-        const { high, medium } = this.config.thresholds;
-
-        // Helper to get score for a label
-        const score = (label) => {
-            const pred = predictions.find(p => p.label === label);
-            return pred ? pred.score : 0;
+    calculateNsfwScore(predictions) {
+        const mapping = {
+            'Hentai': 1.0,    // Explicit anime NSFW
+            'Porn': 1.0,      // Real explicit
+            'Sexy': 0.8,      // Suggestive but not explicit
+            'Neutral': 0.0,
+            'Drawing': 0.1    // Non-explicit anime/drawing – low risk
         };
 
-        const hentaiScore = score('Hentai');
-        const pornScore = score('Pornography');
-        const enticingScore = score('Enticing or Sensual');
-        const sexyScore = score('Sexy');
-
-        // High confidence if explicit hentai or porn above high threshold
-        if (hentaiScore > high || pornScore > high) return 'high';
-
-        // Medium confidence if:
-        // - hentai/porn above medium threshold, OR
-        // - "enticing" or "sexy" above high threshold (these are borderline)
-        if (hentaiScore > medium || pornScore > medium || 
-            enticingScore > high || sexyScore > high) {
-            return 'medium';
-        }
-
-        return 'safe';
-    }
-
-    /**
-     * Original nsfwjs scoring logic – keep yours, but here's a typical version.
-     */
-    getNsfwScore(predictions) {
-        const nsfwCategories = ['Hentai', 'Porn', 'Sexy'];
         let score = 0;
         for (const pred of predictions) {
-            if (nsfwCategories.includes(pred.className)) {
-                score += pred.probability;
-            }
+            const weight = mapping[pred.className] || 0;
+            score += pred.probability * weight;
         }
         return Math.min(score, 1);
     }
 
+    /**
+     * Map numeric score to high/medium/safe based on config thresholds.
+     * @param {number} score - NSFW score between 0 and 1
+     * @returns {string} 'high', 'medium', or 'safe'
+     */
     getConfidenceLevel(score) {
         const { high, medium } = this.config.thresholds;
         if (score > high) return 'high';
         if (score > medium) return 'medium';
         return 'safe';
+    }
+
+    /**
+     * Optional: Clear the model (if you need to reload later, e.g., after config change)
+     */
+    async unload() {
+        this.model = null;
+        this.initialized = false;
+        logger.info('[NSFW] Detector unloaded');
     }
 }
 
