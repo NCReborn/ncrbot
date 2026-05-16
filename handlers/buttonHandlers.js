@@ -1,6 +1,5 @@
 const logger = require('../utils/logger');
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const botcontrol = require('../commands/botcontrol');
 const spamActionHandler = require('../services/spam/SpamActionHandler');
 const nsfwActionHandler = require('../services/nsfw/NsfwActionHandler');
 const { handleLeaderboardButton } = require('../commands/streetcred');
@@ -22,7 +21,7 @@ class ButtonHandlers {
 
   async handleBotControl(interaction, client) {
     const { customId: id } = interaction;
-    const adminOnly = ['restart', 'stop', 'reload']; // Add reload to admin-only
+    const adminOnly = ['restart', 'stop', 'reload'];
     const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
 
     if (adminOnly.includes(id) && !isAdmin) {
@@ -33,7 +32,7 @@ class ButtonHandlers {
       return;
     }
 
-    // Handle reload - inline without requiring separate module
+    // Handle reload - currently disabled
     if (id === 'reload') {
       await interaction.reply({ 
         content: '⚠️ Reload functionality is currently disabled. Please restart the bot instead.', 
@@ -44,50 +43,28 @@ class ButtonHandlers {
 
     // Handle other controls
     let resultMsg = '';
-    let needsPanelUpdate = false;
 
     switch (id) {
       case 'mute':
-        botcontrol.botStatus.muted = true;
-        needsPanelUpdate = true;
-        resultMsg = 'Bot has been muted.';
+        resultMsg = 'Mute functionality is no longer supported.';
         break;
       case 'unmute':
-        botcontrol.botStatus.muted = false;
-        needsPanelUpdate = true;
-        resultMsg = 'Bot has been unmuted.';
+        resultMsg = 'Unmute functionality is no longer supported.';
         break;
       case 'restart':
         resultMsg = 'Bot is restarting...';
-        needsPanelUpdate = true;
+        logger.info(`[RESTART] Initiated by ${interaction.user.tag}`);
+        setTimeout(() => process.exit(0), 1000);
         break;
       case 'stop':
-        botcontrol.botStatus.running = false;
-        needsPanelUpdate = true;
         resultMsg = 'Bot is stopping. Emergency shutdown in progress!';
+        logger.info(`[STOP] Initiated by ${interaction.user.tag}`);
+        setTimeout(() => process.exit(1), 1000);
         break;
     }
 
-    botcontrol.saveStatus(botcontrol.botStatus);
-
-    if (needsPanelUpdate) {
-      const embed = EmbedBuilder.from(interaction.message.embeds[0]);
-      embed.data.fields = embed.data.fields.map(f =>
-        f.name === 'Bot Status'
-          ? { name: f.name, value: botcontrol.getStatusText() }
-          : f
-      );
-      await interaction.update({ embeds: [embed] });
-    } else {
-      await interaction.deferUpdate();
-    }
-
+    await interaction.deferUpdate();
     await interaction.followUp({ content: resultMsg, ephemeral: true });
-
-    if (id === 'restart') {
-      logger.info(`[RESTART] Initiated by ${interaction.user.tag}`);
-      setTimeout(() => process.exit(0), 1000);
-    }
   }
 }
 
