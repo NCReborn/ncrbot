@@ -30,7 +30,7 @@ class NCRTemplate extends BaseTemplate {
       .setDescription(
         "**⚠️ Important** - To keep the game stable, permanently delete all files in the Steam\\steamapps\\common\\Cyberpunk 2077\\r6\\cache folder with each new revision, verify the game files, then deploy mods from vortex.\n\n" +
         "Any issues with updating please refer to <#1400940644565782599> & <#1285797091750187039>\n\n" +
-        "If you need further help ping a <@&1288633895910375464> or <@&1324783261439889439>"
+        "If you need further help ping <@&1456751771841204295>"
       )
       .setColor(this.getColor('header'));
 
