@@ -116,9 +116,7 @@ for (const file of eventFiles) {
 
 logger.info(`✨ Events loaded successfully`);
 
-// Bot Control Panel: Repost control panel on startup if saved
-const { postOrUpdateControlPanel } = require('./commands/botcontrol.js');
-const { loadMessageInfo, clearMessageInfo } = require('./utils/botControlStatus');
+// Initialize NSFW detector on bot ready
 const nsfwDetector = require('./services/nsfw/NsfwDetector');
 
 client.once('clientReady', async () => {
@@ -126,33 +124,6 @@ client.once('clientReady', async () => {
 
   // Load the NSFW model (heavy, must happen once at startup)
   await nsfwDetector.initialize();
-
-  // Load saved message info
-  const controlMsgInfo = loadMessageInfo();
-
-  // Determine channel to use (only cares about the Bot Control Panel's last channel)
-  const channelId = controlMsgInfo?.channelId;
-  if (!channelId) return; // No known channel to restore to
-
-  try {
-    const channel = await client.channels.fetch(channelId);
-
-    // Delete old Bot Control Panel message if it exists
-    if (controlMsgInfo?.messageId) {
-      try {
-        const oldMsg = await channel.messages.fetch(controlMsgInfo.messageId);
-        if (oldMsg) await oldMsg.delete();
-      } catch (e) {/* Already deleted or missing */}
-      clearMessageInfo();
-    }
-
-    // Only post the Bot Control Panel
-    await postOrUpdateControlPanel(channel, client);
-
-  } catch (e) {
-    clearMessageInfo();
-    logger.warn('Failed to restore bot control panel on startup; previous message/channel not found.');
-  }
 });
 
 client.login(process.env.DISCORD_TOKEN);
