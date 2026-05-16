@@ -1,8 +1,8 @@
 {
-    "useAnimeModel": true,
+    "useAnimeModel": false,
     "thresholds": {
-        "high": 0.75,
-        "medium": 0.55
+        "high": 0.65,
+        "medium": 0.45
     },
     "logSkipped": false,
     "cacheResults": true
