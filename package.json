@@ -20,6 +20,5 @@
     "nsfwjs": "^4.3.0",
     "p-limit": "^7.3.0",
     "winston": "^3.19.0",
-    "yolov8-anime-nsfw": "^1.0.0"
   }
 }
