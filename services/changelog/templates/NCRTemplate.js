@@ -6,14 +6,8 @@ class NCRTemplate extends BaseTemplate {
     const { collections, gameVersion } = revisionInfo;
     const embeds = [];
 
-    let revisionTitle = `Revision `;
-    if (collections.length === 1) {
-      revisionTitle += `${collections[0].display}-${collections[0].newRev}`;
-    } else {
-      const parts = collections.map(c => `${c.display}-${c.newRev}`);
-      revisionTitle += parts.join('/');
-    }
-    revisionTitle += ` - Game Version ${gameVersion}`;
+    // Only show headers for single collections (no longer combining)
+    let revisionTitle = `Revision ${collections[0].display}-${collections[0].newRev} - Game Version ${gameVersion}`;
 
     const headerEmbed = new EmbedBuilder()
       .setTitle(revisionTitle)
