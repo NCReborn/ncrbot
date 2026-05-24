@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../utils/logger');
+const GameVersionManager = require('../../utils/GameVersionManager');
 const NCRTemplate = require('./templates/NCRTemplate');
 const E33Template = require('./templates/E33Template');
 const Sub2Template = require('./templates/Sub2Template');
@@ -30,9 +31,16 @@ class ChangelogGenerator {
 
       const template = this.getTemplate(groupConfig);
 
+      // Get the current game version from storage (defaults to groupConfig.gameVersion if not set)
+      let gameVersion = groupConfig.gameVersion;
+      if (revisionData.collections && revisionData.collections.length > 0) {
+        const collectionSlug = revisionData.collections[0].slug;
+        gameVersion = GameVersionManager.getVersion(collectionSlug);
+      }
+
       const revisionInfo = {
         collections: revisionData.collections,
-        gameVersion: groupConfig.gameVersion,
+        gameVersion: gameVersion,
         combined: groupConfig.combined
       };
 
