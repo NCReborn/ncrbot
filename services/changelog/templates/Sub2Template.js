@@ -4,7 +4,7 @@ const BaseTemplate = require('./BaseTemplate');
 class Sub2Template extends BaseTemplate {
   // Collection image URL for thumbnail
   getCollectionImage() {
-    return 'https://github.com/NCReborn/content-images/blob/main/sub2/content.png?raw=true'; // TODO: Add Subnautica 2 collection image URL
+    return 'https://media.nexusmods.com/4/4/t/med/44921d47-cdb1-468a-a443-e23247b0f6f9.webp'; // TODO: Add Subnautica 2 collection image URL
   }
 
   async generateHeaderEmbeds(revisionInfo) {
