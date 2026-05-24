@@ -17,14 +17,15 @@ module.exports = {
         .addChoices(
           { name: 'NCR Core', value: 'rcuccp' },
           { name: 'NCR Extras', value: 'srpv39' },
-          { name: 'NCR Body', value: 'vfy7w1' }
+          { name: 'NCR Body', value: 'vfy7w1' },
+          { name: 'Subnautica 2 Reborn', value: '9htmlb' }
         )
     )
     .addIntegerOption(option =>
       option
         .setName('previous_revision')
-        .setDescription('Previous revision number')
-        .setRequired(true)
+        .setDescription('Previous revision number (leave empty for initial changelog)')
+        .setRequired(false)
         .setMinValue(1)
     )
     .addIntegerOption(option =>
@@ -57,6 +58,41 @@ module.exports = {
         });
       }
 
+      // Handle initial changelog (no previous revision)
+      if (prevRev === null) {
+        logger.info(`[CHANGELOG] Posting initial changelog for ${collection.display} (Revision ${currentRev})`);
+
+        const revisionData = await fetchRevision(currentRev, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+        const mods = processModFiles(revisionData.modFiles);
+
+        // Create initial diff with all mods as "added"
+        const diffs = {
+          added: mods,
+          updated: [],
+          removed: []
+        };
+
+        // Build revision data
+        const changelogData = {
+          collections: [{
+            slug: slug,
+            display: collection.display,
+            oldRev: 0,
+            newRev: currentRev
+          }],
+          diffs: diffs
+        };
+
+        // Send changelog
+        await changelogGenerator.sendChangelog(interaction.client, groupConfig, changelogData);
+
+        logger.info(`[CHANGELOG] Successfully posted initial changelog for ${collection.display} (Revision ${currentRev})`);
+        return interaction.editReply({
+          content: `✅ Initial changelog posted for **${collection.display}** (Revision ${currentRev})`
+        });
+      }
+
+      // Handle regular changelog with comparison
       logger.info(`[CHANGELOG] Fetching revisions for ${collection.display} (${prevRev} → ${currentRev})`);
 
       // Fetch both revisions
