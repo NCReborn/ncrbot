@@ -6,6 +6,9 @@ const changelogGenerator = require('./changelog/ChangelogGenerator');
 const { updateCollectionVersionChannel, updateStatusChannel } = require('../utils/voiceChannelUpdater');
 const voiceConfig = require('../config/voiceChannels');
 
+// Delay helper
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 class RevisionMonitor {
   constructor() {
     this.pollInterval = 15 * 60 * 1000; // 15 minutes
@@ -123,7 +126,6 @@ class RevisionMonitor {
 
     // Only start timer if the group has combined mode enabled
     if (groupConfig.combined) {
-      // Start new combine window timer
       const timer = setTimeout(() => {
         this.processPendingGroup(client, groupName);
       }, collectionsConfig.combineWindowMs);
@@ -131,7 +133,6 @@ class RevisionMonitor {
       this.combineTimers.set(groupName, timer);
       logger.info(`[REVISION_MONITOR] Started ${collectionsConfig.combineWindowMs / 1000}s combine window for group ${groupName}`);
     } else {
-      // If not combined mode, process immediately (use setImmediate to avoid blocking)
       setImmediate(() => {
         this.processPendingGroup(client, groupName);
       });
@@ -163,87 +164,37 @@ class RevisionMonitor {
 
     logger.info(`[REVISION_MONITOR] Processing ${pendingUpdates.length} pending update(s) for group ${groupName}`);
 
-    // Sort by collection priority to ensure correct display order in changelog
-    // (e.g., NCR before ADR, NCR Lite before ADR Lite)
+    // Sort by collection priority (ensures Core → Extras → Body)
     pendingUpdates.sort((a, b) => {
       const priorityA = a.collection.priority || 0;
       const priorityB = b.collection.priority || 0;
       return priorityA - priorityB;
     });
 
-    // Build collections array and merge diffs
-    const collections = pendingUpdates.map(update => ({
-      slug: update.collection.slug,
-      display: update.collection.display,
-      oldRev: update.updateData.oldRev,
-      newRev: update.updateData.newRev
-    }));
+    // ⭐ NEW LOGIC: Post each collection separately with a delay
+    for (const update of pendingUpdates) {
+      const { collection, updateData } = update;
 
-    const diffsArray = pendingUpdates.map(update => update.updateData.diffs);
-    const mergedDiffs = this.mergeDiffs(diffsArray);
-
-    const revisionData = {
-      collections,
-      diffs: mergedDiffs
-    };
-
-    await changelogGenerator.sendChangelog(client, groupConfig, revisionData);
-  }
-
-  mergeDiffs(diffsArray) {
-    const mergedAdded = [];
-    const mergedRemoved = [];
-    const mergedUpdated = [];
-
-    const addedMap = new Map();
-    const removedMap = new Map();
-    const updatedMap = new Map();
-
-    // Merge all diffs, deduplicating by mod id
-    for (const diffs of diffsArray) {
-      // Merge added mods
-      if (diffs.added) {
-        for (const mod of diffs.added) {
-          if (!addedMap.has(mod.id)) {
-            addedMap.set(mod.id, mod);
+      const revisionData = {
+        collections: [
+          {
+            slug: collection.slug,
+            display: collection.display,
+            oldRev: updateData.oldRev,
+            newRev: updateData.newRev
           }
-        }
-      }
+        ],
+        diffs: updateData.diffs
+      };
 
-      // Merge removed mods
-      if (diffs.removed) {
-        for (const mod of diffs.removed) {
-          if (!removedMap.has(mod.id)) {
-            removedMap.set(mod.id, mod);
-          }
-        }
-      }
+      await changelogGenerator.sendChangelog(client, groupConfig, revisionData);
 
-      // Merge updated mods
-      if (diffs.updated) {
-        for (const update of diffs.updated) {
-          const modId = update.before?.id || update.after?.id;
-          if (modId && !updatedMap.has(modId)) {
-            updatedMap.set(modId, update);
-          }
-        }
-      }
+      // Wait 15 seconds before posting the next collection
+      await wait(15000);
     }
-
-    // Convert Maps back to arrays
-    mergedAdded.push(...addedMap.values());
-    mergedRemoved.push(...removedMap.values());
-    mergedUpdated.push(...updatedMap.values());
-
-    return {
-      added: mergedAdded,
-      removed: mergedRemoved,
-      updated: mergedUpdated
-    };
   }
 
   async postChangelog(client, collection, updateData) {
-    // Delegate to queueUpdate for consistency
     this.queueUpdate(client, collection, updateData);
   }
 }
