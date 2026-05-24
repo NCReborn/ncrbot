@@ -4,7 +4,7 @@ const BaseTemplate = require('./BaseTemplate');
 class Sub2Template extends BaseTemplate {
   // Collection image URL for thumbnail
   getCollectionImage() {
-    return 'https://media.nexusmods.com/subnautica2/Images/[IMAGE-ID-HERE].webp'; // TODO: Add Subnautica 2 collection image URL
+    return 'https://github.com/NCReborn/content-images/blob/main/sub2/content.png'; // TODO: Add Subnautica 2 collection image URL
   }
 
   async generateHeaderEmbeds(revisionInfo) {
@@ -23,9 +23,8 @@ class Sub2Template extends BaseTemplate {
     const headerEmbed = new EmbedBuilder()
       .setTitle(revisionTitle)
       .setDescription(
-        "**⚠️ Important** - Please ensure you have a backup of your game files before updating.\n\n" +
-        "Any issues with updating please reach out in our support channels.\n\n" +
-        "If you need further help, ping a moderator."
+        "Any issues with updating please refer to <#1400940644565782599> & <#1285797091750187039>\n\n" +
+        "If you need further help ping <@&1456751771841204295>"
       )
       .setColor(this.getColor('header'));
 
@@ -40,7 +39,7 @@ class Sub2Template extends BaseTemplate {
     const updateEmbed = new EmbedBuilder()
       .setTitle("Updating collection")
       .setDescription(
-        "**⚠️ Important** - Follow the installation guide for your collection before updating.\n\n"
+        "**⚠️ Important** - Refer to the bottom of this channel for how to update <#1508084714504847371>.\n\n"
       )
       .setColor(this.getColor('warning'));
 
