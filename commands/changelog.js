@@ -23,16 +23,16 @@ module.exports = {
     )
     .addIntegerOption(option =>
       option
-        .setName('previous_revision')
-        .setDescription('Previous revision number (leave empty for initial changelog)')
-        .setRequired(false)
+        .setName('current_revision')
+        .setDescription('Current revision number')
+        .setRequired(true)
         .setMinValue(1)
     )
     .addIntegerOption(option =>
       option
-        .setName('current_revision')
-        .setDescription('Current revision number')
-        .setRequired(true)
+        .setName('previous_revision')
+        .setDescription('Previous revision number (leave empty for initial changelog)')
+        .setRequired(false)
         .setMinValue(1)
     ),
 
@@ -41,8 +41,8 @@ module.exports = {
 
     try {
       const slug = interaction.options.getString('collection');
-      const prevRev = interaction.options.getInteger('previous_revision');
       const currentRev = interaction.options.getInteger('current_revision');
+      const prevRev = interaction.options.getInteger('previous_revision');
 
       const collection = collectionsConfig.getCollection(slug);
       if (!collection) {
@@ -62,7 +62,7 @@ module.exports = {
       if (prevRev === null) {
         logger.info(`[CHANGELOG] Posting initial changelog for ${collection.display} (Revision ${currentRev})`);
 
-        const revisionData = await fetchRevision(currentRev, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+        const revisionData = await fetchRevision(slug, currentRev, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
         const mods = processModFiles(revisionData.modFiles);
 
         // Create initial diff with all mods as "added"
