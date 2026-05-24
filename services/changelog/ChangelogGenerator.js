@@ -2,12 +2,14 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../utils/logger');
 const NCRTemplate = require('./templates/NCRTemplate');
 const E33Template = require('./templates/E33Template');
+const Sub2Template = require('./templates/Sub2Template');
 
 class ChangelogGenerator {
   constructor() {
     this.templates = {
       'ncr': NCRTemplate,
-      'e33': E33Template
+      'e33': E33Template,
+      'sub2': Sub2Template
     };
   }
 
