@@ -38,6 +38,6 @@
   "dormancyDays": 120,
   "formula": {
     "tenureDivisor": 10,
-    "baseMultiplier": 1.0
+    "baseMultiplier": 1.5
   }
 }
