@@ -67,10 +67,11 @@
       "watchedChannels": [
         "1375515740064448592",
         "1304172034737180764",
-        "1441496591012859935"
+        "1441496591012859935",
+        "1458182870605758611"
       ],
-      "minChannelHits": 2,
-      "timeWindowSeconds": 120,
+      "minChannelHits": 3,
+      "timeWindowSeconds": 20,
       "timeoutSeconds": 43200,
       "severity": "critical"
     }
