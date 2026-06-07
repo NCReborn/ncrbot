@@ -81,7 +81,22 @@ async function ensureSchema(p) {
     )
   `);
 
-  logger.info('[DB] street_cred schema verified');
+  await p.execute(`
+    CREATE TABLE IF NOT EXISTS snapsmith (
+      user_id       VARCHAR(20)  NOT NULL,
+      guild_id      VARCHAR(20)  NOT NULL,
+      is_active     TINYINT(1)   DEFAULT 0,
+      is_banned     TINYINT(1)   DEFAULT 0,
+      granted_at    DATETIME     NULL,
+      expires_at    DATETIME     NULL,
+      created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, guild_id),
+      INDEX idx_expires (guild_id, expires_at)
+    )
+  `);
+
+  logger.info('[DB] street_cred and snapsmith schemas verified');
 }
 
 module.exports = { getPool };
