@@ -3,6 +3,7 @@ const { sendLogScanButton } = require('../utils/logScanTicket');
 const revisionMonitor = require('../services/RevisionMonitor');
 const cron = require('node-cron');
 const streetCredService = require('../services/StreetCredService');
+const snapsmithService = require('../services/SnapSmithService');
 
 module.exports = {
   name: 'clientReady',
@@ -40,5 +41,18 @@ module.exports = {
       }
     });
     logger.info('[READY] Street Creed daily dormancy cron registered (runs at 03:00)');
+
+    // Daily SnapSmith expiration check — runs at 04:00 every day
+    cron.schedule('0 4 * * *', async () => {
+      logger.info('[SNAPSMITH] Running daily expiration check…');
+      for (const [, guild] of client.guilds.cache) {
+        try {
+          await snapsmithService.runExpirationCheck(guild);
+        } catch (err) {
+          logger.error(`[SNAPSMITH] Expiration check failed for guild ${guild.id}: ${err.message}`);
+        }
+      }
+    });
+    logger.info('[READY] SnapSmith daily expiration cron registered (runs at 04:00)');
   }
 };
