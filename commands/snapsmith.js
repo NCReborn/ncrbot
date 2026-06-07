@@ -47,7 +47,7 @@ async function postSnapSmithAnnouncement(guild, userId, displayName, expiresAt) 
   }
 }
 
-// ─── /snapsmith (check status) ─────────────────────────────────────────────────
+// ─── /snapsmith (check status) - PUBLIC ────────────────────────────────────────
 
 const checkCommand = {
   data: new SlashCommandBuilder()
@@ -125,12 +125,13 @@ const checkCommand = {
   },
 };
 
-// ─── /snapsmith-grant <user> (Ripperdoc+ only) ────────────────────────────────
+// ─── /snapsmith-grant <user> (Ripperdoc+ only) ─────────────────────────────────
 
 const grantCommand = {
   data: new SlashCommandBuilder()
     .setName('snapsmith-grant')
     .setDescription('Grant SnapSmith role to a user (Ripperdoc+ only)')
+    .setDefaultMemberPermissions(0) // Hide from non-admins
     .addUserOption(opt =>
       opt.setName('user').setDescription('User to grant role to').setRequired(true)
     ),
@@ -197,6 +198,7 @@ const removeCommand = {
   data: new SlashCommandBuilder()
     .setName('snapsmith-remove')
     .setDescription('Manually remove SnapSmith role from a user (Ripperdoc+ only)')
+    .setDefaultMemberPermissions(0) // Hide from non-admins
     .addUserOption(opt =>
       opt.setName('user').setDescription('User to remove role from').setRequired(true)
     ),
@@ -241,6 +243,7 @@ const banCommand = {
   data: new SlashCommandBuilder()
     .setName('snapsmith-ban')
     .setDescription('Ban a user from receiving SnapSmith role (Ripperdoc+ only)')
+    .setDefaultMemberPermissions(0) // Hide from non-admins
     .addUserOption(opt =>
       opt.setName('user').setDescription('User to ban').setRequired(true)
     ),
@@ -275,6 +278,7 @@ const unbanCommand = {
   data: new SlashCommandBuilder()
     .setName('snapsmith-unban')
     .setDescription('Unban a user from receiving SnapSmith role (Ripperdoc+ only)')
+    .setDefaultMemberPermissions(0) // Hide from non-admins
     .addUserOption(opt =>
       opt.setName('user').setDescription('User to unban').setRequired(true)
     ),
