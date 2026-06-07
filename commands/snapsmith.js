@@ -18,6 +18,35 @@ function isRipperdocPlus(member) {
          PermissionChecker.isAdmin(member);
 }
 
+// ─── Helper: Post announcement ─────────────────────────────────────────────────
+
+async function postSnapSmithAnnouncement(guild, userId, displayName, expiresAt) {
+  try {
+    const channel = guild.channels.cache.get(CONSTANTS.CHANNELS.SNAPSMITH_ANNOUNCEMENTS);
+    if (!channel) {
+      logger.warn(`[SNAPSMITH] Announcement channel not found: ${CONSTANTS.CHANNELS.SNAPSMITH_ANNOUNCEMENTS}`);
+      return;
+    }
+
+    const expiryDate = new Date(expiresAt);
+    const embed = new EmbedBuilder()
+      .setColor(0xf39c12)
+      .setTitle('🔧 New SnapSmith!')
+      .setDescription(`Congratulations to <@${userId}> for becoming a **SnapSmith**! 🎉\n\nKeep showcasing your best work to maintain your status.`)
+      .addFields(
+        { name: 'Member', value: displayName, inline: true },
+        { name: 'Expires', value: `<t:${Math.floor(expiryDate.getTime() / 1000)}:D>`, inline: true },
+        { name: 'Duration', value: `${snapsmith.GRANT_DURATION_DAYS} days`, inline: true }
+      )
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+    logger.info(`[SNAPSMITH] Announcement posted for ${userId}`);
+  } catch (err) {
+    logger.error(`[SNAPSMITH] Failed to post announcement: ${err.message}`);
+  }
+}
+
 // ─── /snapsmith (check status) ─────────────────────────────────────────────────
 
 const checkCommand = {
@@ -96,7 +125,7 @@ const checkCommand = {
   },
 };
 
-// ─── /snapsmith grant <user> (Ripperdoc+ only) ────────────────────────────────
+// ─── /snapsmith-grant <user> (Ripperdoc+ only) ────────────────────────────────
 
 const grantCommand = {
   data: new SlashCommandBuilder()
@@ -146,6 +175,14 @@ const grantCommand = {
         name: 'Expires',
         value: `<t:${Math.floor(result.expiresAt.getTime() / 1000)}:D>`
       });
+
+      // Post announcement
+      await postSnapSmithAnnouncement(
+        interaction.guild,
+        targetUser.id,
+        targetMember.displayName,
+        result.expiresAt
+      );
     }
 
     await interaction.editReply({ embeds: [embed] });
@@ -154,7 +191,7 @@ const grantCommand = {
   },
 };
 
-// ─── /snapsmith remove <user> (Ripperdoc+ only) ────────────────────────────────
+// ─── /snapsmith-remove <user> (Ripperdoc+ only) ────────────────────────────────
 
 const removeCommand = {
   data: new SlashCommandBuilder()
@@ -198,7 +235,7 @@ const removeCommand = {
   },
 };
 
-// ─── /snapsmith ban/unban <user> (Ripperdoc+ only) ──────────────────────────────
+// ─── /snapsmith-ban <user> (Ripperdoc+ only) ──────────────────────────────────
 
 const banCommand = {
   data: new SlashCommandBuilder()
@@ -231,6 +268,8 @@ const banCommand = {
     logger.info(`[SNAPSMITH] Ban command: ${interaction.user.tag} banned ${targetUser.tag}`);
   },
 };
+
+// ─── /snapsmith-unban <user> (Ripperdoc+ only) ─────────────────────────────────
 
 const unbanCommand = {
   data: new SlashCommandBuilder()
