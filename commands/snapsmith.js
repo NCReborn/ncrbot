@@ -32,7 +32,7 @@ async function postSnapSmithAnnouncement(guild, userId, displayName, expiresAt) 
     const embed = new EmbedBuilder()
       .setColor(0xf39c12)
       .setTitle('🔧 New SnapSmith!')
-      .setDescription(`Congratulations to <@${userId}> for becoming a **SnapSmith**! 🎉\n\nKeep showcasing your best work to maintain your status.`)
+      .setDescription(`Congratulations <@${userId}>, your amazing submissions have earned you <@&1374841261898469378>! 🎉\n\nKeep showcasing your best work to maintain your status.`)
       .addFields(
         { name: 'Member', value: displayName, inline: true },
         { name: 'Expires', value: `<t:${Math.floor(expiryDate.getTime() / 1000)}:D>`, inline: true },
