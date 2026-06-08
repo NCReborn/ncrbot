@@ -45,6 +45,33 @@ class SpamActionHandler {
     }
   }
 
+  /**
+   * Check if a user has permission to ban (Fixer+ roles)
+   * Ripperdoc role: 1288633895910375464 (cannot ban)
+   * Moderator roles: 1370874936456908931 (can ban)
+   */
+  canUserBan(member) {
+    const RIPPERDOC_ROLE_ID = '1288633895910375464';
+    const MODERATOR_ROLE_IDS = ['1370874936456908931'];
+    
+    // Check if user is admin
+    if (member.permissions.has('Administrator')) {
+      return true;
+    }
+    
+    // Check if user has Ripperdoc role and ONLY Ripperdoc (cannot ban)
+    if (member.roles.cache.has(RIPPERDOC_ROLE_ID)) {
+      // Check if they also have any moderator roles
+      const hasModerator = MODERATOR_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
+      if (!hasModerator) {
+        return false; // Only has Ripperdoc, cannot ban
+      }
+    }
+    
+    // Check if user has any Fixer/Moderator role
+    return MODERATOR_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
+  }
+
   async handleSpamDetection(client, message, member, detectionResult) {
     if (detectionResult.confidenceLevel === 'high') {
       await this.handleHighConfidenceDetection(client, message, member, detectionResult);
@@ -553,10 +580,35 @@ class SpamActionHandler {
         break;
 
       case 'ban':
-        await interaction.reply({ 
-          content: `⛔ To ban ${member.user.tag}, please use Discord's native ban command or right-click > Ban.`,
-          ephemeral: true 
-        });
+        // Check if user has permission to ban
+        const interaction_member = interaction.member;
+        if (!this.canUserBan(interaction_member)) {
+          await interaction.reply({ 
+            content: `❌ You do not have permission to ban users. Only Fixer+ roles can use this action. (Ripperdocs cannot ban)`,
+            ephemeral: true 
+          });
+          logger.warn(`[SPAM] Non-fixer user ${interaction.user.tag} attempted to ban ${member.user.tag}`);
+          return;
+        }
+
+        // Ban the user
+        try {
+          await interaction.guild.members.ban(member.user.id, { 
+            reason: `Spam detected & actioned by ${interaction.user.tag}` 
+          });
+
+          await interaction.reply({ 
+            content: `⛔ ${member.user.tag} has been banned for spam.`,
+            ephemeral: true 
+          });
+          logger.info(`[SPAM] User ${member.user.tag} banned by moderator ${interaction.user.tag}`);
+        } catch (err) {
+          logger.error('[SPAM] Failed to ban user:', err);
+          await interaction.reply({ 
+            content: `❌ Failed to ban user. Error: ${err.message}`,
+            ephemeral: true 
+          });
+        }
         break;
 
       case 'adjust':
