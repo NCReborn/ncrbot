@@ -15,7 +15,7 @@ const scs = require('../services/StreetCredService');
 const analyticsService = require('../services/AnalyticsService');
 const CONSTANTS = require('../config/constants');
 
-// ─── Shared helpers ───────────────────────────────────────────────────────────
+// ─── Shared helpers ────────────────────────────────────────────────────────
 
 function progressBar(current, max, length = 24) {
   if (max <= 0 || current >= max) return '█'.repeat(length);
@@ -88,7 +88,7 @@ async function buildProfileEmbed(guild, member, user) {
     .setFooter({ text: `Effective score: ${formatScore(score)}` });
 }
 
-// ─── /streetcred ─────────────────────────────────────────────────────────────
+// ─── /streetcred ─────────────────────────────────────────────────────────
 
 const streetcredCommand = {
   data: new SlashCommandBuilder()
@@ -287,7 +287,7 @@ const adminCommand = {
   },
 };
 
-// ── Admin: scan ───────────────────────────────────────────────────────────────
+// ── Admin: scan ────────────────────────────────────────────────────────────
 
 async function handleAdminScan(interaction) {
   await interaction.reply({ content: '🔍 Starting retroactive Street Creed scan…', embeds: [] });
@@ -373,7 +373,7 @@ function scanEmbed(phase, stripped, stripTotal, chDone, chTotal, msgs = 0, assig
     .setTimestamp();
 }
 
-// ── Admin: sync ───────────────────────────────────────────────────────────────
+// ── Admin: sync ────────────────────────────────────────────────────────────
 
 async function handleAdminSync(interaction) {
   const targetUser   = interaction.options.getUser('user');
@@ -403,7 +403,7 @@ async function handleAdminSync(interaction) {
   logger.info(`[STREET_CRED] Admin sync: ${member.user.tag} set to ${messageCount} messages → SC-${result.tier}`);
 }
 
-// ── Admin: status ─────────────────────────────────────────────────────────────
+// ── Admin: status ──────────────────────────────────────────────────────────
 
 async function handleAdminStatus(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -435,7 +435,7 @@ async function handleAdminStatus(interaction) {
 async function handleAdminRecalculate(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const count = await scs.recalculateAll(interaction.guild.id);
+  const count = await scs.recalculateAll(interaction.guild.id, interaction.guild);
 
   await interaction.editReply({
     content: `✅ Recalculated tiers for **${count.toLocaleString()}** members from current data.`,
@@ -443,7 +443,7 @@ async function handleAdminRecalculate(interaction) {
   logger.info(`[STREET_CRED] Admin recalculate: ${count} records updated`);
 }
 
-// ── Admin: dormancy ───────────────────────────────────────────────────────────
+// ── Admin: dormancy ────────────────────────────────────────────────────────
 
 async function handleAdminDormancy(interaction) {
   const days = interaction.options.getInteger('days');
@@ -467,7 +467,7 @@ async function handleAdminDormancy(interaction) {
   logger.info(`[STREET_CRED] Dormancy threshold changed to ${days} days`);
 }
 
-// ── Admin: rescan ─────────────────────────────────────────────────────────────
+// ── Admin: rescan ──────────────────────────────────────────────────────────
 
 async function handleAdminRescan(interaction) {
   await interaction.reply({ content: '🔍 Starting analytics message scan…', embeds: [] });
@@ -518,7 +518,7 @@ function analyticsRescanEmbed(chDone, chTotal, msgs) {
     .setTimestamp();
 }
 
-// ── Admin: rescan-reset ───────────────────────────────────────────────────────
+// ── Admin: rescan-reset ────────────────────────────────────────────────────────
 
 async function handleAdminRescanReset(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -531,7 +531,7 @@ async function handleAdminRescanReset(interaction) {
   logger.info(`[ANALYTICS] Scan progress reset by ${interaction.user.tag}`);
 }
 
-// ─── Button handler registration ──────────────────────────────────────────────
+// ─── Button handler registration ───────────────────────────────────────────────
 // Exports a handleButton function that buttonHandlers.js will call for sc_lb_* IDs.
 
 async function handleLeaderboardButton(interaction) {
@@ -545,7 +545,7 @@ async function handleLeaderboardButton(interaction) {
   await interaction.editReply({ embeds: [embed], components: [row] });
 }
 
-// ─── Module export ────────────────────────────────────────────────────────────
+// ─── Module export ─────────────────────────────────────────────────────────
 
 module.exports = [streetcredCommand, leaderboardCommand, adminCommand];
 
