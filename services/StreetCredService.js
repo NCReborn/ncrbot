@@ -59,7 +59,7 @@ function getTier(score) {
   return 0;
 }
 
-// ─── Role management ──────────────────────────────────────────────────────────
+// ─── Role management ───────────────────────────────────────────────────────
 
 /**
  * Returns all Street Creed role IDs from config as a Set.
@@ -112,7 +112,7 @@ async function removeAllStreetCredRoles(member) {
   }
 }
 
-// ─── Database helpers ─────────────────────────────────────────────────────────
+// ─── Database helpers ───────────────────────────────────────────────────────
 
 /**
  * Fetch (or create) a member's street_cred row.
@@ -554,11 +554,12 @@ async function adminSync(userId, guildId, messageCount, joinedAt) {
 }
 
 /**
- * Recalculate all tiers for a guild from current DB data.
+ * Recalculate all tiers for a guild from current DB data and apply roles.
  * @param {string} guildId
+ * @param {Guild} [guild] - Optional guild object to apply roles. If provided, roles will be assigned.
  * @returns {number} count of records updated
  */
-async function recalculateAll(guildId) {
+async function recalculateAll(guildId, guild) {
   const pool = await getPool();
   const [rows] = await pool.execute(
     'SELECT user_id, messages, joined_at FROM street_cred WHERE guild_id = ?',
@@ -566,15 +567,34 @@ async function recalculateAll(guildId) {
   );
   let updated = 0;
   for (const row of rows) {
-    const ja = row.joined_at ? new Date(row.joined_at) : new Date();
-    const months = tenureMonths(ja);
-    const score  = effectiveScore(row.messages, months);
-    const tier   = getTier(score);
-    await pool.execute(
-      'UPDATE street_cred SET effective_score = ?, tier = ? WHERE user_id = ? AND guild_id = ?',
-      [score, tier, row.user_id, guildId]
-    );
-    updated++;
+    try {
+      const ja = row.joined_at ? new Date(row.joined_at) : new Date();
+      const months = tenureMonths(ja);
+      const score  = effectiveScore(row.messages, months);
+      const tier   = getTier(score);
+      
+      // Update database
+      await pool.execute(
+        'UPDATE street_cred SET effective_score = ?, tier = ? WHERE user_id = ? AND guild_id = ?',
+        [score, tier, row.user_id, guildId]
+      );
+
+      // Apply tier role if guild object is provided
+      if (guild) {
+        try {
+          const member = await guild.members.fetch(row.user_id).catch(() => null);
+          if (member) {
+            await applyTierRole(member, tier);
+          }
+        } catch (memberErr) {
+          logger.warn(`[STREET_CRED] recalculateAll: failed to apply role for ${row.user_id}: ${memberErr.message}`);
+        }
+      }
+
+      updated++;
+    } catch (err) {
+      logger.error(`[STREET_CRED] recalculateAll: error processing ${row.user_id}: ${err.message}`);
+    }
   }
   return updated;
 }
@@ -690,7 +710,7 @@ async function getStatusStats(guildId) {
   return { members: rows[0], scan: scanRows[0] };
 }
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
+// ─── Utility ───────────────────────────────────────────────────────────────
 
 /**
  * Returns the effective score threshold for the next tier above currentTier.
