@@ -605,9 +605,8 @@ class SpamActionHandler {
             reason: `Spam detected & actioned by ${interaction.user.tag}` 
           });
 
-          const userTag = member ? member.user.tag : `User ${userId}`;
           await interaction.reply({ 
-            content: `⛔ ${userTag} has been banned for spam.`,
+            content: `⛔ User ${member ? member.user.tag : userId} (id:${userId}) has been banned for spam.`,
             ephemeral: true 
           });
           logger.info(`[SPAM] User ${userId} banned by moderator ${interaction.user.tag}`);
@@ -615,7 +614,7 @@ class SpamActionHandler {
           // Error code 10026 = "Unknown Ban" (user already banned)
           if (err.code === 10026) {
             await interaction.reply({ 
-              content: `⚠️ User ${member ? member.user.tag : userId} is **already banned**.`,
+              content: `⚠️ User ${member ? member.user.tag : userId} (id:${userId}) is **already banned**.`,
               ephemeral: true 
             });
             logger.info(`[SPAM] User ${userId} was already banned`);
