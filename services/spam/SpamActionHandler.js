@@ -538,16 +538,16 @@ class SpamActionHandler {
     const actionType = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(userId).catch(() => null);
 
-    if (!member) {
-      await interaction.reply({ 
-        content: 'User is no longer in the server.', 
-        ephemeral: true 
-      });
-      return;
-    }
-
     switch (actionType) {
       case 'confirm':
+        if (!member) {
+          await interaction.reply({ 
+            content: 'User is no longer in the server.', 
+            ephemeral: true 
+          });
+          return;
+        }
+        
         await interaction.reply({ 
           content: `✅ Spam detection confirmed for ${member.user.tag}. Action logged.`,
           ephemeral: true 
@@ -556,6 +556,14 @@ class SpamActionHandler {
         break;
 
       case 'false':
+        if (!member) {
+          await interaction.reply({ 
+            content: 'User is no longer in the server.', 
+            ephemeral: true 
+          });
+          return;
+        }
+
         // Remove timeout
         await member.timeout(null, `False positive - cleared by ${interaction.user.tag}`);
 
@@ -587,21 +595,22 @@ class SpamActionHandler {
             content: `❌ You do not have permission to ban users. Only Fixer+ roles can use this action. (Ripperdocs cannot ban)`,
             ephemeral: true 
           });
-          logger.warn(`[SPAM] Non-fixer user ${interaction.user.tag} attempted to ban ${member.user.tag}`);
+          logger.warn(`[SPAM] Non-fixer user ${interaction.user.tag} attempted to ban user ${userId}`);
           return;
         }
 
-        // Ban the user
+        // Ban the user (works even if they've left the server)
         try {
-          await interaction.guild.members.ban(member.user.id, { 
+          await interaction.guild.bans.create(userId, { 
             reason: `Spam detected & actioned by ${interaction.user.tag}` 
           });
 
+          const userTag = member ? member.user.tag : `User ${userId}`;
           await interaction.reply({ 
-            content: `⛔ ${member.user.tag} has been banned for spam.`,
+            content: `⛔ ${userTag} has been banned for spam.`,
             ephemeral: true 
           });
-          logger.info(`[SPAM] User ${member.user.tag} banned by moderator ${interaction.user.tag}`);
+          logger.info(`[SPAM] User ${userId} banned by moderator ${interaction.user.tag}`);
         } catch (err) {
           logger.error('[SPAM] Failed to ban user:', err);
           await interaction.reply({ 
@@ -612,6 +621,14 @@ class SpamActionHandler {
         break;
 
       case 'adjust':
+        if (!member) {
+          await interaction.reply({ 
+            content: 'User is no longer in the server.', 
+            ephemeral: true 
+          });
+          return;
+        }
+
         await interaction.reply({ 
           content: `⏱️ To adjust timeout for ${member.user.tag}, use the /timeout command or right-click > Timeout.`,
           ephemeral: true 
@@ -619,6 +636,14 @@ class SpamActionHandler {
         break;
 
       case 'timeout': {
+        if (!member) {
+          await interaction.reply({ 
+            content: 'User is no longer in the server.', 
+            ephemeral: true 
+          });
+          return;
+        }
+
         const timeoutDuration = this.config.defaultTimeoutSeconds * 1000;
         const timeoutUntil = new Date(Date.now() + timeoutDuration);
         const timeoutHours = this.config.defaultTimeoutSeconds / 3600;
@@ -642,10 +667,18 @@ class SpamActionHandler {
           content: `✅ Alert dismissed by ${interaction.user.tag}. No action taken.`,
           ephemeral: true
         });
-        logger.info(`[SPAM] Moderator ${interaction.user.tag} dismissed review alert for ${member.user.tag}`);
+        logger.info(`[SPAM] Moderator ${interaction.user.tag} dismissed review alert for user ${userId}`);
         break;
 
       case 'reviewwhitelist':
+        if (!member) {
+          await interaction.reply({ 
+            content: 'User is no longer in the server.', 
+            ephemeral: true 
+          });
+          return;
+        }
+
         // Add user to whitelist and reload config
         try {
           const configPath = path.join(__dirname, '../../config/spamConfig.json');
