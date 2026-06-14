@@ -612,11 +612,20 @@ class SpamActionHandler {
           });
           logger.info(`[SPAM] User ${userId} banned by moderator ${interaction.user.tag}`);
         } catch (err) {
-          logger.error('[SPAM] Failed to ban user:', err);
-          await interaction.reply({ 
-            content: `❌ Failed to ban user. Error: ${err.message}`,
-            ephemeral: true 
-          });
+          // Error code 10026 = "Unknown Ban" (user already banned)
+          if (err.code === 10026) {
+            await interaction.reply({ 
+              content: `⚠️ User ${member ? member.user.tag : userId} is **already banned**.`,
+              ephemeral: true 
+            });
+            logger.info(`[SPAM] User ${userId} was already banned`);
+          } else {
+            logger.error('[SPAM] Failed to ban user:', err);
+            await interaction.reply({ 
+              content: `❌ Failed to ban user. Error: ${err.message}`,
+              ephemeral: true 
+            });
+          }
         }
         break;
 
