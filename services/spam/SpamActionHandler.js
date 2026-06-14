@@ -599,33 +599,48 @@ class SpamActionHandler {
           return;
         }
 
-        // Ban the user (works even if they've left the server)
-        try {
-          await interaction.guild.bans.create(userId, { 
-            reason: `Spam detected & actioned by ${interaction.user.tag}` 
-          });
+// Resolve a display tag (prefer member.user.tag, fall back to fetching the User, final fallback to the ID)
+let displayTag;
+if (member && member.user && member.user.tag) {
+  displayTag = member.user.tag;
+} else {
+  try {
+    const fetchedUser = await interaction.client.users.fetch(userId);
+    displayTag = fetchedUser.tag;
+  } catch (fetchErr) {
+    displayTag = userId; // last resort: show the ID if username can't be resolved
+  }
+}
 
-          await interaction.reply({ 
-            content: `⛔ User ${member ? member.user.tag : userId} (id:${userId}) has been banned for spam.`,
-            ephemeral: true 
-          });
-          logger.info(`[SPAM] User ${userId} banned by moderator ${interaction.user.tag}`);
-        } catch (err) {
-          // Error code 10026 = "Unknown Ban" (user already banned)
-          if (err.code === 10026) {
-            await interaction.reply({ 
-              content: `⚠️ User ${member ? member.user.tag : userId} (id:${userId}) is **already banned**.`,
-              ephemeral: true 
-            });
-            logger.info(`[SPAM] User ${userId} was already banned`);
-          } else {
-            logger.error('[SPAM] Failed to ban user:', err);
-            await interaction.reply({ 
-              content: `❌ Failed to ban user. Error: ${err.message}`,
-              ephemeral: true 
-            });
-          }
-        }
+// Ban the user (works even if they've left the server)
+try {
+  await interaction.guild.bans.create(userId, {
+    reason: `Spam detected & actioned by ${interaction.user.tag}`
+  });
+
+  await interaction.reply({
+    content: `⛔ User ${displayTag} (ID:${userId}) has been banned for spam.`,
+    ephemeral: true
+  });
+
+  logger.info(`[SPAM] User ${displayTag} (${userId}) banned by moderator ${interaction.user.tag}`);
+} catch (err) {
+  // Error code 10026 = "Unknown Ban" (user already banned)
+  if (err.code === 10026) {
+    await interaction.reply({
+      content: `⚠️ User ${displayTag} (ID:${userId}) is **already banned**.`,
+      ephemeral: true
+    });
+    logger.info(`[SPAM] User ${displayTag} (${userId}) was already banned`);
+  } else {
+    logger.error('[SPAM] Failed to ban user:', err);
+    await interaction.reply({
+      content: `❌ Failed to ban user ${displayTag} (ID:${userId}). Error: ${err.message}`,
+      ephemeral: true
+    });
+  }
+}
+
         break;
 
       case 'adjust':
