@@ -48,12 +48,32 @@ We collect and process your information for the following purposes:
 - Debugging and error tracking
 - Analyzing feature usage to enhance functionality
 
-## 3. Data Retention
+## 3. Data Retention Policy
 
-- **Moderation Logs** - Retained indefinitely in the audit channel for community transparency and accountability
-- **Member Events** - Stored while the record is relevant for community management
-- **Message Content** - Temporarily processed during sessions; audit logs retained as configured
-- **Command Usage** - Retained in bot logs for debugging and improvement purposes
+### 3.1 Retention Periods
+
+We retain user data according to the following schedule:
+
+- **Audit Logs (Message Content)** - Retained for up to 90 days for active moderation review and transparency. Logs older than 90 days are automatically archived or deleted, unless required for ongoing investigations or legal compliance.
+- **Moderation Actions** - Retained for up to 90 days; may be retained longer if related to active sanctions (bans, timeouts)
+- **Member Events** - Retained for the duration of membership; deleted upon member departure or upon request
+- **Command Usage Logs** - Retained for up to 30 days for debugging and performance monitoring
+- **Configuration Data** - Retained indefinitely as it pertains to server settings
+
+### 3.2 User Deletion Requests
+
+Users may request deletion of their data at any time by contacting the server moderation team through the #contact-the-team support channel. Upon receipt of a valid request, we will:
+1. Remove the user's personal data from active logs within 14 days
+2. Ensure data is purged from backups within 30 days, except where retention is legally required
+3. Maintain necessary records for legal/safety compliance if required
+
+### 3.3 Exceptions to Retention Limits
+
+Data may be retained longer than stated above if:
+- Required by applicable law or legal process
+- Necessary to investigate or respond to abuse, fraud, or security issues
+- Related to active moderation cases or sanctions
+- Required for Discord compliance or safety
 
 Users may request deletion of their data in accordance with applicable data protection laws, provided it does not conflict with legal obligations or community governance needs.
 
@@ -85,7 +105,7 @@ Users have the right to:
 - **Correction** - Request correction of inaccurate information
 - **Opt-Out** - Leave the server to cease data collection (as server members)
 
-To exercise these rights, please contact the server administrators or submit a request through the designated support channels.
+To exercise these rights, please contact the server administrators through the #contact-the-team support channel.
 
 ## 7. Children's Privacy
 
@@ -105,7 +125,7 @@ Your continued use of the bot following notice of changes constitutes your accep
 If you have questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact:
 
 **Night City Reborn Server Administrators**
-- Server Discord: [Your Server Invite Link]
+- Support Channel: #contact-the-team
 - For technical concerns: Report to server moderation team
 
 ## 10. Legal Compliance
