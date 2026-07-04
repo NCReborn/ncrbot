@@ -10,7 +10,7 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 const logger = require('../../utils/logger');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 const SUPPORT_TICKET_CATEGORY_ID = '1400977595499282653';
 const FIXERS_ROLE_ID = '1370874936456908931';
@@ -121,7 +121,7 @@ class ReportTypeSelectMenu {
       const details = interaction.fields.getTextInputValue('ticket_details');
 
       // Create ticket
-      const ticketId = uuidv4();
+      const ticketId = randomUUID();
       const guild = interaction.guild;
       const user = interaction.user;
 
@@ -446,15 +446,15 @@ class TicketCloseView {
   async generateTranscript(channel, ticket) {
     try {
       const lines = [
-        `═══════════════════════════════════════`,
+        '═══════════════════════════════════════',
         `Ticket ID: ${ticket.ticket_id}`,
         `Report Type: ${this.getReportTypeLabel(ticket.report_type)}`,
         `Opened by: ${ticket.opened_by_name} (${ticket.opened_by})`,
         `Opened at: ${ticket.created_at}`,
         `Closed by: ${ticket.closed_by || 'Unknown'} (${ticket.closed_at || 'N/A'})`,
         `Report Details:\n${ticket.details}`,
-        `═══════════════════════════════════════`,
-        `CONVERSATION HISTORY:\n`,
+        '═══════════════════════════════════════',
+        'CONVERSATION HISTORY:\n',
       ];
 
       // Fetch messages from channel
