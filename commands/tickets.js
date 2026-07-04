@@ -5,8 +5,6 @@ const { ReportTypeSelectMenu } = require('../services/tickets/TicketViews');
 
 const CONTACT_CHANNEL_ID = '1313246088556142602'; // #contact-the-team
 
-const ticketDb = new TicketDatabase();
-
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setup_tickets')
@@ -15,6 +13,9 @@ module.exports = {
   async execute(interaction) {
     try {
       await interaction.deferReply({ ephemeral: true });
+
+      const ticketDb = new TicketDatabase();
+      await ticketDb.initialize();
 
       const channel = interaction.guild.channels.cache.get(CONTACT_CHANNEL_ID);
       if (!channel) {
