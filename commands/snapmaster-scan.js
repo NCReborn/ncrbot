@@ -1,5 +1,6 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const snapmaster = require("../utils/snapmaster");
+const { PermissionChecker } = require("../utils/permissions");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -7,7 +8,15 @@ module.exports = {
         .setDescription("Retroactively scan this month's showcase submissions and rebuild SnapMaster data"),
 
     async execute(interaction) {
-        await interaction.reply("📸 Scanning showcase channel… This may take a moment.");
+        // Moderator check
+        if (!PermissionChecker.hasModRole(interaction.member)) {
+            return interaction.reply({
+                content: "❌ You do not have permission to use this command.",
+                ephemeral: true
+            });
+        }
+
+        await interaction.reply("📸 Scanning showcase channel…");
 
         const SHOWCASE_CHANNEL = "1285797205927792782";
         const channel = await interaction.client.channels.fetch(SHOWCASE_CHANNEL);
@@ -38,9 +47,7 @@ module.exports = {
                 if (
                     msgDate.getUTCMonth() !== currentMonth ||
                     msgDate.getUTCFullYear() !== currentYear
-                ) {
-                    continue; // skip messages from other months
-                }
+                ) continue;
 
                 const attachments = [...msg.attachments.values()];
                 const imageCount = attachments.filter(a => a.contentType?.startsWith("image")).length;
@@ -55,23 +62,36 @@ module.exports = {
             lastId = fetched.last()?.id;
         } while (fetched.size === 100);
 
-const eligible = snapmaster.getEligible(5);
+        const eligible = snapmaster.getEligible(5);
+        eligible.sort((a, b) => b.count - a.count);
 
-// Sort descending
-eligible.sort((a, b) => b.count - a.count);
+        const embed = new EmbedBuilder()
+            .setTitle("📸 SnapMaster Scan Complete")
+            .setColor(0x00aaff)
+            .setTimestamp()
+            .addFields({
+                name: "Total Images Found",
+                value: `${totalImages}`,
+                inline: true
+            });
 
-let summary = `📸 **Scan complete!**\n\n`;
-summary += `**Total images found:** ${totalImages}\n`;
-summary += `**Eligible users (≥ 5 submissions):**\n`;
+        if (eligible.length === 0) {
+            embed.addFields({
+                name: "Eligible Users",
+                value: "_No users reached 5 submissions this month._"
+            });
+        } else {
+            embed.addFields({
+                name: "Eligible Users (sorted)",
+                value: eligible
+                    .map(e => `• <@${e.userId}> — **${e.count}**`)
+                    .join("\n")
+            });
+        }
 
-if (eligible.length === 0) {
-    summary += "_No eligible users this month._";
-} else {
-    eligible.forEach(e => {
-        summary += `• <@${e.userId}> — ${e.count}\n`;
-    });
-}
-
-interaction.editReply(summary);
+        await interaction.editReply({
+            embeds: [embed],
+            allowedMentions: { parse: [] } // prevents pings
+        });
     }
 };
