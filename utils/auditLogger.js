@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
 
-const AUDIT_LOG_TIME_WINDOW_MS = 5000; // 5 seconds
+// Increased window to avoid missing human deletions
+const AUDIT_LOG_TIME_WINDOW_MS = 15000; // 15 seconds
 
 // Helper function to format user tag in Discord.js v14 compatible way
 function formatUserTag(user) {
@@ -77,7 +78,7 @@ class AuditLogger {
       .setColor(eventConfig.color)
       .setTitle(`${eventConfig.emoji} ${eventConfig.name}`)
       .setTimestamp()
-      .setFooter({ 
+      .setFooter({
         text: `ID: ${user?.id || 'Unknown'} • ${guild?.name || 'Unknown Guild'}`,
         iconURL: guild?.iconURL() || null
       });
@@ -94,7 +95,7 @@ class AuditLogger {
 
   async sendAuditLog(client, eventName, embed) {
     if (!this.isEventEnabled(eventName)) return;
-    
+
     const channelId = this.getAuditChannel();
     if (!channelId) return;
 
@@ -111,7 +112,10 @@ class AuditLogger {
     }
   }
 
-  // Specific log methods for different events
+  // ============================
+  // MEMBER BAN / UNBAN
+  // ============================
+
   async logMemberBanned(client, ban) {
     const embed = this.createBaseEmbed('guildBanAdd', ban.user, ban.guild);
     if (!embed) return;
@@ -119,14 +123,13 @@ class AuditLogger {
     let executor = 'Unknown';
     let reason = 'No reason provided';
 
-    // Fetch audit logs to get who performed the ban and the reason
     try {
       const auditLogs = await ban.guild.fetchAuditLogs({
         type: AuditLogEvent.MemberBanAdd,
         limit: 5
       });
 
-      const auditEntry = auditLogs.entries.find(entry => 
+      const auditEntry = auditLogs.entries.find(entry =>
         entry.target.id === ban.user.id &&
         Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS
       );
@@ -156,14 +159,13 @@ class AuditLogger {
     let executor = 'Unknown';
     let reason = 'No reason provided';
 
-    // Fetch audit logs to get who performed the unban and the reason
     try {
       const auditLogs = await ban.guild.fetchAuditLogs({
         type: AuditLogEvent.MemberBanRemove,
         limit: 5
       });
 
-      const auditEntry = auditLogs.entries.find(entry => 
+      const auditEntry = auditLogs.entries.find(entry =>
         entry.target.id === ban.user.id &&
         Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS
       );
@@ -186,12 +188,16 @@ class AuditLogger {
     await this.sendAuditLog(client, 'guildBanRemove', embed);
   }
 
+  // ============================
+  // MEMBER JOIN / LEAVE
+  // ============================
+
   async logMemberJoined(client, member) {
     const embed = this.createBaseEmbed('guildMemberAdd', member.user, member.guild);
     if (!embed) return;
 
     const accountAge = Math.floor((Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60 * 24));
-    
+
     embed.addFields([
       { name: 'User', value: `${member.user.tag} (${member.user.id})`, inline: true },
       { name: 'Account Created', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R> (${accountAge} days ago)`, inline: true },
@@ -206,19 +212,18 @@ class AuditLogger {
     if (!embed) return;
 
     const joinedTimestamp = member.joinedTimestamp ? Math.floor(member.joinedTimestamp / 1000) : null;
-    
+
     let executor = null;
     let reason = null;
     let wasKicked = false;
 
-    // Check audit logs to see if this was a kick
     try {
       const auditLogs = await member.guild.fetchAuditLogs({
         type: AuditLogEvent.MemberKick,
         limit: 5
       });
 
-      const kickEntry = auditLogs.entries.find(entry => 
+      const kickEntry = auditLogs.entries.find(entry =>
         entry.target.id === member.user.id &&
         Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS
       );
@@ -260,13 +265,17 @@ class AuditLogger {
     await this.sendAuditLog(client, 'guildMemberRemove', embed);
   }
 
+  // ============================
+  // MEMBER UPDATE (roles, timeout)
+  // ============================
+
   async logMemberUpdate(client, oldMember, newMember) {
     const embed = this.createBaseEmbed('guildMemberUpdate', newMember.user, newMember.guild);
     if (!embed) return;
 
     const changes = [];
 
-    // Check nickname changes
+    // Nickname
     if (oldMember.nickname !== newMember.nickname) {
       changes.push({
         name: 'Nickname',
@@ -275,17 +284,16 @@ class AuditLogger {
       });
     }
 
-    // Check timeout changes
+    // Timeout changes
     if (oldMember.communicationDisabledUntil !== newMember.communicationDisabledUntil) {
-      // Prevent old/stale timeout events from being logged again
-if (newMember.communicationDisabledUntil) {
-    const TIMEOUT_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
-    const timeoutAge = Date.now() - newMember.communicationDisabledUntil.getTime();
 
-    if (timeoutAge > TIMEOUT_MAX_AGE_MS) {
-        return; // Ignore stale timeout
-    }
-}
+      // Prevent stale timeout spam
+      if (newMember.communicationDisabledUntil) {
+        const TIMEOUT_MAX_AGE_MS = 10 * 60 * 1000;
+        const timeoutAge = Date.now() - newMember.communicationDisabledUntil.getTime();
+        if (timeoutAge > TIMEOUT_MAX_AGE_MS) return;
+      }
+
       if (newMember.communicationDisabledUntil) {
         const timeoutUntil = Math.floor(newMember.communicationDisabledUntil.getTime() / 1000);
         changes.push({
@@ -293,20 +301,19 @@ if (newMember.communicationDisabledUntil) {
           value: `Until <t:${timeoutUntil}:F> (<t:${timeoutUntil}:R>)`,
           inline: true
         });
-        // Use timeout-specific event for this
+
         const timeoutEmbed = this.createBaseEmbed('guildMemberTimeout', newMember.user, newMember.guild);
         if (timeoutEmbed) {
           let executor = 'Unknown';
           let reason = 'No reason provided';
 
-          // Fetch audit logs to get who applied the timeout and the reason
           try {
             const auditLogs = await newMember.guild.fetchAuditLogs({
               type: AuditLogEvent.MemberUpdate,
               limit: 5
             });
 
-            const timeoutEntry = auditLogs.entries.find(entry => 
+            const timeoutEntry = auditLogs.entries.find(entry =>
               entry.target.id === newMember.user.id &&
               Date.now() - entry.createdTimestamp < AUDIT_LOG_TIME_WINDOW_MS &&
               entry.changes?.some(change => change.key === 'communication_disabled_until')
@@ -327,6 +334,7 @@ if (newMember.communicationDisabledUntil) {
             { name: 'Timeout Until', value: `<t:${timeoutUntil}:F> (<t:${timeoutUntil}:R>)`, inline: false },
             { name: 'Reason', value: reason, inline: false }
           ]);
+
           await this.sendAuditLog(client, 'guildMemberTimeout', timeoutEmbed);
         }
       } else if (oldMember.communicationDisabledUntil) {
@@ -338,7 +346,7 @@ if (newMember.communicationDisabledUntil) {
       }
     }
 
-    // Check role changes
+    // Role changes
     const oldRoles = oldMember.roles.cache;
     const newRoles = newMember.roles.cache;
     const addedRoles = newRoles.filter(role => !oldRoles.has(role.id));
@@ -360,7 +368,7 @@ if (newMember.communicationDisabledUntil) {
       });
     }
 
-    if (changes.length === 0) return; // No relevant changes
+    if (changes.length === 0) return;
 
     embed.addFields([
       { name: 'User', value: `${newMember.user.tag} (${newMember.user.id})`, inline: true },
@@ -370,36 +378,52 @@ if (newMember.communicationDisabledUntil) {
     await this.sendAuditLog(client, 'guildMemberUpdate', embed);
   }
 
-  async logMessageDeleted(client, message) {
-    // Skip if this is the audit channel to prevent loops
+  // ============================
+  // MESSAGE DELETE (patched)
+  // ============================
+
+  async logMessageDeleted(client, message, executorOverride = null) {
     if (message.channelId === this.getAuditChannel()) return;
-    
+
     const embed = this.createBaseEmbed('messageDelete', message.author, message.guild);
     if (!embed) return;
 
-    // Fetch who deleted the message from audit logs
     let deletedBy = 'Unknown';
-    try {
-      const auditLogs = await message.guild.fetchAuditLogs({
-        type: AuditLogEvent.MessageDelete,
-        limit: 5
-      });
-      
-      const deleteLog = auditLogs.entries.find(entry => 
-        entry.target?.id === message.author.id &&
-        entry.createdTimestamp > Date.now() - AUDIT_LOG_TIME_WINDOW_MS &&
-        entry.extra?.channel?.id === message.channelId
-      );
-      
-      if (deleteLog) {
-        deletedBy = `${deleteLog.executor.tag} (${deleteLog.executor.id})`;
-      } else {
-        // If no audit log entry found, likely self-deleted
-        deletedBy = 'User (self-deleted)';
+
+    if (executorOverride) {
+      deletedBy = executorOverride;
+    } else {
+      try {
+        const auditLogs = await message.guild.fetchAuditLogs({
+          type: AuditLogEvent.MessageDelete,
+          limit: 5
+        });
+
+        const deleteLog = auditLogs.entries.find(entry =>
+          entry.target?.id === message.author.id &&
+          entry.extra?.channel?.id === message.channelId &&
+          entry.createdTimestamp > Date.now() - AUDIT_LOG_TIME_WINDOW_MS
+        );
+
+        if (deleteLog) {
+          deletedBy = `${deleteLog.executor.tag} (${deleteLog.executor.id})`;
+        } else {
+          const bulkLog = auditLogs.entries.find(entry =>
+            entry.action === AuditLogEvent.MessageBulkDelete &&
+            entry.extra?.channel?.id === message.channelId &&
+            entry.createdTimestamp > Date.now() - AUDIT_LOG_TIME_WINDOW_MS
+          );
+
+          if (bulkLog) {
+            deletedBy = `${bulkLog.executor.tag} (${bulkLog.executor.id}) [Bulk Delete]`;
+          } else {
+            deletedBy = 'User (self-deleted)';
+          }
+        }
+      } catch (error) {
+        deletedBy = 'Unknown (bot needs View Audit Log permission)';
+        logger.error('Failed to fetch audit logs for message deletion:', error);
       }
-    } catch (error) {
-      deletedBy = 'Unknown (bot needs View Audit Log permission)';
-      logger.error('Failed to fetch audit logs for message deletion:', error);
     }
 
     embed.addFields([
@@ -410,29 +434,27 @@ if (newMember.communicationDisabledUntil) {
     ]);
 
     if (message.content && message.content.length > 0) {
-      const content = message.content.length > 1024 
-        ? message.content.substring(0, 1021) + '...' 
+      const content = message.content.length > 1024
+        ? message.content.substring(0, 1021) + '...'
         : message.content;
-      embed.addFields([
-        { name: 'Content', value: content, inline: false }
-      ]);
+
+      embed.addFields([{ name: 'Content', value: content, inline: false }]);
     }
 
     if (message.attachments.size > 0) {
       const attachments = message.attachments.map(att => att.name).join(', ');
-      embed.addFields([
-        { name: 'Attachments', value: attachments, inline: false }
-      ]);
+      embed.addFields([{ name: 'Attachments', value: attachments, inline: false }]);
     }
 
     await this.sendAuditLog(client, 'messageDelete', embed);
   }
 
+  // ============================
+  // MESSAGE UPDATE
+  // ============================
+
   async logMessageUpdated(client, oldMessage, newMessage) {
-    // Skip bot messages and messages without content changes
     if (newMessage.author?.bot || oldMessage.content === newMessage.content) return;
-    
-    // Skip if this is the audit channel to prevent loops
     if (newMessage.channelId === this.getAuditChannel()) return;
 
     const embed = this.createBaseEmbed('messageUpdate', newMessage.author, newMessage.guild);
@@ -445,25 +467,25 @@ if (newMember.communicationDisabledUntil) {
     ]);
 
     if (oldMessage.content) {
-      const oldContent = oldMessage.content.length > 512 
-        ? oldMessage.content.substring(0, 509) + '...' 
+      const oldContent = oldMessage.content.length > 512
+        ? oldMessage.content.substring(0, 509) + '...'
         : oldMessage.content;
-      embed.addFields([
-        { name: 'Before', value: oldContent || 'No content', inline: false }
-      ]);
+      embed.addFields([{ name: 'Before', value: oldContent || 'No content', inline: false }]);
     }
 
     if (newMessage.content) {
-      const newContent = newMessage.content.length > 512 
-        ? newMessage.content.substring(0, 509) + '...' 
+      const newContent = newMessage.content.length > 512
+        ? newMessage.content.substring(0, 509) + '...'
         : newMessage.content;
-      embed.addFields([
-        { name: 'After', value: newContent || 'No content', inline: false }
-      ]);
+      embed.addFields([{ name: 'After', value: newContent || 'No content', inline: false }]);
     }
 
     await this.sendAuditLog(client, 'messageUpdate', embed);
   }
+
+  // ============================
+  // CHANNEL CREATE / DELETE / UPDATE
+  // ============================
 
   async logChannelCreated(client, channel) {
     const embed = this.createBaseEmbed('channelCreate', null, channel.guild);
@@ -477,12 +499,11 @@ if (newMember.communicationDisabledUntil) {
     ]);
 
     if (channel.parent) {
-      embed.addFields([
-        { name: 'Category', value: channel.parent.name, inline: true }
-      ]);
+      embed.addFields([{ name: 'Category', value: channel.parent.name, inline: true }]);
     }
 
-    await this.sendAuditLog(client, 'channelCreate', embed);
+    await this.sendAudit
+        await this.sendAuditLog(client, 'channelCreate', embed);
   }
 
   async logChannelDeleted(client, channel) {
@@ -497,9 +518,7 @@ if (newMember.communicationDisabledUntil) {
     ]);
 
     if (channel.parent) {
-      embed.addFields([
-        { name: 'Category', value: channel.parent.name, inline: true }
-      ]);
+      embed.addFields([{ name: 'Category', value: channel.parent.name, inline: true }]);
     }
 
     await this.sendAuditLog(client, 'channelDelete', embed);
@@ -538,8 +557,15 @@ if (newMember.communicationDisabledUntil) {
     await this.sendAuditLog(client, 'channelUpdate', embed);
   }
 
+  // ============================
+  // THREAD CREATE / DELETE / UPDATE
+  // ============================
+
   async logThreadCreated(client, thread) {
-    const owner = thread.ownerId ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } })) : null;
+    const owner = thread.ownerId
+      ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } }))
+      : null;
+
     const embed = this.createBaseEmbed('threadCreate', owner?.user, thread.guild);
     if (!embed) return;
 
@@ -559,7 +585,10 @@ if (newMember.communicationDisabledUntil) {
   }
 
   async logThreadDeleted(client, thread) {
-    const owner = thread.ownerId ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } })) : null;
+    const owner = thread.ownerId
+      ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } }))
+      : null;
+
     const embed = this.createBaseEmbed('threadDelete', owner?.user, thread.guild);
     if (!embed) return;
 
@@ -579,7 +608,10 @@ if (newMember.communicationDisabledUntil) {
   }
 
   async logThreadUpdated(client, oldThread, newThread) {
-    const owner = newThread.ownerId ? await newThread.guild.members.fetch(newThread.ownerId).catch(() => ({ user: { id: newThread.ownerId } })) : null;
+    const owner = newThread.ownerId
+      ? await newThread.guild.members.fetch(newThread.ownerId).catch(() => ({ user: { id: newThread.ownerId } }))
+      : null;
+
     const embed = this.createBaseEmbed('threadUpdate', owner?.user, newThread.guild);
     if (!embed) return;
 
