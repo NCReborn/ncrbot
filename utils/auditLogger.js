@@ -277,6 +277,15 @@ class AuditLogger {
 
     // Check timeout changes
     if (oldMember.communicationDisabledUntil !== newMember.communicationDisabledUntil) {
+      // Prevent old/stale timeout events from being logged again
+if (newMember.communicationDisabledUntil) {
+    const TIMEOUT_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
+    const timeoutAge = Date.now() - newMember.communicationDisabledUntil.getTime();
+
+    if (timeoutAge > TIMEOUT_MAX_AGE_MS) {
+        return; // Ignore stale timeout
+    }
+}
       if (newMember.communicationDisabledUntil) {
         const timeoutUntil = Math.floor(newMember.communicationDisabledUntil.getTime() / 1000);
         changes.push({
