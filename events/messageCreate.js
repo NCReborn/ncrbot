@@ -12,6 +12,9 @@ const streetCredService = require('../services/StreetCredService');
 const scs = streetCredService;
 const analyticsService = require('../services/AnalyticsService');
 
+// ⭐ SnapMaster
+const snapmaster = require('../utils/snapmaster');
+
 /**
  * Build a Street Creed announcement embed for first-time rank or level-up.
  * @param {GuildMember} member
@@ -36,7 +39,6 @@ function buildStreetCredAnnouncement(member, result) {
   const formattedScore = Math.round(score).toLocaleString();
   const formattedMessages = messages.toLocaleString();
 
-  // Scenario A: First-time rank
   if (prevTier === 0) {
     return new EmbedBuilder()
       .setColor(0xf1c40f)
@@ -52,7 +54,6 @@ function buildStreetCredAnnouncement(member, result) {
       .setFooter({ text: 'Keep chatting to climb the ranks!' });
   }
 
-  // Scenario B: Level-up
   let embedColor = 0x2ecc71;
   const roleId = scs.ROLE_MAP[String(tier)];
   if (roleId) {
@@ -78,7 +79,6 @@ function buildStreetCredAnnouncement(member, result) {
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
-    // 🚫 Removed botcontrol check – no longer exists
 
     // Log analysis for crash log channel
     if (
@@ -115,7 +115,7 @@ module.exports = {
       }
     }
 
-    // Autoresponder (mods only) — use if-block instead of early return
+    // Autoresponder (mods only)
     try {
       if (!message.author.bot && PermissionChecker.hasModRole(message.member)) {
         const responses = loadResponses();
@@ -137,7 +137,7 @@ module.exports = {
       logger.error(`[MESSAGE_CREATE][AUTORESPONDER] Uncaught error: ${err.stack || err}`);
     }
 
-    // Anti-spam detection — now always reached for non-bot guild messages
+    // Anti-spam detection
     try {
       if (message.author.bot || !message.guild) return;
       
@@ -150,7 +150,7 @@ module.exports = {
       logger.error('[SPAM] Error:', err);
     }
 
-    // NSFW image scanning for monitored channels (e.g. #showcase)
+    // NSFW scanning
     try {
       if (
         !message.author.bot &&
@@ -176,7 +176,26 @@ module.exports = {
       logger.error('[NSFW] Error during image scanning:', err);
     }
 
-    // Street Creed forward-tracking
+    // ⭐⭐⭐ SNAPMASTER TRACKING ⭐⭐⭐
+    try {
+      const SHOWCASE_CHANNEL = "1285797205927792782";
+
+      if (!message.author.bot && message.channel.id === SHOWCASE_CHANNEL) {
+        const attachments = [...message.attachments.values()];
+        const imageCount = attachments.filter(a => a.contentType?.startsWith("image")).length;
+
+        if (imageCount > 0) {
+          const link = `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`;
+          snapmaster.addSubmission(message.author.id, imageCount, link);
+
+          console.log(`SnapMaster: +${imageCount} submission(s) for ${message.author.tag}`);
+        }
+      }
+    } catch (err) {
+      logger.error(`[SNAPMASTER] Error: ${err.stack || err}`);
+    }
+
+    // Street Creed tracking
     if (!message.author.bot && message.guild) {
       try {
         const result = await streetCredService.trackMessage(message);
