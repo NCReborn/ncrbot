@@ -37,7 +37,7 @@ module.exports = {
       await forumManager.applyInvestigatingTag(thread);
 
       // 2. Send alert to bot-alerts channel
-      await forumManager.sendNewThreadAlert(client, thread);
+      // await forumManager.sendNewThreadAlert(client, thread);
 
     } catch (error) {
       logger.error('[THREAD_CREATE] Error handling thread creation:', error);
