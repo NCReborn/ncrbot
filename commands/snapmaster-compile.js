@@ -5,7 +5,7 @@ const { PermissionChecker } = require("../utils/permissions");
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("snapmaster-compile")
-        .setDescription("Compile all eligible SnapMaster users and their submissions into a single embed"),
+        .setDescription("Compile all eligible SnapMaster users and their submissions into tidy chunked embeds"),
 
     async execute(interaction) {
         // Moderator check
@@ -33,13 +33,31 @@ module.exports = {
         // Sort descending
         eligible.sort((a, b) => b.count - a.count);
 
-        const embed = new EmbedBuilder()
-            .setTitle("📸 SnapMaster Voting Package")
-            .setDescription("All eligible users and their submissions for this month's SnapMaster")
+        // -----------------------------
+        // MAIN ELIGIBILITY EMBED
+        // -----------------------------
+        const mainEmbed = new EmbedBuilder()
+            .setTitle("📸 SnapMaster — Eligible Users")
+            .setDescription("Users with **≥ 5 submissions** this month")
             .setColor(0x00aaff)
-            .setTimestamp();
+            .setTimestamp()
+            .addFields({
+                name: "Eligible Members",
+                value: eligible
+                    .map(e => `• <@${e.userId}> — **${e.count}** submissions`)
+                    .join("\n")
+            });
 
-        // Add each user as a field
+        await interaction.channel.send({
+            embeds: [mainEmbed],
+            allowedMentions: { parse: [] }
+        });
+
+        // -----------------------------
+        // USER SUBMISSION EMBEDS (chunked)
+        // -----------------------------
+        const allEmbeds = [];
+
         for (const entry of eligible) {
             const userId = entry.userId;
             const data = snapmaster.getUser(userId);
@@ -48,16 +66,27 @@ module.exports = {
 
             const sortedMessages = [...data.messages].reverse();
 
-            embed.addFields({
-                name: `👤 <@${userId}> — ${entry.count} submissions`,
-                value: sortedMessages.map(link => `• ${link}`).join("\n")
-            });
+            const embed = new EmbedBuilder()
+                .setTitle(`📸 Submissions — <@${userId}>`)
+                .setColor(0x00aaff)
+                .setTimestamp()
+                .setDescription(
+                    sortedMessages.map(link => `• ${link}`).join("\n")
+                );
+
+            allEmbeds.push(embed);
         }
 
-        await interaction.channel.send({
-            embeds: [embed],
-            allowedMentions: { parse: [] }
-        });
+        // Send embeds in chunks of 10 (Discord limit)
+        const chunkSize = 10;
+        for (let i = 0; i < allEmbeds.length; i += chunkSize) {
+            const chunk = allEmbeds.slice(i, i + chunkSize);
+
+            await interaction.channel.send({
+                embeds: chunk,
+                allowedMentions: { parse: [] }
+            });
+        }
 
         await interaction.followUp({
             content: "✅ SnapMaster compilation posted.",
