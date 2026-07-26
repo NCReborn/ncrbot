@@ -7,18 +7,22 @@ module.exports = {
         .setDescription("Shows who is currently eligible for SnapMaster this month"),
 
     async execute(interaction) {
-        const eligible = snapmaster.getEligible(5);
+const eligible = snapmaster.getEligible(5);
 
-        if (eligible.length === 0) {
-            return interaction.reply("No one is eligible yet this month.");
-        }
+// Sort descending
+eligible.sort((a, b) => b.count - a.count);
 
-        let msg = "**📸 SnapMaster Eligibility (≥ 5 submissions)**\n\n";
+if (eligible.length === 0) {
+    return interaction.reply("No one is eligible yet this month.");
+}
 
-        eligible.forEach(e => {
-            msg += `• <@${e.userId}> — ${e.count} submissions\n`;
-        });
+let msg = "**📸 SnapMaster Eligibility (≥ 5 submissions)**\n\n";
 
-        interaction.reply(msg);
+eligible.forEach(e => {
+    msg += `• <@${e.userId}> — ${e.count} submissions\n`;
+});
+
+interaction.reply(msg);
+
     }
 };
