@@ -5,6 +5,9 @@ const cron = require('node-cron');
 const streetCredService = require('../services/StreetCredService');
 const snapsmithService = require('../services/SnapSmithService');
 
+// ⭐ SnapMaster
+const snapmaster = require('../utils/snapmaster');
+
 module.exports = {
   name: 'clientReady',
   once: true,
@@ -54,5 +57,59 @@ module.exports = {
       }
     });
     logger.info('[READY] SnapSmith daily expiration cron registered (runs at 04:00)');
+
+    // ⭐⭐⭐ SNAPMASTER — Monthly Eligibility Report (25th @ 12:00 UTC)
+    cron.schedule('0 12 25 * *', async () => {
+      logger.info('[SNAPMASTER] Running monthly eligibility report…');
+
+      const ADMIN_CHANNEL = "1324990321393930240";
+      const channel = client.channels.cache.get(ADMIN_CHANNEL);
+
+      if (!channel) {
+        logger.error('[SNAPMASTER] Admin channel not found.');
+        return;
+      }
+
+      const eligible = snapmaster.getEligible(5);
+      const all = snapmaster.getAll();
+
+      let msg = "**📸 SnapMaster Eligibility Report**\n";
+      msg += "_Monthly showcase submissions summary_\n\n";
+
+      msg += "**Eligible Members (≥ 5 submissions):**\n";
+
+      if (eligible.length === 0) {
+        msg += "_No eligible members this month._\n\n";
+      } else {
+        eligible.forEach(e => {
+          msg += `• <@${e.userId}> — ${e.count} submissions\n`;
+        });
+        msg += "\n";
+      }
+
+      msg += "**Full Submission Tally:**\n";
+      for (const [userId, data] of Object.entries(all)) {
+        msg += `• <@${userId}> — ${data.count}\n`;
+      }
+
+      await channel.send(msg);
+      logger.info('[SNAPMASTER] Eligibility report posted.');
+    });
+
+    logger.info('[READY] SnapMaster monthly eligibility cron registered (25th @ 12:00 UTC)');
+
+    // ⭐⭐⭐ SNAPMASTER — Monthly Reset (1st @ 00:00 UTC)
+    cron.schedule('0 0 1 * *', async () => {
+      logger.info('[SNAPMASTER] Running monthly reset…');
+
+      try {
+        snapmaster.reset();
+        logger.info('[SNAPMASTER] Monthly reset complete.');
+      } catch (err) {
+        logger.error('[SNAPMASTER] Monthly reset failed:', err);
+      }
+    });
+
+    logger.info('[READY] SnapMaster monthly reset cron registered (1st @ 00:00 UTC)');
   }
 };
