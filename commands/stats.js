@@ -1,5 +1,5 @@
-const { SlashCommandBuilder } = require("discord.js");
-const snapmaster = require('../utils/snapmaster');
+const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const snapmaster = require("../utils/snapmaster");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -7,22 +7,34 @@ module.exports = {
         .setDescription("Shows who is currently eligible for SnapMaster this month"),
 
     async execute(interaction) {
-const eligible = snapmaster.getEligible(5);
+        const eligible = snapmaster.getEligible(5);
 
-// Sort descending
-eligible.sort((a, b) => b.count - a.count);
+        // Sort descending
+        eligible.sort((a, b) => b.count - a.count);
 
-if (eligible.length === 0) {
-    return interaction.reply("No one is eligible yet this month.");
-}
+        const embed = new EmbedBuilder()
+            .setTitle("📸 SnapMaster Eligibility")
+            .setDescription("Users with **≥ 5 submissions** this month")
+            .setColor(0x00aaff)
+            .setTimestamp();
 
-let msg = "**📸 SnapMaster Eligibility (≥ 5 submissions)**\n\n";
+        if (eligible.length === 0) {
+            embed.addFields({
+                name: "No eligible users",
+                value: "_Nobody has reached 5 submissions yet._"
+            });
+        } else {
+            embed.addFields({
+                name: "Eligible Members",
+                value: eligible
+                    .map(e => `• <@${e.userId}> — **${e.count}** submissions`)
+                    .join("\n")
+            });
+        }
 
-eligible.forEach(e => {
-    msg += `• <@${e.userId}> — ${e.count} submissions\n`;
-});
-
-interaction.reply(msg);
-
+        await interaction.reply({
+            embeds: [embed],
+            allowedMentions: { parse: [] } // prevents pings
+        });
     }
 };
