@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
-const snapmaster = require("../../utils/snapmaster");
+const snapmaster = require('../utils/snapmaster');
 
 module.exports = {
     data: new SlashCommandBuilder()
