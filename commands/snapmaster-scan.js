@@ -55,20 +55,23 @@ module.exports = {
             lastId = fetched.last()?.id;
         } while (fetched.size === 100);
 
-        const eligible = snapmaster.getEligible(5);
+const eligible = snapmaster.getEligible(5);
 
-        let summary = `📸 **Scan complete!**\n\n`;
-        summary += `**Total images found:** ${totalImages}\n`;
-        summary += `**Eligible users (≥ 5 submissions):**\n`;
+// Sort descending
+eligible.sort((a, b) => b.count - a.count);
 
-        if (eligible.length === 0) {
-            summary += "_No eligible users this month._";
-        } else {
-            eligible.forEach(e => {
-                summary += `• <@${e.userId}> — ${e.count}\n`;
-            });
-        }
+let summary = `📸 **Scan complete!**\n\n`;
+summary += `**Total images found:** ${totalImages}\n`;
+summary += `**Eligible users (≥ 5 submissions):**\n`;
 
-        interaction.editReply(summary);
+if (eligible.length === 0) {
+    summary += "_No eligible users this month._";
+} else {
+    eligible.forEach(e => {
+        summary += `• <@${e.userId}> — ${e.count}\n`;
+    });
+}
+
+interaction.editReply(summary);
     }
 };
