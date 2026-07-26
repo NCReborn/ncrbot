@@ -1,10 +1,11 @@
-const { SlashCommandBuilder } = require("discord.js");
-const snapmaster = require('../utils/snapmaster');
+const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const snapmaster = require("../utils/snapmaster");
+const { PermissionChecker } = require("../utils/permissions");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("snapmaster-check")
-        .setDescription("Shows all submissions made by a user this month")
+        .setDescription("Shows all SnapMaster submissions made by a user this month")
         .addUserOption(option =>
             option.setName("user")
                 .setDescription("User to check")
@@ -12,19 +13,40 @@ module.exports = {
         ),
 
     async execute(interaction) {
+        // Moderator check
+        if (!PermissionChecker.hasModRole(interaction.member)) {
+            return interaction.reply({
+                content: "❌ You do not have permission to use this command.",
+                ephemeral: true
+            });
+        }
+
         const user = interaction.options.getUser("user");
         const data = snapmaster.getUser(user.id);
 
         if (!data || data.messages.length === 0) {
-            return interaction.reply(`No SnapMaster submissions found for ${user}.`);
+            return interaction.reply({
+                content: `❌ No SnapMaster submissions found for ${user}.`,
+                ephemeral: true
+            });
         }
 
-        let msg = `📸 **SnapMaster submissions for ${user}:**\n\n`;
+        // Sort newest → oldest
+        const sortedMessages = [...data.messages].reverse();
 
-        data.messages.forEach(link => {
-            msg += `${link}\n`;
+        const embed = new EmbedBuilder()
+            .setTitle(`📸 SnapMaster Submissions for ${user.username}`)
+            .setColor(0x00aaff)
+            .setTimestamp()
+            .setDescription(
+                sortedMessages
+                    .map(link => `• ${link}`)
+                    .join("\n")
+            );
+
+        await interaction.reply({
+            embeds: [embed],
+            allowedMentions: { parse: [] } // prevents pings
         });
-
-        interaction.reply(msg);
     }
 };
