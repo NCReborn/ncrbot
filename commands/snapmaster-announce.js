@@ -1,15 +1,18 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const {
+    SlashCommandBuilder,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ActionRowBuilder,
+    EmbedBuilder
+} = require("discord.js");
+
 const { PermissionChecker } = require("../utils/permissions");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("snapmaster-announce")
-        .setDescription("Post a SnapMaster announcement as a clean embed")
-        .addStringOption(option =>
-            option.setName("text")
-                .setDescription("The announcement text you want to convert into an embed")
-                .setRequired(true)
-        ),
+        .setDescription("Create a SnapMaster announcement using a popup text box"),
 
     async execute(interaction) {
         // Moderator check
@@ -20,16 +23,34 @@ module.exports = {
             });
         }
 
-        const rawText = interaction.options.getString("text");
+        // Build modal
+        const modal = new ModalBuilder()
+            .setCustomId("snapmaster_announce_modal")
+            .setTitle("SnapMaster Announcement");
 
-        // Build embed
+        const announcementInput = new TextInputBuilder()
+            .setCustomId("announcement_text")
+            .setLabel("Enter your announcement text")
+            .setStyle(TextInputStyle.Paragraph) // MULTILINE
+            .setRequired(true);
+
+        const row = new ActionRowBuilder().addComponents(announcementInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+    },
+
+    async handleModal(interaction) {
+        if (interaction.customId !== "snapmaster_announce_modal") return;
+
+        const rawText = interaction.fields.getTextInputValue("announcement_text");
+
         const embed = new EmbedBuilder()
             .setTitle("📸 SnapMaster Announcement")
             .setDescription(rawText)
             .setColor(0x00aaff)
             .setTimestamp();
 
-        // Post embed
         await interaction.reply({
             content: "📢 Announcement posted.",
             ephemeral: true
@@ -37,7 +58,7 @@ module.exports = {
 
         await interaction.channel.send({
             embeds: [embed],
-            allowedMentions: { parse: [] } // prevents pings
+            allowedMentions: { parse: [] }
         });
     }
 };
