@@ -5,7 +5,7 @@ const { PermissionChecker } = require("../utils/permissions");
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("snapmaster-compile")
-        .setDescription("Compile all eligible SnapMaster users and their submissions into embeds"),
+        .setDescription("Compile all eligible SnapMaster users and their submissions into a single embed"),
 
     async execute(interaction) {
         // Moderator check
@@ -33,55 +33,32 @@ module.exports = {
         // Sort descending
         eligible.sort((a, b) => b.count - a.count);
 
-        // -----------------------------
-        // MAIN ELIGIBILITY EMBED
-        // -----------------------------
-        const mainEmbed = new EmbedBuilder()
-            .setTitle("📸 SnapMaster — Eligible Users")
-            .setDescription("Users with **≥ 5 submissions** this month")
+        const embed = new EmbedBuilder()
+            .setTitle("📸 SnapMaster Voting Package")
+            .setDescription("All eligible users and their submissions for this month's SnapMaster")
             .setColor(0x00aaff)
-            .setTimestamp()
-            .addFields({
-                name: "Eligible Members",
-                value: eligible
-                    .map(e => `• <@${e.userId}> — **${e.count}** submissions`)
-                    .join("\n")
-            });
+            .setTimestamp();
 
-        await interaction.channel.send({
-            embeds: [mainEmbed],
-            allowedMentions: { parse: [] }
-        });
-
-        // -----------------------------
-        // INDIVIDUAL USER EMBEDS
-        // -----------------------------
+        // Add each user as a field
         for (const entry of eligible) {
             const userId = entry.userId;
             const data = snapmaster.getUser(userId);
 
             if (!data || data.messages.length === 0) continue;
 
-            // Sort newest → oldest
             const sortedMessages = [...data.messages].reverse();
 
-            const userEmbed = new EmbedBuilder()
-                .setTitle(`📸 SnapMaster Submissions — <@${userId}>`)
-                .setColor(0x00aaff)
-                .setTimestamp()
-                .setDescription(
-                    sortedMessages
-                        .map(link => `• ${link}`)
-                        .join("\n")
-                );
-
-            await interaction.channel.send({
-                embeds: [userEmbed],
-                allowedMentions: { parse: [] }
+            embed.addFields({
+                name: `👤 <@${userId}> — ${entry.count} submissions`,
+                value: sortedMessages.map(link => `• ${link}`).join("\n")
             });
         }
 
-        // Final confirmation
+        await interaction.channel.send({
+            embeds: [embed],
+            allowedMentions: { parse: [] }
+        });
+
         await interaction.followUp({
             content: "✅ SnapMaster compilation posted.",
             ephemeral: true
