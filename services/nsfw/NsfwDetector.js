@@ -146,8 +146,11 @@ class NsfwDetector {
     const hentai = score('Hentai');
     const sexy = score('Sexy');
 
-    if (porn > high || hentai > high || sexy > high) return 'high';
-    if (porn > medium || hentai > medium || sexy > medium) return 'medium';
+  // Only Porn and Hentai can trigger high alerts
+  if (porn > high || hentai > high) return 'high';
+
+  // Sexy can only ever trigger medium alerts
+  if (porn > medium || hentai > medium || sexy > medium) return 'medium';
     return 'safe';
   }
 
