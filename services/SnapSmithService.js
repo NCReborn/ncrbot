@@ -67,44 +67,62 @@ async function isBanned(userId, guildId) {
 }
 
 /**
- * Ban a user from receiving SnapSmith role.
+ * Ban a user from receiving SnapSmith role, with reason and audit info.
  * @param {string} userId
  * @param {string} guildId
+ * @param {string} reason
+ * @param {string} bannedByUserId
  */
-async function banUser(userId, guildId) {
+async function banUser(userId, guildId, reason, bannedByUserId) {
   const pool = await getPool();
-  const rec = await getOrCreateSnapSmith(userId, guildId);
+  await getOrCreateSnapSmith(userId, guildId);
+
   await pool.execute(
-    'UPDATE snapsmith SET is_banned = 1 WHERE user_id = ? AND guild_id = ?',
-    [userId, guildId]
+    `UPDATE snapsmith 
+     SET is_banned = 1,
+         ban_reason = ?,
+         banned_by = ?,
+         banned_at = NOW()
+     WHERE user_id = ? AND guild_id = ?`,
+    [reason || 'No reason provided', bannedByUserId, userId, guildId]
   );
-  logger.info(`[SNAPSMITH] User ${userId} banned from SnapSmith`);
+
+  logger.info(`[SNAPSMITH] User ${userId} banned from SnapSmith by ${bannedByUserId} (reason: ${reason || 'No reason provided'})`);
 }
 
 /**
- * Unban a user from SnapSmith role.
+ * Unban a user from SnapSmith role and clear audit info.
  * @param {string} userId
  * @param {string} guildId
  */
 async function unbanUser(userId, guildId) {
   const pool = await getPool();
-  const rec = await getOrCreateSnapSmith(userId, guildId);
+  await getOrCreateSnapSmith(userId, guildId);
+
   await pool.execute(
-    'UPDATE snapsmith SET is_banned = 0 WHERE user_id = ? AND guild_id = ?',
+    `UPDATE snapsmith 
+     SET is_banned = 0,
+         ban_reason = NULL,
+         banned_by = NULL,
+         banned_at = NULL
+     WHERE user_id = ? AND guild_id = ?`,
     [userId, guildId]
   );
+
   logger.info(`[SNAPSMITH] User ${userId} unbanned from SnapSmith`);
 }
 
 /**
- * Get all banned users for a guild.
+ * Get all banned users for a guild, including reason and audit info.
  * @param {string} guildId
- * @returns {Array<{user_id: string}>}
+ * @returns {Array<{user_id: string, ban_reason: string|null, banned_by: string|null, banned_at: Date|null}>}
  */
 async function getBannedUsers(guildId) {
   const pool = await getPool();
   const [rows] = await pool.execute(
-    'SELECT user_id FROM snapsmith WHERE guild_id = ? AND is_banned = 1',
+    `SELECT user_id, ban_reason, banned_by, banned_at
+     FROM snapsmith
+     WHERE guild_id = ? AND is_banned = 1`,
     [guildId]
   );
   return rows;
@@ -117,7 +135,7 @@ async function getBannedUsers(guildId) {
  * @param {string} userId
  * @param {string} guildId
  * @param {GuildMember} member
- * @returns {{success: boolean, message: string}}
+ * @returns {{success: boolean, message: string, expiresAt?: Date}}
  */
 async function grantSnapSmith(userId, guildId, member) {
   try {
@@ -128,9 +146,9 @@ async function grantSnapSmith(userId, guildId, member) {
     }
 
     // Get or create record
-    const rec = await getOrCreateSnapSmith(userId, guildId);
+    await getOrCreateSnapSmith(userId, guildId);
 
-    // Set expiration to 30 days from now
+    // Set expiration to GRANT_DURATION_DAYS from now
     const expiresAt = new Date(Date.now() + GRANT_DURATION_DAYS * 24 * 60 * 60 * 1000);
     const now = new Date();
 
@@ -152,10 +170,10 @@ async function grantSnapSmith(userId, guildId, member) {
       }
     }
 
-    logger.info(`[SNAPSMITH] Granted to ${userId} by a Ripperdoc (expires: ${expiresAt.toISOString()})`);
+    logger.info(`[SNAPSMITH] Granted to ${userId} (expires: ${expiresAt.toISOString()})`);
     return { 
       success: true, 
-      message: `✅ SnapSmith role granted to <@${userId}> for 30 days!`,
+      message: `✅ SnapSmith role granted to <@${userId}> for ${GRANT_DURATION_DAYS} days!`,
       expiresAt
     };
   } catch (err) {
@@ -207,7 +225,7 @@ async function removeSnapSmith(userId, guildId, member) {
 
 /**
  * Refresh the SnapSmith timer when a user posts in the showcase channel.
- * Extends expiration by another 30 days.
+ * Extends expiration by another GRANT_DURATION_DAYS.
  * @param {string} userId
  * @param {string} guildId
  * @returns {boolean} Whether the timer was refreshed
@@ -294,7 +312,7 @@ async function runExpirationCheck(guild) {
 
 /**
  * Initialize SnapSmith system for all current users with the role.
- * Sets their expiration to 30 days from now.
+ * Sets their expiration to GRANT_DURATION_DAYS from now.
  * @param {Guild} guild
  */
 async function initializeCurrentSnapSmiths(guild) {
@@ -339,7 +357,7 @@ async function initializeCurrentSnapSmiths(guild) {
 
 /**
  * Calculate remaining days for a user's SnapSmith role.
- * @param {Date} expiresAt
+ * @param {Date|string} expiresAt
  * @returns {number} Days remaining (0 if expired)
  */
 function daysRemaining(expiresAt) {
@@ -351,7 +369,7 @@ function daysRemaining(expiresAt) {
 
 /**
  * Format remaining time for display.
- * @param {Date} expiresAt
+ * @param {Date|string} expiresAt
  * @returns {string}
  */
 function formatTimeRemaining(expiresAt) {
