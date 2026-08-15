@@ -140,10 +140,26 @@ async function getBannedUsers(guildId) {
 async function grantSnapSmith(userId, guildId, member) {
   try {
     // Check if banned
-    const banned = await isBanned(userId, guildId);
-    if (banned) {
-      return { success: false, message: '❌ This user is banned from receiving the SnapSmith role.' };
-    }
+const banned = await snapsmith.isBanned(userId, guildId);
+if (banned) {
+  const record = await snapsmith.getSnapSmith(userId, guildId);
+
+  const bannedAt = record.banned_at
+    ? `<t:${Math.floor(new Date(record.banned_at).getTime() / 1000)}:F>`
+    : 'Unknown';
+
+  const embed = new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle('🔧 SnapSmith Grant Blocked — User is Banned')
+    .setDescription(`❌ <@${userId}> is **banned** from receiving the SnapSmith role.`)
+    .addFields(
+      { name: 'Reason', value: record.ban_reason || 'No reason provided', inline: false },
+      { name: 'Banned By', value: record.banned_by ? `<@${record.banned_by}>` : 'Unknown', inline: false },
+      { name: 'When', value: bannedAt, inline: false }
+    );
+
+  return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
 
     // Get or create record
     await getOrCreateSnapSmith(userId, guildId);
