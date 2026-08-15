@@ -159,6 +159,29 @@ const grantCommand = {
       });
     }
 
+    // ─── NEW: Check if user is banned ────────────────────────────────
+    const banned = await snapsmith.isBanned(targetUser.id, interaction.guild.id);
+    if (banned) {
+      const record = await snapsmith.getSnapSmith(targetUser.id, interaction.guild.id);
+
+      const bannedAt = record.banned_at
+        ? `<t:${Math.floor(new Date(record.banned_at).getTime() / 1000)}:F>`
+        : 'Unknown';
+
+      const embed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('🔧 SnapSmith Grant Blocked — User is Banned')
+        .setDescription(`❌ <@${targetUser.id}> is **banned** from receiving the SnapSmith role.`)
+        .addFields(
+          { name: 'Reason', value: record.ban_reason || 'No reason provided', inline: false },
+          { name: 'Banned By', value: record.banned_by ? `<@${record.banned_by}>` : 'Unknown', inline: false },
+          { name: 'When', value: bannedAt, inline: false }
+        );
+
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    }
+
+    // ─── Continue with normal grant flow ─────────────────────────────
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const result = await snapsmith.grantSnapSmith(targetUser.id, interaction.guild.id, targetMember);
@@ -175,7 +198,6 @@ const grantCommand = {
         value: `<t:${Math.floor(result.expiresAt.getTime() / 1000)}:D>`
       });
 
-      // Post announcement
       await postSnapSmithAnnouncement(
         interaction.guild,
         targetUser.id,
