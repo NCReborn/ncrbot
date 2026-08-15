@@ -654,17 +654,37 @@ class SpamActionHandler {
         logger.info(`[SPAM] Moderator ${interaction.user.tag} marked detection as false positive for ${member.user.tag}`);
         break;
 
-      case 'ban':
-        // Check if user has permission to ban
-        const interaction_member = interaction.member;
-        if (!this.canUserBan(interaction_member)) {
-          await interaction.reply({ 
-            content: `❌ You do not have permission to ban users. Only Fixer+ roles can use this action. (Ripperdocs cannot ban)`,
-            ephemeral: true 
-          });
-          logger.warn(`[SPAM] Non-fixer user ${interaction.user.tag} attempted to ban user ${userId}`);
-          return;
+case 'ban': {
+    const RIPPERDOC_ROLE_ID = '1288633895910375464';
+    const FIXER_ROLE_IDS = ['1370874936456908931'];
+
+    const isAdmin = interaction.member.permissions.has('Administrator');
+    const isRipperdoc = interaction.member.roles.cache.has(RIPPERDOC_ROLE_ID);
+    const isFixer = FIXER_ROLE_IDS.some(roleId => interaction.member.roles.cache.has(roleId));
+
+    // Admins always allowed
+    if (!isAdmin) {
+        // Ripperdocs explicitly blocked
+        if (isRipperdoc && !isFixer) {
+            await interaction.reply({
+                content: '❌ Access denied — Ripperdocs cannot ban users.',
+                ephemeral: true
+            });
+            logger.warn(`[SPAM] Ripperdoc ${interaction.user.tag} attempted to ban ${userId}`);
+            return;
         }
+
+        // Fixers allowed
+        if (!isFixer) {
+            await interaction.reply({
+                content: '❌ Access denied — only Fixers or Admins can ban users.',
+                ephemeral: true
+            });
+            logger.warn(`[SPAM] Non-fixer user ${interaction.user.tag} attempted to ban ${userId}`);
+            return;
+        }
+    }
+
 
         // Resolve a display tag (prefer member.user.tag, fall back to fetching the User, final fallback to the ID)
         let displayTag;
