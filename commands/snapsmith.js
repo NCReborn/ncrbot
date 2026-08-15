@@ -4,7 +4,6 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   MessageFlags,
-  PermissionFlagsBits,
 } = require('discord.js');
 const logger = require('../utils/logger');
 const { PermissionChecker } = require('../utils/permissions');
@@ -235,7 +234,7 @@ const removeCommand = {
   },
 };
 
-// ─── /snapsmith-ban <user> (Ripperdoc+ only) ──────────────────────────────────
+// ─── /snapsmith-ban <user> <reason> (Ripperdoc+ only) ──────────────────────────
 
 const banCommand = {
   data: new SlashCommandBuilder()
@@ -243,6 +242,11 @@ const banCommand = {
     .setDescription('Ban a user from receiving SnapSmith role (Ripperdoc+ only)')
     .addUserOption(opt =>
       opt.setName('user').setDescription('User to ban').setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName('reason')
+        .setDescription('Reason for the ban')
+        .setRequired(false)
     ),
 
   async execute(interaction) {
@@ -254,18 +258,29 @@ const banCommand = {
     }
 
     const targetUser = interaction.options.getUser('user');
+    const reason = interaction.options.getString('reason') || 'No reason provided';
+
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    await snapsmith.banUser(targetUser.id, interaction.guild.id);
+    await snapsmith.banUser(
+      targetUser.id,
+      interaction.guild.id,
+      reason,
+      interaction.user.id
+    );
 
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle('🔧 SnapSmith Ban')
-      .setDescription(`✅ <@${targetUser.id}> has been **banned** from receiving the SnapSmith role.`);
+      .setDescription(`✅ <@${targetUser.id}> has been **banned** from receiving the SnapSmith role.`)
+      .addFields(
+        { name: 'Reason', value: reason, inline: false },
+        { name: 'Banned By', value: `<@${interaction.user.id}>`, inline: false }
+      );
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info(`[SNAPSMITH] Ban command: ${interaction.user.tag} banned ${targetUser.tag}`);
+    logger.info(`[SNAPSMITH] Ban command: ${interaction.user.tag} banned ${targetUser.tag} (reason: ${reason})`);
   },
 };
 
@@ -334,19 +349,28 @@ const banListCommand = {
       const lines = [];
       for (const user of bannedUsers) {
         let display = `ID: ${user.user_id}`;
+        let bannedByDisplay = user.banned_by ? `(<@${user.banned_by}>)` : '';
         try {
           const fetched = await interaction.client.users.fetch(user.user_id);
           display = `${fetched.tag} (${user.user_id})`;
         } catch (_) {
           // user not fetchable (left server / not cached) — keep ID only
         }
-        lines.push(`• ${display}`);
+
+        const reasonText = user.ban_reason || 'No reason provided';
+        const bannedAtText = user.banned_at
+          ? `<t:${Math.floor(new Date(user.banned_at).getTime() / 1000)}:R>`
+          : 'Unknown time';
+
+        lines.push(
+          `• ${display}\n  Reason: ${reasonText}\n  Banned by: ${bannedByDisplay || 'Unknown'}\n  When: ${bannedAtText}`
+        );
       }
 
       const embed = new EmbedBuilder()
         .setColor(0xe74c3c)
         .setTitle('🔧 SnapSmith Ban List')
-        .setDescription(lines.join('\n'))
+        .setDescription(lines.join('\n\n'))
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
