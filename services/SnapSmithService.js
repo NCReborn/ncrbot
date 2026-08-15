@@ -96,6 +96,20 @@ async function unbanUser(userId, guildId) {
   logger.info(`[SNAPSMITH] User ${userId} unbanned from SnapSmith`);
 }
 
+/**
+ * Get all banned users for a guild.
+ * @param {string} guildId
+ * @returns {Array<{user_id: string}>}
+ */
+async function getBannedUsers(guildId) {
+  const pool = await getPool();
+  const [rows] = await pool.execute(
+    'SELECT user_id FROM snapsmith WHERE guild_id = ? AND is_banned = 1',
+    [guildId]
+  );
+  return rows;
+}
+
 // ─── Grant and management ──────────────────────────────────────────────────────
 
 /**
@@ -353,6 +367,7 @@ module.exports = {
   getSnapSmith,
   getOrCreateSnapSmith,
   isBanned,
+  getBannedUsers,
   // Management
   grantSnapSmith,
   removeSnapSmith,
