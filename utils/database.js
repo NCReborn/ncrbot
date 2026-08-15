@@ -1,13 +1,12 @@
 'use strict';
 
-const mysql = require('mysql2/promise');
+const mysql = require('mysql2/ppromise');
 const logger = require('./logger');
 
 let pool = null;
 
 /**
  * Returns the shared MySQL connection pool, creating it on first call.
- * The street_cred table is auto-created if it does not exist.
  */
 async function getPool() {
   if (pool) return pool;
@@ -29,9 +28,13 @@ async function getPool() {
 }
 
 /**
- * Auto-creates the street_cred table and scan progress table if they don't exist.
+ * Ensures all required tables exist and performs safe schema migrations.
  */
 async function ensureSchema(p) {
+
+  // ───────────────────────────────────────────────────────────────
+  // STREET CRED TABLE
+  // ───────────────────────────────────────────────────────────────
   await p.execute(`
     CREATE TABLE IF NOT EXISTS street_cred (
       user_id        VARCHAR(20)  NOT NULL,
@@ -48,6 +51,9 @@ async function ensureSchema(p) {
     )
   `);
 
+  // ───────────────────────────────────────────────────────────────
+  // STREET CRED SCAN TABLE
+  // ───────────────────────────────────────────────────────────────
   await p.execute(`
     CREATE TABLE IF NOT EXISTS street_cred_scan (
       guild_id      VARCHAR(20)  NOT NULL,
@@ -59,6 +65,9 @@ async function ensureSchema(p) {
     )
   `);
 
+  // ───────────────────────────────────────────────────────────────
+  // MESSAGE ANALYTICS TABLE
+  // ───────────────────────────────────────────────────────────────
   await p.execute(`
     CREATE TABLE IF NOT EXISTS message_analytics (
       message_id   VARCHAR(20)  NOT NULL,
@@ -70,6 +79,9 @@ async function ensureSchema(p) {
     )
   `);
 
+  // ───────────────────────────────────────────────────────────────
+  // ANALYTICS SCAN TABLE
+  // ───────────────────────────────────────────────────────────────
   await p.execute(`
     CREATE TABLE IF NOT EXISTS analytics_scan (
       guild_id      VARCHAR(20)  NOT NULL,
@@ -81,6 +93,9 @@ async function ensureSchema(p) {
     )
   `);
 
+  // ───────────────────────────────────────────────────────────────
+  // SNAPSMITH TABLE (BASE STRUCTURE)
+  // ───────────────────────────────────────────────────────────────
   await p.execute(`
     CREATE TABLE IF NOT EXISTS snapsmith (
       user_id       VARCHAR(20)  NOT NULL,
@@ -95,6 +110,25 @@ async function ensureSchema(p) {
       INDEX idx_expires (guild_id, expires_at)
     )
   `);
+
+  // ───────────────────────────────────────────────────────────────
+  // SNAPSMITH MIGRATIONS (ADD NEW BAN FIELDS)
+  // ───────────────────────────────────────────────────────────────
+
+  const [columns] = await p.execute(`SHOW COLUMNS FROM snapsmith`);
+
+  const colNames = columns.map(c => c.Field);
+
+  async function addColumnIfMissing(name, definition) {
+    if (!colNames.includes(name)) {
+      await p.execute(`ALTER TABLE snapsmith ADD COLUMN ${name} ${definition}`);
+      logger.info(`[DB] snapsmith schema updated: added column ${name}`);
+    }
+  }
+
+  await addColumnIfMissing('ban_reason', 'TEXT NULL');
+  await addColumnIfMissing('banned_by', 'VARCHAR(50) NULL');
+  await addColumnIfMissing('banned_at', 'DATETIME NULL');
 
   logger.info('[DB] street_cred and snapsmith schemas verified');
 }
