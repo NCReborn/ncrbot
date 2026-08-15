@@ -3,9 +3,58 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
 const spamDetector = require('./SpamDetector');
+const fetch = require('node-fetch'); // ⬅️ added
 
 const CONTENT_PREVIEW_LENGTH = 100;
 const MAX_DETECTION_HISTORY = 100;
+
+const IMAGE_DIR = '/home/container/spam-images'; // ⬅️ added
+
+function ensureImageDir() {
+  if (!fs.existsSync(IMAGE_DIR)) {
+    fs.mkdirSync(IMAGE_DIR, { recursive: true });
+  }
+}
+
+/**
+ * Save all evidence attachments for a detection locally.
+ * Returns [{ buffer, filename, savePath, channelId }]
+ */
+async function saveEvidenceAttachments(detectionResult) {
+  ensureImageDir();
+
+  const savedFiles = [];
+
+  for (const ev of detectionResult.evidence || []) {
+    const attachments = ev.attachments || [];
+    for (const att of attachments) {
+      if (!att.url) continue;
+
+      try {
+        const res = await fetch(att.url);
+        const buffer = Buffer.from(await res.arrayBuffer());
+
+        const timestamp = Date.now();
+        const safeName = att.name || 'attachment';
+        const filename = `${timestamp}-${safeName}`;
+        const savePath = path.join(IMAGE_DIR, filename);
+
+        fs.writeFileSync(savePath, buffer);
+
+        savedFiles.push({
+          buffer,
+          filename,
+          savePath,
+          channelId: ev.channelId
+        });
+      } catch (err) {
+        logger.error('[SPAM] Failed to save evidence attachment:', err);
+      }
+    }
+  }
+
+  return savedFiles;
+}
 
 class SpamActionHandler {
   constructor() {
@@ -60,7 +109,7 @@ class SpamActionHandler {
     }
     
     // Check if user has Ripperdoc role and ONLY Ripperdoc (cannot ban)
-    if (member.roles.cache.has(RIPPERDOC_ROLE_ID)) {
+    if (member.roles.cache.has(RPPERDOC_ROLE_ID)) {
       // Check if they also have any moderator roles
       const hasModerator = MODERATOR_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
       if (!hasModerator) {
@@ -84,6 +133,9 @@ class SpamActionHandler {
     try {
       logger.info(`[SPAM] High-confidence spam detected for user ${member.user.tag} (${member.user.id})`);
 
+      // 0. Save evidence attachments locally before any deletion
+      const savedFiles = await saveEvidenceAttachments(detectionResult);
+
       // 1. Delete recent spam messages
       const deletedMessages = await this.deleteRecentMessages(message.guild, member.user.id, detectionResult);
 
@@ -95,8 +147,8 @@ class SpamActionHandler {
       
       logger.info(`[SPAM] User ${member.user.tag} timed out until ${timeoutUntil.toISOString()}`);
 
-      // 3. Create and send mod alert
-      await this.sendModAlert(client, member, detectionResult, deletedMessages, timeoutUntil);
+      // 3. Create and send mod alert (with saved images)
+      await this.sendModAlert(client, member, detectionResult, deletedMessages, timeoutUntil, savedFiles);
 
       // 4. Record stats
       this.recordDetection(member.user.id, detectionResult);
@@ -329,7 +381,7 @@ class SpamActionHandler {
     return deletedMessages;
   }
 
-  async sendModAlert(client, member, detectionResult, deletedMessages, timeoutUntil) {
+  async sendModAlert(client, member, detectionResult, deletedMessages, timeoutUntil, savedFiles = []) {
     const alertChannelId = this.config.alertChannelId;
     if (!alertChannelId) {
       logger.warn('[SPAM] No alert channel configured');
@@ -433,7 +485,7 @@ class SpamActionHandler {
           inline: false
         }]);
 
-        // Show first image attachment as a preview
+        // Show first image attachment as a preview (original URL)
         const firstImageAttachment = evidenceItems
           .flatMap(ev => ev.attachments || [])
           .find(a => a.name && /\.(jpe?g|png|gif|webp)$/i.test(a.name));
@@ -466,6 +518,17 @@ class SpamActionHandler {
         }
       ]);
 
+      // Saved attachments info
+      if (savedFiles.length > 0) {
+        embed.addFields([
+          {
+            name: 'Saved Attachments',
+            value: `📎 ${savedFiles.length} attachment(s) were saved locally before deletion.`,
+            inline: false
+          }
+        ]);
+      }
+
       // Create action buttons
       const actionRow = new ActionRowBuilder()
         .addComponents(
@@ -489,10 +552,14 @@ class SpamActionHandler {
 
       await channel.send({ 
         embeds: [embed],
-        components: [actionRow]
+        components: [actionRow],
+        files: savedFiles.map(f => ({
+          attachment: f.buffer,
+          name: f.filename
+        }))
       });
 
-      logger.info(`[SPAM] Alert sent to channel ${alertChannelId}`);
+      logger.info(`[SPAM] Alert sent to channel ${alertChannelId} with ${savedFiles.length} saved attachment(s)`);
     } catch (error) {
       logger.error('[SPAM] Error sending mod alert:', error);
     }
@@ -599,47 +666,47 @@ class SpamActionHandler {
           return;
         }
 
-// Resolve a display tag (prefer member.user.tag, fall back to fetching the User, final fallback to the ID)
-let displayTag;
-if (member && member.user && member.user.tag) {
-  displayTag = member.user.tag;
-} else {
-  try {
-    const fetchedUser = await interaction.client.users.fetch(userId);
-    displayTag = fetchedUser.tag;
-  } catch (fetchErr) {
-    displayTag = userId; // last resort: show the ID if username can't be resolved
-  }
-}
+        // Resolve a display tag (prefer member.user.tag, fall back to fetching the User, final fallback to the ID)
+        let displayTag;
+        if (member && member.user && member.user.tag) {
+          displayTag = member.user.tag;
+        } else {
+          try {
+            const fetchedUser = await interaction.client.users.fetch(userId);
+            displayTag = fetchedUser.tag;
+          } catch (fetchErr) {
+            displayTag = userId; // last resort: show the ID if username can't be resolved
+          }
+        }
 
-// Ban the user (works even if they've left the server)
-try {
-  await interaction.guild.bans.create(userId, {
-    reason: `Spam detected & actioned by ${interaction.user.tag}`
-  });
+        // Ban the user (works even if they've left the server)
+        try {
+          await interaction.guild.bans.create(userId, {
+            reason: `Spam detected & actioned by ${interaction.user.tag}`
+          });
 
-  await interaction.reply({
-    content: `⛔ User ${displayTag} (ID:${userId}) has been banned for spam.`,
-    ephemeral: true
-  });
+          await interaction.reply({
+            content: `⛔ User ${displayTag} (ID:${userId}) has been banned for spam.`,
+            ephemeral: true
+          });
 
-  logger.info(`[SPAM] User ${displayTag} (${userId}) banned by moderator ${interaction.user.tag}`);
-} catch (err) {
-  // Error code 10026 = "Unknown Ban" (user already banned)
-  if (err.code === 10026) {
-    await interaction.reply({
-      content: `⚠️ User ${displayTag} (ID:${userId}) is **already banned**.`,
-      ephemeral: true
-    });
-    logger.info(`[SPAM] User ${displayTag} (${userId}) was already banned`);
-  } else {
-    logger.error('[SPAM] Failed to ban user:', err);
-    await interaction.reply({
-      content: `❌ Failed to ban user ${displayTag} (ID:${userId}). Error: ${err.message}`,
-      ephemeral: true
-    });
-  }
-}
+          logger.info(`[SPAM] User ${displayTag} (${userId}) banned by moderator ${interaction.user.tag}`);
+        } catch (err) {
+          // Error code 10026 = "Unknown Ban" (user already banned)
+          if (err.code === 10026) {
+            await interaction.reply({
+              content: `⚠️ User ${displayTag} (ID:${userId}) is **already banned**.`,
+              ephemeral: true
+            });
+            logger.info(`[SPAM] User ${displayTag} (${userId}) was already banned`);
+          } else {
+            logger.error('[SPAM] Failed to ban user:', err);
+            await interaction.reply({
+              content: `❌ Failed to ban user ${displayTag} (ID:${userId}). Error: ${err.message}`,
+              ephemeral: true
+            });
+          }
+        }
 
         break;
 
