@@ -140,14 +140,10 @@ async function getBannedUsers(guildId) {
 async function grantSnapSmith(userId, guildId, member) {
   try {
     // Check if banned
-const banned = await isBanned(userId, guildId);
-if (banned) {
-  return { success: false, message: '❌ This user is banned from receiving the SnapSmith role.' };
-}
-
-
-  return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-}
+    const banned = await isBanned(userId, guildId);
+    if (banned) {
+      return { success: false, message: '❌ This user is banned from receiving the SnapSmith role.' };
+    }
 
     // Get or create record
     await getOrCreateSnapSmith(userId, guildId);
