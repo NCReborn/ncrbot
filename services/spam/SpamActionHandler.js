@@ -729,7 +729,7 @@ case 'ban': {
         }
 
         break;
-
+}
       case 'adjust':
         if (!member) {
           await interaction.reply({ 
