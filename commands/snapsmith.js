@@ -303,6 +303,71 @@ const unbanCommand = {
   },
 };
 
+// ─── /snapsmith-ban-list (Ripperdoc+ only) ─────────────────────────────────────
+
+const banListCommand = {
+  data: new SlashCommandBuilder()
+    .setName('snapsmith-ban-list')
+    .setDescription('Show all users banned from receiving SnapSmith (Ripperdoc+ only)'),
+
+  async execute(interaction) {
+    if (!isRipperdocPlus(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Only Ripperdocs+ can use this command.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    try {
+      const bannedUsers = await snapsmith.getBannedUsers(interaction.guild.id);
+
+      if (!bannedUsers || bannedUsers.length === 0) {
+        const embed = new EmbedBuilder()
+          .setColor(0x95a5a6)
+          .setTitle('🔧 SnapSmith Ban List')
+          .setDescription('There are currently **no banned users**.');
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      const lines = [];
+      for (const user of bannedUsers) {
+        let display = `ID: ${user.user_id}`;
+        try {
+          const fetched = await interaction.client.users.fetch(user.user_id);
+          display = `${fetched.tag} (${user.user_id})`;
+        } catch (_) {
+          // user not fetchable (left server / not cached) — keep ID only
+        }
+        lines.push(`• ${display}`);
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('🔧 SnapSmith Ban List')
+        .setDescription(lines.join('\n'))
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+
+      logger.info(`[SNAPSMITH] Ban list viewed by ${interaction.user.tag}`);
+    } catch (err) {
+      logger.error(`[SNAPSMITH] Failed to fetch ban list: ${err.message}`);
+      return interaction.editReply({
+        content: `❌ Failed to fetch ban list: ${err.message}`
+      });
+    }
+  }
+};
+
 // ─── Module export ────────────────────────────────────────────────────────────
 
-module.exports = [checkCommand, grantCommand, removeCommand, banCommand, unbanCommand];
+module.exports = [
+  checkCommand,
+  grantCommand,
+  removeCommand,
+  banCommand,
+  unbanCommand,
+  banListCommand,
+];
