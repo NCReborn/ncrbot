@@ -1,6 +1,6 @@
 'use strict';
 
-const mysql = require('mysql2/ppromise');
+const mysql = require('mysql2/promise');
 const logger = require('./logger');
 
 let pool = null;
