@@ -5,7 +5,7 @@ const {
   buildFinalActionEmbed
 } = require('../../utils/embed');
 
-const modActions = require('../modActions');
+const modActions = require('../../utils/modActions');
 const logger = require('../../utils/logger');
 const CONSTANTS = require('../../config/constants');
 const spamConfig = require('../../config/spamConfig.json');
