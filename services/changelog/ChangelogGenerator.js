@@ -4,7 +4,6 @@ const GameVersionManager = require('../../utils/GameVersionManager');
 const NCRTemplate = require('./templates/NCRTemplate');
 const E33Template = require('./templates/E33Template');
 const Sub2Template = require('./templates/Sub2Template');
-const postChangelogToWebsite = require('./postToWebsite');
 
 class ChangelogGenerator {
   constructor() {
@@ -59,7 +58,6 @@ class ChangelogGenerator {
       await this.sendModChanges(channel, template, revisionData);
 
       logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId})`);
-      await postChangelogToWebsite(groupConfig, revisionData);
     } catch (error) {
       logger.error(`[CHANGELOG] Error generating changelog:`, error);
     }
