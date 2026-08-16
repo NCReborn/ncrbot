@@ -1,8 +1,23 @@
+// services/spam/SpamDetector.js
+
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
 const CONSTANTS = require('../../config/constants');
 const userActivityTracker = require('./UserActivityTracker');
+
+// Load rule modules
+const multiChannelSpam = require('./rules/multiChannelSpam');
+const rapidPosting = require('./rules/rapidPosting');
+const imageSpam = require('./rules/imageSpam');
+const suspiciousPatterns = require('./rules/suspiciousPatterns');
+const newAccountRule = require('./rules/newAccount');
+const dormantUserSpam = require('./rules/dormantUserSpam');
+const channelCarpetBomb = require('./rules/channelCarpetBomb');
+
+// NEW advanced rules
+const dormantActivation = require('./rules/dormantActivation');
+const singleImageScam = require('./rules/singleImageScam');
 
 const CONTENT_PREVIEW_LENGTH = 100;
 
@@ -10,10 +25,10 @@ class SpamDetector {
   constructor() {
     this.configPath = path.join(__dirname, '../../config/spamConfig.json');
     this.config = this.loadConfig();
-    
+
     // Track user activity: userId -> { messages: [], channels: Set, images: [] }
     this.userActivity = new Map();
-    
+
     // Clean up old activity every 5 minutes
     setInterval(() => this.cleanupOldActivity(), 5 * 60 * 1000);
   }
@@ -60,7 +75,7 @@ class SpamDetector {
 
   trackMessage(message, member) {
     const userId = message.author.id;
-    
+
     if (!this.userActivity.has(userId)) {
       this.userActivity.set(userId, {
         messages: [],
@@ -72,7 +87,6 @@ class SpamDetector {
     const activity = this.userActivity.get(userId);
     const now = Date.now();
 
-    // Track message with timestamp
     activity.messages.push({
       id: message.id,
       channelId: message.channelId,
@@ -82,10 +96,8 @@ class SpamDetector {
       attachments: Array.from(message.attachments.values()).map(a => ({ url: a.url, name: a.name }))
     });
 
-    // Track channel
     activity.channels.add(message.channelId);
 
-    // Track images
     if (message.attachments.size > 0 || this.hasImageEmbed(message)) {
       activity.images.push({
         messageId: message.id,
@@ -101,305 +113,102 @@ class SpamDetector {
 
   cleanupOldActivity() {
     const now = Date.now();
-    const maxAge = 5 * 60 * 1000; // 5 minutes
+    const maxAge = 5 * 60 * 1000;
 
     for (const [userId, activity] of this.userActivity.entries()) {
-      // Remove old messages
       activity.messages = activity.messages.filter(msg => now - msg.timestamp < maxAge);
       activity.images = activity.images.filter(img => now - img.timestamp < maxAge);
 
-      // Rebuild channels set from current messages
       activity.channels = new Set(activity.messages.map(msg => msg.channelId));
 
-      // Remove user if no recent activity
       if (activity.messages.length === 0) {
         this.userActivity.delete(userId);
       }
     }
   }
 
-  isNewAccount(member) {
-    const accountAge = Date.now() - member.user.createdTimestamp;
-    const daysOld = accountAge / (1000 * 60 * 60 * 24);
-    return daysOld < (this.config.rules.newAccountMonitoring?.accountAgeDays || 7);
-  }
-
   async detectSpam(message, member) {
-    // Skip if system is disabled
     if (!this.config.enabled) return null;
-
-    // Skip bots
     if (message.author.bot) return null;
-
-    // Skip whitelisted users
     if (this.isWhitelisted(member)) return null;
 
-    // Record message in persistent activity tracker
+    // Persistent activity tracker
     userActivityTracker.recordMessage(message, member);
 
-    // Track this message
+    // Local activity tracker
     this.trackMessage(message, member);
 
     const userId = message.author.id;
     const activity = this.userActivity.get(userId);
-    const now = Date.now();
+    const activityStats = userActivityTracker.getActivity(message.guildId, userId);
 
     const triggeredRules = [];
     const evidence = [];
 
-    // 1. Multi-Channel Spam Detection
-    if (this.config.rules.multiChannelSpam?.enabled) {
-      const rule = this.config.rules.multiChannelSpam;
-      const timeWindow = rule.timeWindowSeconds * 1000;
-      
-      const recentMessages = activity.messages.filter(msg => 
-        now - msg.timestamp < timeWindow
-      );
+    // Load rule configs
+    const cfg = this.config.rules;
 
-      const uniqueChannels = new Set(recentMessages.map(msg => msg.channelId));
-      
-      if (uniqueChannels.size >= rule.channelCount) {
-        const timeSpan = ((now - recentMessages[0].timestamp) / 1000).toFixed(0);
+    // Run rule modules
+    const ruleResults = [
+      multiChannelSpam(message, activity, cfg.multiChannelSpam),
+      rapidPosting(message, activity, cfg.rapidPosting),
+      imageSpam(message, activity, cfg.imageSpam),
+      suspiciousPatterns(message, activity, cfg.suspiciousPatterns, activityStats),
+      newAccountRule(member, cfg.newAccountMonitoring, triggeredRules),
+      dormantUserSpam(message, activityStats, cfg.dormantUserSpam),
+      channelCarpetBomb(message, activity, cfg.channelCarpetBomb),
+
+      // NEW advanced rules
+      await dormantActivation(message, activityStats),
+      await singleImageScam(message, activityStats)
+    ];
+
+    // Collect triggered rules
+    for (const result of ruleResults) {
+      if (result && result.triggered) {
         triggeredRules.push({
-          name: 'Multi-Channel Spam',
-          description: `Posted in ${uniqueChannels.size} channels in ${timeSpan} seconds`,
-          severity: 'high'
-        });
-        
-        // Add evidence
-        recentMessages.slice(0, 5).forEach(msg => {
-          evidence.push({
-            messageId: msg.id,
-            channelId: msg.channelId,
-            content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH),
-            attachments: msg.attachments || []
-          });
-        });
-      }
-    }
-
-    // 2. Rapid Posting Detection
-    if (this.config.rules.rapidPosting?.enabled) {
-      const rule = this.config.rules.rapidPosting;
-      
-      // Skip if in excluded channel
-      if (!rule.excludeChannels.includes(message.channelId)) {
-        const timeWindow = rule.timeWindowSeconds * 1000;
-        
-        const recentMessages = activity.messages.filter(msg => 
-          now - msg.timestamp < timeWindow
-        );
-
-        if (recentMessages.length >= rule.messageCount) {
-          const timeSpan = ((now - recentMessages[0].timestamp) / 1000).toFixed(0);
-          triggeredRules.push({
-            name: 'Rapid Posting',
-            description: `Posted ${recentMessages.length} messages in ${timeSpan} seconds`,
-            severity: 'high'
-          });
-        }
-      }
-    }
-
-    // 3. Image Spam Detection
-    if (this.config.rules.imageSpam?.enabled) {
-      const rule = this.config.rules.imageSpam;
-      
-      // Skip if in excluded channel
-      if (!rule.excludeChannels.includes(message.channelId)) {
-        const timeWindow = rule.timeWindowSeconds * 1000;
-        
-        const recentImages = activity.images.filter(img => 
-          now - img.timestamp < timeWindow
-        );
-
-        if (recentImages.length >= rule.imageCount) {
-          const timeSpan = ((now - recentImages[0].timestamp) / 1000).toFixed(0);
-          triggeredRules.push({
-            name: 'Image Spam',
-            description: `Posted ${recentImages.length} images in ${timeSpan} seconds`,
-            severity: 'high'
-          });
-        }
-      }
-    }
-
-    // 4. Suspicious Pattern Detection
-    if (this.config.rules.suspiciousPatterns?.enabled) {
-      const rule = this.config.rules.suspiciousPatterns;
-
-      // Skip pattern check for established users
-      let skipPatterns = false;
-      if (rule.minMessagesExempt) {
-        const activityStats = userActivityTracker.getActivity(message.guildId, message.author.id);
-        if (activityStats && activityStats.messages >= rule.minMessagesExempt) {
-          skipPatterns = true;
-        }
-      }
-
-      if (!skipPatterns) {
-        const content = rule.caseSensitive ? message.content : message.content.toLowerCase();
-
-        for (const pattern of rule.patterns) {
-          const searchPattern = rule.caseSensitive ? pattern : pattern.toLowerCase();
-          if (content.includes(searchPattern)) {
-            // Skip if requiresOtherTrigger is set and no other rules have fired yet
-            if (rule.requiresOtherTrigger && triggeredRules.length === 0) {
-              break;
-            }
-
-            triggeredRules.push({
-              name: 'Suspicious Pattern',
-              description: `"${pattern}" detected`,
-              severity: 'critical'
-            });
-
-            evidence.push({
-              messageId: message.id,
-              channelId: message.channelId,
-              content: message.content.substring(0, CONTENT_PREVIEW_LENGTH),
-              attachments: Array.from(message.attachments.values()).map(a => ({ url: a.url, name: a.name }))
-            });
-            break;
-          }
-        }
-      }
-    }
-
-    // 5. New Account Monitoring
-    const isNewAccount = this.isNewAccount(member);
-    if (this.config.rules.newAccountMonitoring?.enabled && isNewAccount) {
-      const requiresOtherTrigger = this.config.rules.newAccountMonitoring.requiresOtherTrigger;
-      
-      // Only flag if other rules were triggered OR if requiresOtherTrigger is false
-      if (!requiresOtherTrigger || triggeredRules.length > 0) {
-        const accountAge = Math.floor((Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60));
-        triggeredRules.push({
-          name: 'New Account',
-          description: `Account <7 days old (${accountAge} hours)`,
-          severity: 'warning'
-        });
-      }
-    }
-
-    // 6. Dormant User Spam Detection
-    if (this.config.rules.dormantUserSpam?.enabled) {
-      const rule = this.config.rules.dormantUserSpam;
-      const serverAge = userActivityTracker.getServerAge(message.guildId, message.author.id);
-      
-      // Check if user has been in server long enough
-      if (serverAge >= rule.minServerAgeDays) {
-        const activity = userActivityTracker.getActivity(message.guildId, message.author.id);
-        
-        // Get current activity counts (includes this message since recordMessage was already called)
-        const totalMessages = activity ? activity.messages : 0;
-        const totalMedia = activity ? activity.media : 0;
-        
-        // Count images in current message
-        let currentImageCount = 0;
-        if (message.attachments.size > 0) {
-          const imageAttachments = Array.from(message.attachments.values()).filter(attachment => {
-            const contentType = attachment.contentType || '';
-            return contentType.startsWith('image/');
-          });
-          currentImageCount += imageAttachments.length;
-        }
-        if (message.embeds.length > 0) {
-          const embedsWithImages = message.embeds.filter(embed => embed.image || embed.thumbnail);
-          currentImageCount += embedsWithImages.length;
-        }
-        
-        // Calculate historical stats (exclude current message)
-        const historicalMessages = Math.max(0, totalMessages - 1);
-        const historicalMedia = Math.max(0, totalMedia - currentImageCount);
-        
-        // Check dormant criteria: low historical messages, no historical media, but posting multiple images now
-        if (historicalMessages <= rule.maxHistoricalMessages && 
-            historicalMedia <= rule.maxHistoricalMedia && 
-            currentImageCount >= rule.minCurrentImages) {
-          
-          triggeredRules.push({
-            name: 'Dormant User Spam',
-            description: `Dormant user (${historicalMessages} prev msg, ${historicalMedia} prev media) posting ${currentImageCount} images`,
-            severity: rule.severity || 'high'
-          });
-          
-          evidence.push({
-            messageId: message.id,
-            channelId: message.channelId,
-            content: message.content.substring(0, CONTENT_PREVIEW_LENGTH),
-            attachments: Array.from(message.attachments.values()).map(a => ({ url: a.url, name: a.name }))
-          });
-        }
-      }
-    }
-
-    // 7. Channel Carpet-Bomb Detection
-    if (this.config.rules.channelCarpetBomb?.enabled) {
-      const rule = this.config.rules.channelCarpetBomb;
-      const timeWindow = rule.timeWindowSeconds * 1000;
-      const watchedSet = new Set(rule.watchedChannels);
-
-      const recentWatchedMessages = activity.messages.filter(msg =>
-        now - msg.timestamp < timeWindow && watchedSet.has(msg.channelId)
-      );
-
-      const uniqueWatchedChannels = new Set(recentWatchedMessages.map(msg => msg.channelId));
-
-      if (uniqueWatchedChannels.size >= rule.minChannelHits) {
-        const earliestTimestamp = Math.min(...recentWatchedMessages.map(m => m.timestamp));
-        const timeSpan = ((now - earliestTimestamp) / 1000).toFixed(0);
-        triggeredRules.push({
-          name: 'Channel Carpet-Bomb',
-          description: `Posted in ${uniqueWatchedChannels.size} watched entry-point channels in ${timeSpan} seconds`,
-          severity: rule.severity || 'critical'
+          name: result.ruleName,
+          description: result.description || "",
+          severity: result.severity || "high",
+          score: result.score || 1
         });
 
-        recentWatchedMessages.forEach(msg => {
-          evidence.push({
-            messageId: msg.id,
-            channelId: msg.channelId,
-            content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH),
-            attachments: msg.attachments || []
-          });
-        });
+        if (result.evidence?.length > 0) {
+          evidence.push(...result.evidence);
+        }
       }
     }
 
-    // Return detection result
-    if (triggeredRules.length > 0) {
-      const activityStats = userActivityTracker.getActivity(message.guildId, message.author.id);
-
-      // Calculate confidence score based on severity of triggered rules
-      const severityPoints = { critical: 3, high: 2, warning: 1 };
-      const confidenceScore = triggeredRules.reduce((sum, rule) => {
-        return sum + (severityPoints[rule.severity] || 0);
-      }, 0);
-
-      const threshold = this.config.confidenceThreshold ?? 3;
-
-      // If the only triggered rule is a Suspicious Pattern, force low confidence
-      // regardless of score — keyword-only matches are the primary source of false positives
-      const onlySuspiciousPattern =
-        triggeredRules.length === 1 && triggeredRules[0].name === 'Suspicious Pattern';
-
-      const confidenceLevel = (onlySuspiciousPattern || confidenceScore < threshold) ? 'low' : 'high';
-
-      return {
-        detected: true,
-        userId: userId,
-        triggeredRules,
-        evidence: evidence.length > 0 ? evidence : this.getRecentMessages(userId, 3),
-        accountCreated: member.user.createdTimestamp,
-        joinedServer: member.joinedTimestamp,
-        isNewAccount,
-        activityStats: activityStats || null,
-        confidenceScore,
-        confidenceLevel
-      };
+    if (triggeredRules.length === 0) {
+      return null;
     }
 
-    return null;
+    // Confidence scoring
+    const severityPoints = { critical: 3, high: 2, warning: 1 };
+    const confidenceScore = triggeredRules.reduce((sum, rule) => {
+      return sum + (severityPoints[rule.severity] || 0);
+    }, 0);
+
+    const threshold = this.config.confidenceThreshold ?? 3;
+
+    const onlySuspiciousPattern =
+      triggeredRules.length === 1 && triggeredRules[0].name === "Suspicious Pattern";
+
+    const confidenceLevel =
+      (onlySuspiciousPattern || confidenceScore < threshold) ? "low" : "high";
+
+    return {
+      detected: true,
+      userId,
+      triggeredRules,
+      evidence: evidence.length > 0 ? evidence : this.getRecentMessages(userId, 3),
+      accountCreated: member.user.createdTimestamp,
+      joinedServer: member.joinedTimestamp,
+      isNewAccount: newAccountRule(member, cfg.newAccountMonitoring, triggeredRules).triggered,
+      activityStats,
+      confidenceScore,
+      confidenceLevel
+    };
   }
 
   getRecentMessages(userId, limit = 5) {
@@ -416,7 +225,6 @@ class SpamDetector {
       }));
   }
 
-  // Public method to get user activity for debugging
   getUserActivity(userId) {
     return this.userActivity.get(userId) || null;
   }

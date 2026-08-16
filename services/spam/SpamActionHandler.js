@@ -1,736 +1,260 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const logger = require('../../utils/logger');
-const spamDetector = require('./SpamDetector');
+// services/spam/SpamActionHandler.js
 
-const CONTENT_PREVIEW_LENGTH = 100;
-const MAX_DETECTION_HISTORY = 100;
+const {
+  buildSpamAlertEmbed,
+  buildFinalActionEmbed
+} = require('../../utils/embed');
+
+const modActions = require('../modActions');
+const logger = require('../../utils/logger');
+const CONSTANTS = require('../../config/constants');
+const spamConfig = require('../../config/spamConfig.json');
 
 class SpamActionHandler {
-  constructor() {
-    this.configPath = path.join(__dirname, '../../config/spamConfig.json');
-    this.statsPath = path.join(__dirname, '../../data/spamStats.json');
-    this.config = this.loadConfig();
-    this.stats = this.loadStats();
+  constructor(client) {
+    this.client = client;
 
-    // In-memory tracking of active alerts per user
-    // Structure:
-    // this.activeAlerts[userId] = {
-    //   channelId,
-    //   messageId,
-    //   resolved: false
-    // }
-    this.activeAlerts = {};
-  }
-
-  loadConfig() {
-    try {
-      const data = fs.readFileSync(this.configPath, 'utf8');
-      return JSON.parse(data);
-    } catch (error) {
-      logger.error('Failed to load spam config:', error);
-      return { alertChannelId: null, defaultTimeoutSeconds: 43200 };
-    }
-  }
-
-  loadStats() {
-    try {
-      if (fs.existsSync(this.statsPath)) {
-        const data = fs.readFileSync(this.statsPath, 'utf8');
-        return JSON.parse(data);
-      }
-    } catch (error) {
-      logger.error('Failed to load spam stats:', error);
-    }
-    return { totalDetections: 0, detections: [] };
-  }
-
-  saveStats() {
-    try {
-      fs.writeFileSync(this.statsPath, JSON.stringify(this.stats, null, 2));
-    } catch (error) {
-      logger.error('Failed to save spam stats:', error);
-    }
+    // Track active alerts: userId -> { message, embed, locked }
+    this.activeAlerts = new Map();
   }
 
   /**
-   * Check if a user has permission to ban (Fixer+ roles)
-   * Ripperdoc role: 1288633895910375464 (cannot ban)
-   * Moderator roles: 1370874936456908931 (can ban)
+   * Handle a spam detection event
    */
-  canUserBan(member) {
-    const RIPPERDOC_ROLE_ID = '1288633895910375464';
-    const MODERATOR_ROLE_IDS = ['1370874936456908931'];
-    
-    // Check if user is admin
-    if (member.permissions.has('Administrator')) {
-      return true;
-    }
-    
-    // Check if user has Ripperdoc role and ONLY Ripperdoc (cannot ban)
-    if (member.roles.cache.has(RIPPERDOC_ROLE_ID)) {
-      // Check if they also have any moderator roles
-      const hasModerator = MODERATOR_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
-      if (!hasModerator) {
-        return false; // Only has Ripperdoc, cannot ban
-      }
-    }
-    
-    // Check if user has any Fixer/Moderator role
-    return MODERATOR_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
-  }
+  async handleDetection(detection, message) {
+    const { userId, triggeredRules, confidenceLevel, confidenceScore, evidence } = detection;
 
-  async handleSpamDetection(client, message, member, detectionResult) {
-    if (detectionResult.confidenceLevel === 'high') {
-      await this.handleHighConfidenceDetection(client, message, member, detectionResult);
-    } else {
-      await this.handleLowConfidenceDetection(client, message, member, detectionResult);
-    }
-  }
-
-  /**
-   * Helper: get or create the alert message for a user, and return { channel, message }
-   * This is the core of the "single evolving alert" behavior.
-   */
-  async getOrCreateAlertMessage(client, member, detectionResult, isHighConfidence, deletedMessages = [], timeoutUntil = null) {
-    const alertChannelId = this.config.alertChannelId;
-    if (!alertChannelId) {
-      logger.warn('[SPAM] No alert channel configured');
-      return null;
-    }
-
-    const userId = member.user.id;
-
-    // If alert is already resolved (moderator took action), do not update or create new
-    if (this.activeAlerts[userId] && this.activeAlerts[userId].resolved) {
-      logger.info(`[SPAM] Alert for user ${userId} is resolved; skipping update.`);
-      return null;
-    }
-
-    const channel = await client.channels.fetch(alertChannelId);
-    if (!channel) {
-      logger.warn(`[SPAM] Alert channel ${alertChannelId} not found`);
-      return null;
-    }
-
-    let message = null;
-
-    if (this.activeAlerts[userId]) {
-      // Try to fetch existing message
-      try {
-        message = await channel.messages.fetch(this.activeAlerts[userId].messageId);
-      } catch (err) {
-        logger.warn(`[SPAM] Failed to fetch existing alert message for user ${userId}, creating new one.`, err);
-        message = null;
-      }
-    }
-
-    // Build embed based on confidence level and whether action was taken
-    const embed = new EmbedBuilder()
-      .setTimestamp()
-      .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 128 }));
-
-    // User info
-    embed.addFields([
-      { 
-        name: 'User', 
-        value: `${member.user.tag} (${member.user.id})`,
-        inline: true 
-      },
-      { 
-        name: 'Account Created', 
-        value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`,
-        inline: true 
-      }
-    ]);
-
-    if (member.joinedTimestamp) {
-      embed.addFields([{
-        name: 'Joined Server',
-        value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`,
-        inline: true
-      }]);
-    }
-
-    // Server Activity History
-    if (detectionResult.activityStats) {
-      const stats = detectionResult.activityStats;
-      const firstMessageTime = Math.floor(stats.firstMessageAt / 1000);
-      const activityText = [
-        `💬 **Messages:** ${stats.messages}`,
-        `🔗 **Links:** ${stats.links}`,
-        `📷 **Media:** ${stats.media}`,
-        `⏱️ **First Message:** <t:${firstMessageTime}:R>`
-      ].join('\n');
-
-      embed.addFields([{
-        name: '📊 Server Activity History',
-        value: activityText,
-        inline: false
-      }]);
-    } else {
-      embed.addFields([{
-        name: '📊 Server Activity History',
-        value: '⚠️ No activity history available',
-        inline: false
-      }]);
-    }
-
-    // Triggered rules (merge all rules from detectionResult)
-    const rulesText = detectionResult.triggeredRules
-      .map(rule => {
-        const emoji = rule.severity === 'critical' ? '❌' : 
-                     rule.severity === 'high' ? '⚠️' : 
-                     rule.severity === 'warning' ? '⚠️' : '•';
-        return `${emoji} **${rule.name}**: ${rule.description}`;
-      })
-      .join('\n');
-
-    embed.addFields([{
-      name: 'Triggered Rules',
-      value: rulesText,
-      inline: false
-    }]);
-
-    // Evidence (limit to a few items)
-    if (detectionResult.evidence && detectionResult.evidence.length > 0) {
-      const evidenceItems = detectionResult.evidence.slice(0, 3);
-      const evidenceText = evidenceItems
-        .map((ev, idx) => {
-          const channelMention = `<#${ev.channelId}>`;
-          const content = ev.content ? `"${ev.content}${ev.content.length >= 100 ? '...' : ''}"` : '[No text content]';
-          const attachmentLine = ev.attachments && ev.attachments.length > 0
-            ? `\n📎 Attachments: ${ev.attachments.map(a => a.name).join(', ')}`
-            : '';
-          return `**Message ${idx + 1}** (in ${channelMention}): ${content}${attachmentLine}`;
-        })
-        .join('\n\n');
-
-      embed.addFields([{
-        name: 'Evidence',
-        value: evidenceText,
-        inline: false
-      }]);
-
-      // Show first image attachment as a preview
-      const firstImageAttachment = evidenceItems
-        .flatMap(ev => ev.attachments || [])
-        .find(a => a.name && /\.(jpe?g|png|gif|webp)$/i.test(a.name));
-      if (firstImageAttachment) {
-        embed.setImage(firstImageAttachment.url);
-      }
-    }
-
-    // Confidence and status
-    const threshold = this.config.confidenceThreshold ?? 3;
-    const confidenceScore = detectionResult.confidenceScore ?? 'N/A';
-
-    if (!isHighConfidence) {
-      embed.setTitle('⚠️ Suspicious Activity — Review Required');
-      embed.setColor(0xFFA500);
-      embed.addFields([
-        {
-          name: 'Status',
-          value: 'ℹ️ **No automatic action taken** — This detection had low confidence. Please review and take action if needed.',
-          inline: false
-        },
-        {
-          name: 'Confidence',
-          value: `📊 **Confidence:** Low (score: ${confidenceScore}/${threshold})`,
-          inline: false
-        }
-      ]);
-    } else {
-      embed.setTitle('🚨 Spam Detected & Actioned');
-      embed.setColor(0xFF0000);
-
-      const channelCount = deletedMessages && deletedMessages.length > 0
-        ? new Set(deletedMessages.map(m => m.channelId)).size
-        : 0;
-
-      const timeoutHours = this.config.defaultTimeoutSeconds / 3600;
-      const actionsText = [
-        deletedMessages && deletedMessages.length > 0
-          ? `✅ Deleted ${deletedMessages.length} messages across ${channelCount} channel(s)`
-          : '✅ No messages deleted (none found in window)',
-        `✅ Timed out for ${timeoutHours} hours`,
-        timeoutUntil
-          ? `✅ Timeout expires <t:${Math.floor(timeoutUntil.getTime() / 1000)}:R>`
-          : '✅ Timeout active'
-      ].join('\n');
-
-      embed.addFields([
-        {
-          name: 'Actions Taken',
-          value: actionsText,
-          inline: false
-        },
-        {
-          name: 'Confidence',
-          value: `📊 **Confidence:** High (score: ${confidenceScore})`,
-          inline: false
-        }
-      ]);
-    }
-
-    // Build action buttons (only if not resolved)
-    let components = [];
-    if (!this.activeAlerts[userId] || !this.activeAlerts[userId].resolved) {
-      const actionRow = new ActionRowBuilder()
-        .addComponents(
-          // "Confirmed Spam" removed as requested
-          new ButtonBuilder()
-            .setCustomId(`spam_false_${member.user.id}`)
-            .setLabel('❌ False Positive')
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId(`spam_ban_${member.user.id}`)
-            .setLabel('⛔ Ban User')
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`spam_adjust_${member.user.id}`)
-            .setLabel('⏱️ Adjust Timeout')
-            .setStyle(ButtonStyle.Primary)
-        );
-
-      components = [actionRow];
-    }
-
-    if (!message) {
-      // Create new alert message
-      const sent = await channel.send({
-        embeds: [embed],
-        components
-      });
-
-      this.activeAlerts[userId] = {
-        channelId: channel.id,
-        messageId: sent.id,
-        resolved: false
-      };
-
-      logger.info(`[SPAM] Created new alert message for user ${userId} in channel ${alertChannelId}`);
-      return { channel, message: sent };
-    } else {
-      // Edit existing alert message
-      await message.edit({
-        embeds: [embed],
-        components
-      });
-
-      logger.info(`[SPAM] Updated existing alert message for user ${userId}`);
-      return { channel, message };
-    }
-  }
-
-  async handleHighConfidenceDetection(client, message, member, detectionResult) {
-    try {
-      logger.info(`[SPAM] High-confidence spam detected for user ${member.user.tag} (${member.user.id})`);
-
-      // 1. Delete recent spam messages
-      const deletedMessages = await this.deleteRecentMessages(message.guild, member.user.id, detectionResult);
-
-      // 2. Timeout the user (bot-side action, does NOT lock alert)
-      const timeoutDuration = this.config.defaultTimeoutSeconds * 1000;
-      const timeoutUntil = new Date(Date.now() + timeoutDuration);
-      
-      await member.timeout(timeoutDuration, 'Spam detection: ' + detectionResult.triggeredRules.map(r => r.name).join(', '));
-      
-      logger.info(`[SPAM] User ${member.user.tag} timed out until ${timeoutUntil.toISOString()}`);
-
-      // 3. Create or update mod alert (single evolving alert)
-      await this.getOrCreateAlertMessage(client, member, detectionResult, true, deletedMessages, timeoutUntil);
-
-      // 4. Record stats
-      this.recordDetection(member.user.id, detectionResult);
-
-    } catch (error) {
-      logger.error('[SPAM] Error handling high-confidence spam detection:', error);
-    }
-  }
-
-  async handleLowConfidenceDetection(client, message, member, detectionResult) {
-    try {
-      logger.info(`[SPAM] Low-confidence detection for user ${member.user.tag} (${member.user.id}) — review required`);
-
-      // Single evolving alert: create or update low-confidence alert
-      await this.getOrCreateAlertMessage(client, member, detectionResult, false);
-
-      // Record stats
-      this.recordDetection(member.user.id, detectionResult);
-
-    } catch (error) {
-      logger.error('[SPAM] Error handling low-confidence detection:', error);
-    }
-  }
-
-  async deleteRecentMessages(guild, userId, detectionResult) {
-    const deletedMessages = [];
-    const timeWindow = 60 * 1000; // Last 60 seconds
-    const now = Date.now();
-
-    try {
-      // Get all channels mentioned in evidence
-      const channelIds = new Set(detectionResult.evidence.map(e => e.channelId));
-
-      // Also include ALL channels from the detector's tracked activity
-      const userActivity = spamDetector.getUserActivity(userId);
-      if (userActivity) {
-        for (const channelId of userActivity.channels) {
-          channelIds.add(channelId);
-        }
-      }
-
-      for (const channelId of channelIds) {
-        try {
-          const channel = await guild.channels.fetch(channelId);
-          if (!channel || !channel.isTextBased()) continue;
-
-          // Fetch recent messages
-          const messages = await channel.messages.fetch({ limit: 50 });
-          
-          // Filter messages from this user in the time window
-          const userMessages = messages.filter(msg => 
-            msg.author.id === userId && 
-            now - msg.createdTimestamp < timeWindow
-          );
-
-          // Delete them
-          for (const msg of userMessages.values()) {
-            try {
-              await msg.delete();
-              deletedMessages.push({
-                id: msg.id,
-                channelId: msg.channelId,
-                content: msg.content.substring(0, CONTENT_PREVIEW_LENGTH)
-              });
-            } catch (err) {
-              logger.error(`[SPAM] Failed to delete message ${msg.id}:`, err);
-            }
-          }
-        } catch (err) {
-          logger.error(`[SPAM] Failed to process channel ${channelId}:`, err);
-        }
-      }
-
-      logger.info(`[SPAM] Deleted ${deletedMessages.length} messages from user ${userId}`);
-    } catch (error) {
-      logger.error('[SPAM] Error deleting messages:', error);
-    }
-
-    return deletedMessages;
-  }
-
-  async sendModAlert(client, member, detectionResult, deletedMessages, timeoutUntil) {
-    // This function is now effectively replaced by getOrCreateAlertMessage for high confidence,
-    // but we keep it for compatibility if needed elsewhere.
-    await this.getOrCreateAlertMessage(client, member, detectionResult, true, deletedMessages, timeoutUntil);
-  }
-
-  recordDetection(userId, detectionResult) {
-    this.stats.totalDetections++;
-    this.stats.detections.push({
-      userId,
-      timestamp: Date.now(),
-      rules: detectionResult.triggeredRules.map(r => r.name),
-      evidenceCount: detectionResult.evidence.length
-    });
-
-    // Keep only last MAX_DETECTION_HISTORY detections
-    if (this.stats.detections.length > MAX_DETECTION_HISTORY) {
-      this.stats.detections = this.stats.detections.slice(-MAX_DETECTION_HISTORY);
-    }
-
-    this.saveStats();
-  }
-
-  // Helper: lock alert after moderator action (remove buttons, add final action info)
-  async lockAlertAfterAction(interaction, userId, actionDescription) {
-    const alertInfo = this.activeAlerts[userId];
-    if (!alertInfo) {
+    // If alert already exists and is locked, do nothing
+    if (this.activeAlerts.has(userId) && this.activeAlerts.get(userId).locked) {
       return;
     }
 
-    try {
-      const channel = await interaction.client.channels.fetch(alertInfo.channelId);
-      if (!channel) return;
+    // Build embed fields
+    const fields = this.buildFields(detection);
 
-      const message = await channel.messages.fetch(alertInfo.messageId);
-      if (!message) return;
+    // Build embed using embed.js
+    const embed = buildSpamAlertEmbed({
+      title: confidenceLevel === 'high'
+        ? '🚨 High Confidence Spam Detected'
+        : '⚠️ Suspicious Activity — Review Required',
+      color: confidenceLevel === 'high' ? 0xFF0000 : 0xFFA500,
+      avatar: message.author.displayAvatarURL({ dynamic: true }),
+      fields,
+      previewImage: evidence[0]?.attachments?.[0]?.url || null
+    });
 
-      const embed = message.embeds[0] ? EmbedBuilder.from(message.embeds[0]) : new EmbedBuilder();
+    // Send or update alert
+    const alertMessage = await this.sendOrUpdateAlert(userId, embed);
 
-      embed.addFields([
-        {
-          name: 'Final Action',
-          value: actionDescription,
-          inline: false
-        },
-        {
-          name: 'Moderator',
-          value: `${interaction.user.tag} (${interaction.user.id})`,
-          inline: false
-        }
-      ]);
-
-      await message.edit({
-        embeds: [embed],
-        components: [] // remove all buttons
-      });
-
-      this.activeAlerts[userId].resolved = true;
-      logger.info(`[SPAM] Alert for user ${userId} locked after moderator action: ${actionDescription}`);
-    } catch (err) {
-      logger.error('[SPAM] Failed to lock alert after action:', err);
+    // Apply automatic action if high confidence
+    if (confidenceLevel === 'high') {
+      await this.applyAutomaticAction(userId, message, triggeredRules);
+      await this.lockAlert(userId, alertMessage, embed, 'Automatic timeout applied');
     }
   }
 
-  // Handler for mod action buttons
-  async handleModAction(interaction) {
-    const [action, , userId] = interaction.customId.split('_');
-    
-    try {
-      switch (action) {
-        case 'spam':
-          await this.handleSpamAction(interaction, userId);
-          break;
-      }
-    } catch (error) {
-      logger.error('[SPAM] Error handling mod action:', error);
-      await interaction.reply({ 
-        content: 'An error occurred while processing this action.', 
-        ephemeral: true 
+  /**
+   * Build embed fields for the alert
+   */
+  buildFields(detection) {
+    const {
+      triggeredRules,
+      evidence,
+      confidenceScore,
+      confidenceLevel,
+      activityStats,
+      accountCreated,
+      joinedServer
+    } = detection;
+
+    const fields = [];
+
+    // Triggered rules
+    fields.push({
+      name: 'Triggered Rules',
+      value: triggeredRules
+        .map(rule => `• **${rule.name}** — ${rule.description}`)
+        .join('\n'),
+      inline: false
+    });
+
+    // Confidence
+    fields.push({
+      name: 'Confidence',
+      value: `**${confidenceLevel.toUpperCase()}** (score: ${confidenceScore})`,
+      inline: true
+    });
+
+    // Account info
+    fields.push({
+      name: 'Account Info',
+      value: [
+        `Created: <t:${Math.floor(accountCreated / 1000)}:R>`,
+        `Joined: <t:${Math.floor(joinedServer / 1000)}:R>`
+      ].join('\n'),
+      inline: true
+    });
+
+    // Activity history
+    if (activityStats) {
+      fields.push({
+        name: 'Server Activity History',
+        value: [
+          `Messages: ${activityStats.messages}`,
+          `Links: ${activityStats.links}`,
+          `Media: ${activityStats.media}`,
+          `First Message: ${activityStats.firstMessageTimestamp
+            ? `<t:${Math.floor(activityStats.firstMessageTimestamp / 1000)}:R>`
+            : 'Unknown'}`
+        ].join('\n'),
+        inline: false
       });
+    }
+
+    // Evidence
+    const evidenceText = evidence
+      .map((ev, i) => {
+        const attachCount = ev.attachments?.length || 0;
+        return `**Message ${i + 1}** (in <#${ev.channelId}>): ${
+          ev.content || '[No text content]'
+        }\nAttachments: ${attachCount}`;
+      })
+      .join('\n\n');
+
+    fields.push({
+      name: 'Evidence',
+      value: evidenceText || 'No evidence available',
+      inline: false
+    });
+
+    return fields;
+  }
+
+  /**
+   * Send or update an alert message
+   */
+  async sendOrUpdateAlert(userId, embed) {
+    const alertChannel = await this.client.channels.fetch(spamConfig.alertChannelId);
+
+    // Update existing alert
+    if (this.activeAlerts.has(userId)) {
+      const alert = this.activeAlerts.get(userId);
+      await alert.message.edit({ embeds: [embed] });
+      alert.embed = embed;
+      return alert.message;
+    }
+
+    // Create new alert
+    const message = await alertChannel.send({ embeds: [embed] });
+
+    this.activeAlerts.set(userId, {
+      message,
+      embed,
+      locked: false
+    });
+
+    return message;
+  }
+
+  /**
+   * Apply automatic timeout for high-confidence spam
+   */
+  async applyAutomaticAction(userId, message, triggeredRules) {
+    const member = await message.guild.members.fetch(userId).catch(() => null);
+    if (!member) return;
+
+    const timeoutSeconds = this.getTimeoutSeconds(triggeredRules);
+
+    await modActions.timeoutUser(
+      member,
+      timeoutSeconds * 1000,
+      'Automatic spam timeout (high confidence)'
+    );
+
+    logger.info(`[SPAM] Auto-timeout applied to ${member.user.tag}`);
+  }
+
+  /**
+   * Determine timeout duration based on triggered rules
+   */
+  getTimeoutSeconds(triggeredRules) {
+    for (const rule of triggeredRules) {
+      const cfg = spamConfig.rules[rule.name.replace(/ /g, '')];
+      if (cfg?.timeoutSeconds) return cfg.timeoutSeconds;
+    }
+    return spamConfig.defaultTimeoutSeconds;
+  }
+
+  /**
+   * Lock alert after moderator or automatic action
+   */
+  async lockAlert(userId, alertMessage, originalEmbed, actionDescription) {
+    const moderatorTag = 'System';
+    const moderatorId = 'N/A';
+
+    const finalEmbed = buildFinalActionEmbed({
+      originalEmbed,
+      actionDescription,
+      moderatorTag,
+      moderatorId
+    });
+
+    await alertMessage.edit({ embeds: [finalEmbed] });
+
+    const alert = this.activeAlerts.get(userId);
+    if (alert) {
+      alert.locked = true;
+      alert.embed = finalEmbed;
     }
   }
 
-  async handleSpamAction(interaction, userId) {
-    const actionType = interaction.customId.split('_')[1];
+  /**
+   * Handle moderator button interactions
+   */
+  async handleInteraction(interaction) {
+    const userId = interaction.customId.split(':')[1];
+    const alert = this.activeAlerts.get(userId);
+
+    if (!alert || alert.locked) {
+      return interaction.reply({ content: 'This alert is already resolved.', ephemeral: true });
+    }
+
     const member = await interaction.guild.members.fetch(userId).catch(() => null);
-
-    switch (actionType) {
-      case 'confirm':
-        // This path is now unused (Confirmed Spam button removed), but kept for safety.
-        if (!member) {
-          await interaction.reply({ 
-            content: 'User is no longer in the server.', 
-            ephemeral: true 
-          });
-          return;
-        }
-        
-        await interaction.reply({ 
-          content: `✅ Spam detection confirmed for ${member.user.tag}. Action logged.`,
-          ephemeral: true 
-        });
-        logger.info(`[SPAM] Moderator ${interaction.user.tag} confirmed spam for ${member.user.tag}`);
-        await this.lockAlertAfterAction(interaction, userId, `Spam confirmed (no further action recorded).`);
-        break;
-
-      case 'false':
-        if (!member) {
-          await interaction.reply({ 
-            content: 'User is no longer in the server.', 
-            ephemeral: true 
-          });
-          return;
-        }
-
-        // Remove timeout
-        await member.timeout(null, `False positive - cleared by ${interaction.user.tag}`);
-
-        // Auto-whitelist the user to prevent future false positives
-        try {
-          const configPath = path.join(__dirname, '../../config/spamConfig.json');
-          const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          if (!configData.whitelist.users.includes(member.user.id)) {
-            configData.whitelist.users.push(member.user.id);
-            await fs.promises.writeFile(configPath, JSON.stringify(configData, null, 2));
-            spamDetector.reloadConfig();
-          }
-        } catch (err) {
-          logger.error('[SPAM] Failed to auto-whitelist user:', err);
-        }
-
-        await interaction.reply({ 
-          content: `❌ Timeout removed from ${member.user.tag}. Spam detection marked as false positive. User has been auto-whitelisted.`,
-          ephemeral: true 
-        });
-        logger.info(`[SPAM] Moderator ${interaction.user.tag} marked detection as false positive for ${member.user.tag}`);
-
-        await this.lockAlertAfterAction(interaction, userId, `Marked as false positive and auto-whitelisted.`);
-        break;
-
-      case 'ban': {
-        const RIPPERDOC_ROLE_ID = '1288633895910375464';
-        const FIXER_ROLE_IDS = ['1370874936456908931'];
-
-        const isAdmin = interaction.member.permissions.has('Administrator');
-        const isRipperdoc = interaction.member.roles.cache.has(RIPPERDOC_ROLE_ID);
-        const isFixer = FIXER_ROLE_IDS.some(roleId => interaction.member.roles.cache.has(roleId));
-
-        // Admins always allowed
-        if (!isAdmin) {
-          // Ripperdocs explicitly blocked
-          if (isRipperdoc && !isFixer) {
-            await interaction.reply({
-              content: '❌ Access denied — Ripperdocs cannot ban users.',
-              ephemeral: true
-            });
-            logger.warn(`[SPAM] Ripperdoc ${interaction.user.tag} attempted to ban ${userId}`);
-            return;
-          }
-
-          // Fixers allowed
-          if (!isFixer) {
-            await interaction.reply({
-              content: '❌ Access denied — only Fixers or Admins can ban users.',
-              ephemeral: true
-            });
-            logger.warn(`[SPAM] Non-fixer user ${interaction.user.tag} attempted to ban ${userId}`);
-            return;
-          }
-        }
-
-        // Resolve a display tag (prefer member.user.tag, fall back to fetching the User, final fallback to the ID)
-        let displayTag;
-        if (member && member.user && member.user.tag) {
-          displayTag = member.user.tag;
-        } else {
-          try {
-            const fetchedUser = await interaction.client.users.fetch(userId);
-            displayTag = fetchedUser.tag;
-          } catch (fetchErr) {
-            displayTag = userId; // last resort: show the ID if username can't be resolved
-          }
-        }
-
-        // Ban the user (works even if they've left the server)
-        try {
-          await interaction.guild.bans.create(userId, {
-            reason: `Spam detected & actioned by ${interaction.user.tag}`
-          });
-
-          await interaction.reply({
-            content: `⛔ User ${displayTag} (ID:${userId}) has been banned for spam.`,
-            ephemeral: true
-          });
-
-          logger.info(`[SPAM] User ${displayTag} (${userId}) banned by moderator ${interaction.user.tag}`);
-
-          await this.lockAlertAfterAction(interaction, userId, `User banned for spam.`);
-        } catch (err) {
-          // Error code 10026 = "Unknown Ban" (user already banned)
-          if (err.code === 10026) {
-            await interaction.reply({
-              content: `⚠️ User ${displayTag} (ID:${userId}) is **already banned**.`,
-              ephemeral: true
-            });
-            logger.info(`[SPAM] User ${displayTag} (${userId}) was already banned`);
-          } else {
-            logger.error('[SPAM] Failed to ban user:', err);
-            await interaction.reply({
-              content: `❌ Failed to ban user ${displayTag} (ID:${userId}). Error: ${err.message}`,
-              ephemeral: true
-            });
-          }
-
-          // Even on failure, we do NOT lock the alert, so mods can try again or choose another action.
-        }
-
-        break;
-      }
-
-      case 'adjust': {
-        if (!member) {
-          await interaction.reply({ 
-            content: 'User is no longer in the server.', 
-            ephemeral: true 
-          });
-          return;
-        }
-
-        await interaction.reply({ 
-          content: `⏱️ To adjust timeout for ${member.user.tag}, use the /timeout command or right-click > Timeout.`,
-          ephemeral: true 
-        });
-        logger.info(`[SPAM] Moderator ${interaction.user.tag} requested timeout adjustment for ${member.user.tag}`);
-        // We do NOT lock the alert here; it's informational only.
-        break;
-      }
-
-      case 'timeout': {
-        if (!member) {
-          await interaction.reply({ 
-            content: 'User is no longer in the server.', 
-            ephemeral: true 
-          });
-          return;
-        }
-
-        const timeoutDuration = this.config.defaultTimeoutSeconds * 1000;
-        const timeoutUntil = new Date(Date.now() + timeoutDuration);
-        const timeoutHours = this.config.defaultTimeoutSeconds / 3600;
-
-        await member.timeout(timeoutDuration, `Manual timeout by ${interaction.user.tag} via review alert`);
-
-        // Delete recent messages
-        const emptyDetectionResult = { evidence: [] };
-        await this.deleteRecentMessages(interaction.guild, member.user.id, emptyDetectionResult);
-
-        await interaction.reply({
-          content: `⏱️ User ${member.user.tag} has been timed out for ${timeoutHours} hours.`,
-          ephemeral: true
-        });
-        logger.info(`[SPAM] Moderator ${interaction.user.tag} manually timed out ${member.user.tag} until ${timeoutUntil.toISOString()}`);
-
-        await this.lockAlertAfterAction(interaction, userId, `Manual timeout applied for ${timeoutHours} hours.`);
-        break;
-      }
-
-      case 'dismiss':
-        await interaction.reply({
-          content: `✅ Alert dismissed by ${interaction.user.tag}. No action taken.`,
-          ephemeral: true
-        });
-        logger.info(`[SPAM] Moderator ${interaction.user.tag} dismissed review alert for user ${userId}`);
-
-        await this.lockAlertAfterAction(interaction, userId, `Alert dismissed with no further action.`);
-        break;
-
-      case 'reviewwhitelist':
-        if (!member) {
-          await interaction.reply({ 
-            content: 'User is no longer in the server.', 
-            ephemeral: true 
-          });
-          return;
-        }
-
-        // Add user to whitelist and reload config
-        try {
-          const configPath = path.join(__dirname, '../../config/spamConfig.json');
-          const configData = JSON.parse(await fs.promises.readFile(configPath, 'utf8'));
-          if (!configData.whitelist.users.includes(member.user.id)) {
-            configData.whitelist.users.push(member.user.id);
-            await fs.promises.writeFile(configPath, JSON.stringify(configData, null, 2));
-            spamDetector.reloadConfig();
-          }
-        } catch (err) {
-          logger.error('[SPAM] Failed to whitelist user:', err);
-        }
-
-        await interaction.reply({
-          content: `🛡️ ${member.user.tag} has been whitelisted and will no longer be flagged.`,
-          ephemeral: true
-        });
-        logger.info(`[SPAM] Moderator ${interaction.user.tag} whitelisted ${member.user.tag} via review alert`);
-
-        await this.lockAlertAfterAction(interaction, userId, `User whitelisted; future detections suppressed.`);
-        break;
+    if (!member) {
+      return interaction.reply({ content: 'User no longer in server.', ephemeral: true });
     }
+
+    let actionDescription = '';
+
+    switch (interaction.customId.split(':')[0]) {
+      case 'falsePositive':
+        await modActions.removeTimeout(member, 'Marked as false positive');
+        actionDescription = 'Marked as false positive — timeout removed';
+        break;
+
+      case 'banUser':
+        await modActions.banUser(interaction.guild, userId, 'Spam — moderator action');
+        actionDescription = 'User banned by moderator';
+        break;
+
+      case 'adjustTimeout':
+        return interaction.reply({
+          content: 'Timeout adjustment is not implemented yet.',
+          ephemeral: true
+        });
+
+      default:
+        return interaction.reply({ content: 'Unknown action.', ephemeral: true });
+    }
+
+    // Lock alert
+    await this.lockAlert(userId, alert.message, alert.embed, actionDescription);
+
+    await interaction.reply({
+      content: `Action applied: ${actionDescription}`,
+      ephemeral: true
+    });
   }
 }
 
-module.exports = new SpamActionHandler();
+module.exports = SpamActionHandler;
