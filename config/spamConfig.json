@@ -7,6 +7,30 @@
     "showcase": "1285797205927792782",
     "gifs": "1458182870605758611"
   },
+  "singleImageScam": {
+  "enabled": true,
+  "minMessages": 5,
+  "minMedia": 3,
+  "highRiskChannels": [
+    "lobby",
+    "general",
+    "help",
+    "install",
+    "cp2077-lore-spoilers",
+    "game-stream"
+  ],
+  "timeoutSeconds": 43200,
+  "severity": "high"
+}
+  "dormantActivation": {
+  "enabled": true,
+  "minDormantDays": 60,
+  "minMessages": 5,
+  "minMedia": 3,
+  "timeoutSeconds": 43200,
+  "severity": "high"
+}
+
   "rules": {
     "multiChannelSpam": {
       "enabled": true,
