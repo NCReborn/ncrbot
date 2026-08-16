@@ -144,7 +144,7 @@ module.exports = {
       const detectionResult = await spamDetector.detectSpam(message, message.member);
       
       if (detectionResult?.detected) {
-        await spamActionHandler.handleSpamDetection(client, message, message.member, detectionResult);
+        await spamActionHandler.handleDetection(client, message, message.member, detectionResult);
       }
     } catch (err) {
       logger.error('[SPAM] Error:', err);
