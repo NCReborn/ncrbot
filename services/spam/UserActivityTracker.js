@@ -1,172 +1,161 @@
-const fs = require('fs');
-const path = require('path');
-const logger = require('../../utils/logger');
+// services/spam/UserActivityTracker.js
 
 /**
- * Tracks persistent user activity history across guilds
- * Records messages, links, and media for spam detection
+ * UserActivityTracker
+ * -------------------
+ * Tracks long-term user activity across the server:
+ * - Total messages
+ * - Total media
+ * - Total links
+ * - First message timestamp
+ * - Last message timestamp
+ * - Server join age
+ *
+ * NEW: Compromise signal tracking
+ * - lastAvatarChange
+ * - lastUsernameChange
+ * - lastPresenceChange
+ * - lastDeviceChange
  */
+
+const logger = require('../../utils/logger');
+
 class UserActivityTracker {
   constructor() {
-    this.dataPath = path.join(__dirname, '../../data/userActivity.json');
-    this.data = this.loadData();
-    
-    // Auto-save every 5 minutes
-    setInterval(() => this.saveData(), 5 * 60 * 1000);
-  }
-
-  loadData() {
-    try {
-      if (fs.existsSync(this.dataPath)) {
-        const raw = fs.readFileSync(this.dataPath, 'utf8');
-        return JSON.parse(raw);
-      }
-    } catch (error) {
-      logger.error('[UserActivityTracker] Failed to load data:', error);
-    }
-    return {};
-  }
-
-  saveData() {
-    try {
-      const dir = path.dirname(this.dataPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.dataPath, JSON.stringify(this.data, null, 2));
-    } catch (error) {
-      logger.error('[UserActivityTracker] Failed to save data:', error);
-    }
+    /**
+     * Structure:
+     * guildId -> userId -> {
+     *   messages: number,
+     *   media: number,
+     *   links: number,
+     *   firstMessageTimestamp: number,
+     *   lastMessageTimestamp: number,
+     *   serverJoinTimestamp: number,
+     *
+     *   // NEW compromise signals
+     *   lastAvatarChange: number,
+     *   lastUsernameChange: number,
+     *   lastPresenceChange: number,
+     *   lastDeviceChange: number
+     * }
+     */
+    this.activity = new Map();
   }
 
   /**
-   * Get the key for storing user activity
-   * @param {string} guildId - Guild ID
-   * @param {string} userId - User ID
-   * @returns {string} Storage key
+   * Ensure guild + user entry exists
    */
-  getKey(guildId, userId) {
-    return `${guildId}-${userId}`;
+  ensureEntry(guildId, userId, member) {
+    if (!this.activity.has(guildId)) {
+      this.activity.set(guildId, new Map());
+    }
+
+    const guildMap = this.activity.get(guildId);
+
+    if (!guildMap.has(userId)) {
+      guildMap.set(userId, {
+        messages: 0,
+        media: 0,
+        links: 0,
+        firstMessageTimestamp: null,
+        lastMessageTimestamp: null,
+        serverJoinTimestamp: member?.joinedTimestamp || Date.now(),
+
+        // NEW compromise signals
+        lastAvatarChange: null,
+        lastUsernameChange: null,
+        lastPresenceChange: null,
+        lastDeviceChange: null
+      });
+    }
+
+    return guildMap.get(userId);
   }
 
   /**
-   * Record a message from a user
-   * @param {Object} message - Discord message object
-   * @param {Object} member - Discord member object
+   * Record a message into persistent activity
    */
   recordMessage(message, member) {
-    const key = this.getKey(message.guildId, message.author.id);
-    
-    if (!this.data[key]) {
-      this.data[key] = {
-        userId: message.author.id,
-        guildId: message.guildId,
-        messages: 0,
-        links: 0,
-        media: 0,
-        firstMessageAt: Date.now(),
-        lastMessageAt: Date.now()
-      };
+    const guildId = message.guildId;
+    const userId = message.author.id;
+
+    const entry = this.ensureEntry(guildId, userId, member);
+
+    const now = Date.now();
+
+    // First message timestamp
+    if (!entry.firstMessageTimestamp) {
+      entry.firstMessageTimestamp = now;
     }
 
-    const activity = this.data[key];
-    
-    // Increment message count
-    activity.messages++;
-    activity.lastMessageAt = Date.now();
+    // Last message timestamp
+    entry.lastMessageTimestamp = now;
 
-    // Count links in message content
-    // Match URLs, stopping before trailing punctuation at end of URL
-    const linkMatches = message.content.match(/https?:\/\/[^\s]+?(?=\s|[.,;:!?)\]]+\s|[.,;:!?)\]]+$|$)/g);
-    if (linkMatches) {
-      activity.links += linkMatches.length;
+    // Message count
+    entry.messages++;
+
+    // Media count
+    if (message.attachments.size > 0 || message.embeds.some(e => e.image || e.thumbnail)) {
+      entry.media++;
     }
 
-    // Count media attachments (images/videos)
-    if (message.attachments.size > 0) {
-      const mediaAttachments = Array.from(message.attachments.values()).filter(attachment => {
-        const contentType = attachment.contentType || '';
-        return contentType.startsWith('image/') || contentType.startsWith('video/');
-      });
-      activity.media += mediaAttachments.length;
-    }
-
-    // Count embeds with images
-    if (message.embeds.length > 0) {
-      const embedsWithImages = message.embeds.filter(embed => embed.image || embed.thumbnail);
-      activity.media += embedsWithImages.length;
+    // Link count
+    if (message.content.includes('http://') || message.content.includes('https://')) {
+      entry.links++;
     }
   }
 
   /**
-   * Get activity stats for a user in a guild
-   * @param {string} guildId - Guild ID
-   * @param {string} userId - User ID
-   * @returns {Object|null} Activity stats or null if not found
+   * Track avatar changes
+   */
+  recordAvatarChange(guildId, userId) {
+    const entry = this.ensureEntry(guildId, userId);
+    entry.lastAvatarChange = Date.now();
+  }
+
+  /**
+   * Track username changes
+   */
+  recordUsernameChange(guildId, userId) {
+    const entry = this.ensureEntry(guildId, userId);
+    entry.lastUsernameChange = Date.now();
+  }
+
+  /**
+   * Track presence changes (offline → online)
+   */
+  recordPresenceChange(guildId, userId) {
+    const entry = this.ensureEntry(guildId, userId);
+    entry.lastPresenceChange = Date.now();
+  }
+
+  /**
+   * Track device changes (mobile → desktop, etc.)
+   */
+  recordDeviceChange(guildId, userId) {
+    const entry = this.ensureEntry(guildId, userId);
+    entry.lastDeviceChange = Date.now();
+  }
+
+  /**
+   * Get activity stats for a user
    */
   getActivity(guildId, userId) {
-    const key = this.getKey(guildId, userId);
-    return this.data[key] || null;
+    const guildMap = this.activity.get(guildId);
+    if (!guildMap) return null;
+
+    return guildMap.get(userId) || null;
   }
 
   /**
-   * Check if a user is dormant (little to no activity)
-   * @param {string} guildId - Guild ID
-   * @param {string} userId - User ID
-   * @param {Object} options - Options for dormancy check
-   * @returns {boolean} True if user is dormant
-   */
-  isDormant(guildId, userId, options = {}) {
-    const {
-      maxMessages = 2,
-      maxMedia = 0
-    } = options;
-
-    const activity = this.getActivity(guildId, userId);
-    
-    // If no activity record, consider dormant
-    if (!activity) {
-      return true;
-    }
-
-    // Check if user has minimal activity
-    return activity.messages <= maxMessages && activity.media <= maxMedia;
-  }
-
-  /**
-   * Get server age for a user (time since first message)
-   * @param {string} guildId - Guild ID
-   * @param {string} userId - User ID
-   * @returns {number} Days since first message, or 0 if no activity
+   * Get how long a user has been in the server (days)
    */
   getServerAge(guildId, userId) {
-    const activity = this.getActivity(guildId, userId);
-    if (!activity) return 0;
+    const entry = this.getActivity(guildId, userId);
+    if (!entry || !entry.serverJoinTimestamp) return 0;
 
-    const ageMs = Date.now() - activity.firstMessageAt;
-    return ageMs / (1000 * 60 * 60 * 24); // Convert to days
-  }
-
-  /**
-   * Clean up old/inactive users (optional, to prevent bloat)
-   * Removes users with no activity in the last 90 days
-   */
-  cleanup() {
-    const maxAge = 90 * 24 * 60 * 60 * 1000; // 90 days
     const now = Date.now();
-    let removed = 0;
-
-    for (const [key, activity] of Object.entries(this.data)) {
-      if (now - activity.lastMessageAt > maxAge) {
-        delete this.data[key];
-        removed++;
-      }
-    }
-
-    if (removed > 0) {
-      logger.info(`[UserActivityTracker] Cleaned up ${removed} inactive users`);
-      this.saveData();
-    }
+    return Math.floor((now - entry.serverJoinTimestamp) / (1000 * 60 * 60 * 24));
   }
 }
 
