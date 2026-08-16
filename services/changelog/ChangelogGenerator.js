@@ -58,7 +58,7 @@ class ChangelogGenerator {
       await this.sendModChanges(channel, template, revisionData);
 
       logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId})`);
-
+      await this.postChangelogToWebsite(groupConfig, revisionData);
     } catch (error) {
       logger.error(`[CHANGELOG] Error generating changelog:`, error);
     }
