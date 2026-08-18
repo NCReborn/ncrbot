@@ -79,8 +79,6 @@ class SpamActionHandler {
         ? '🚨 Spam Detected & Actioned'
         : '⚠️ Suspicious Activity — Review Required',
       color: confidenceLevel === 'high' ? 0xFF0000 : 0xFFA500,
-      username: message.author.tag,
-      userId,
       avatar: message.author.displayAvatarURL({ dynamic: true }),
       fields
     });
@@ -97,8 +95,6 @@ class SpamActionHandler {
       const updatedEmbed = buildSpamAlertEmbed({
         title: '🚨 Spam Detected & Actioned',
         color: 0xFF0000,
-        username: message.author.tag,
-        userId,
         avatar: message.author.displayAvatarURL({ dynamic: true }),
         fields: updatedFields
       });
