@@ -9,6 +9,7 @@ const SpamActionHandler = require('../services/spam/SpamActionHandler');
 const streetCredService = require('../services/StreetCredService');
 const scs = streetCredService;
 const analyticsService = require('../services/AnalyticsService');
+const { handleModRequestModeration } = require('../moderation/modRequestGuard');
 
 // ⭐ SnapMaster
 const snapmaster = require('../utils/snapmaster');
@@ -77,6 +78,8 @@ function buildStreetCredAnnouncement(member, result) {
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
+    await handleModRequestModeration(message);
+
     // Initialize SpamActionHandler
     const spamActionHandler = new SpamActionHandler(client);
 
