@@ -117,13 +117,13 @@ for (const file of eventFiles) {
 logger.info(`✨ Events loaded successfully`);
 
 // Initialize NSFW detector on bot ready
-const nsfwDetector = require('./services/nsfw/NsfwDetector');
+//const nsfwDetector = require('./services/nsfw/NsfwDetector');
 
 client.once('clientReady', async () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
 
   // Load the NSFW model (heavy, must happen once at startup)
-  await nsfwDetector.initialize();
+ // await nsfwDetector.initialize();
 });
 
 client.login(process.env.DISCORD_TOKEN);
