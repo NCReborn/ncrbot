@@ -20,6 +20,11 @@ const dormantActivation = require('./rules/dormantActivation');
 const singleImageScam = require('./rules/singleImageScam');
 
 const CONTENT_PREVIEW_LENGTH = 100;
+const DEBUG_TRIGGER_DESCRIPTIONS = {
+  'Multi-Channel Spam': 'Forced by anti-spam debug trigger',
+  'Channel Carpet-Bomb': 'Forced by anti-spam debug trigger',
+  'Image Spam': 'Forced by anti-spam debug trigger'
+};
 
 class SpamDetector {
   constructor() {
@@ -39,7 +44,12 @@ class SpamDetector {
       return JSON.parse(data);
     } catch (error) {
       logger.error('Failed to load spam config:', error);
-      return { enabled: false, rules: {}, whitelist: { users: [], roles: [] } };
+      return {
+        enabled: false,
+        rules: {},
+        whitelist: { users: [], roles: [] },
+        debug: { enabled: false, testUserId: '722448827101085756' }
+      };
     }
   }
 
@@ -127,10 +137,67 @@ class SpamDetector {
     }
   }
 
+  isDebugTestMessage(message) {
+    const debug = this.config.debug || {};
+    return Boolean(
+      debug.enabled &&
+      debug.testUserId &&
+      message?.author?.id === debug.testUserId
+    );
+  }
+
+  getDebugForcedRuleResults(message, cfg) {
+    const content = (message.content || '').toLowerCase();
+    const hasMultiTrigger = content.includes('test:multi') || content.includes('multi channel spamming');
+    const hasCarpetTrigger = content.includes('test:carpet') || content.includes('carpet bombing');
+    const hasImageTrigger = content.includes('test:image') || content.includes('image spam');
+    const forcedResults = [];
+
+    if (hasMultiTrigger) {
+      forcedResults.push({
+        triggered: true,
+        ruleName: 'Multi-Channel Spam',
+        description: DEBUG_TRIGGER_DESCRIPTIONS['Multi-Channel Spam'],
+        severity: cfg.multiChannelSpam?.severity || 'high',
+        score: 2,
+        evidence: []
+      });
+    }
+
+    if (hasCarpetTrigger) {
+      forcedResults.push({
+        triggered: true,
+        ruleName: 'Channel Carpet-Bomb',
+        description: DEBUG_TRIGGER_DESCRIPTIONS['Channel Carpet-Bomb'],
+        severity: cfg.channelCarpetBomb?.severity || 'critical',
+        score: 3,
+        evidence: []
+      });
+    }
+
+    if (hasImageTrigger) {
+      forcedResults.push({
+        triggered: true,
+        ruleName: 'Image Spam',
+        description: DEBUG_TRIGGER_DESCRIPTIONS['Image Spam'],
+        severity: cfg.imageSpam?.severity || 'high',
+        score: 2,
+        evidence: []
+      });
+    }
+
+    if (forcedResults.length > 0) {
+      logger.info(`[SPAM][DEBUG] Forced triggers for ${message.author.tag}: ${forcedResults.map(r => r.ruleName).join(', ')}`);
+    }
+
+    return forcedResults;
+  }
+
   async detectSpam(message, member) {
     if (!this.config.enabled) return null;
     if (message.author.bot) return null;
-    if (this.isWhitelisted(member)) return null;
+    const isDebugTestMessage = this.isDebugTestMessage(message);
+    if (!isDebugTestMessage && this.isWhitelisted(member)) return null;
 
     // Persistent activity tracker
     userActivityTracker.recordMessage(message, member);
@@ -172,6 +239,16 @@ class SpamDetector {
 
     // Combine all rule results
     const ruleResults = [...syncRuleResults, ...asyncRuleResults];
+
+    if (isDebugTestMessage) {
+      const forcedRuleResults = this.getDebugForcedRuleResults(message, cfg);
+      for (const forcedResult of forcedRuleResults) {
+        const alreadyTriggered = ruleResults.some(result => result?.triggered && result.ruleName === forcedResult.ruleName);
+        if (!alreadyTriggered) {
+          ruleResults.push(forcedResult);
+        }
+      }
+    }
 
     // Collect triggered rules
     for (const result of ruleResults) {

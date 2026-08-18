@@ -40,6 +40,32 @@ module.exports = {
             .setDescription('The user to remove from whitelist')
             .setRequired(true)
         )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('debug-enable')
+        .setDescription('Enable anti-spam debug test mode')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('debug-disable')
+        .setDescription('Disable anti-spam debug test mode')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('debug-set-user')
+        .setDescription('Set anti-spam debug test user')
+        .addUserOption(option =>
+          option
+            .setName('user')
+            .setDescription('The alt account used for anti-spam debug testing')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('debug-clear-user')
+        .setDescription('Clear anti-spam debug test user')
     ),
 
   async execute(interaction) {
@@ -58,6 +84,18 @@ module.exports = {
           break;
         case 'unwhitelist':
           await this.removeWhitelist(interaction);
+          break;
+        case 'debug-enable':
+          await this.setDebugEnabled(interaction, true);
+          break;
+        case 'debug-disable':
+          await this.setDebugEnabled(interaction, false);
+          break;
+        case 'debug-set-user':
+          await this.setDebugUser(interaction);
+          break;
+        case 'debug-clear-user':
+          await this.clearDebugUser(interaction);
           break;
       }
     } catch (error) {
@@ -145,6 +183,14 @@ module.exports = {
       name: 'Whitelist',
       value: `${whitelistUsers} user(s), ${whitelistRoles} role(s)`,
       inline: true
+    }]);
+
+    const debugEnabled = config.debug?.enabled ? '✅ Enabled' : '❌ Disabled';
+    const debugUser = config.debug?.testUserId ? `<@${config.debug.testUserId}> (\`${config.debug.testUserId}\`)` : 'Not set';
+    embed.addFields([{
+      name: 'Debug Test Mode',
+      value: `${debugEnabled}\nUser: ${debugUser}`,
+      inline: false
     }]);
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
@@ -247,5 +293,66 @@ module.exports = {
     await interaction.reply({ embeds: [embed] });
 
     logger.info(`[ANTISPAM] User ${user.tag} removed from whitelist by ${interaction.user.tag}`);
+  },
+
+  readConfig() {
+    const configPath = path.join(__dirname, '../config/spamConfig.json');
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    return { configPath, config };
+  },
+
+  writeConfig(configPath, config) {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    spamDetector.reloadConfig();
+  },
+
+  async setDebugEnabled(interaction, enabled) {
+    const { configPath, config } = this.readConfig();
+    config.debug = config.debug || {};
+    config.debug.enabled = enabled;
+
+    if (!config.debug.testUserId) {
+      config.debug.testUserId = '722448827101085756';
+    }
+
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: `${enabled ? '✅' : '❌'} Anti-spam debug mode ${enabled ? 'enabled' : 'disabled'}${config.debug.testUserId ? ` for <@${config.debug.testUserId}>` : ''}.`,
+      ephemeral: true
+    });
+
+    logger.info(`[ANTISPAM][DEBUG] Debug mode ${enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
+  },
+
+  async setDebugUser(interaction) {
+    const user = interaction.options.getUser('user');
+    const { configPath, config } = this.readConfig();
+    config.debug = config.debug || {};
+    config.debug.testUserId = user.id;
+
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: `✅ Anti-spam debug test user set to ${user.tag} (\`${user.id}\`).`,
+      ephemeral: true
+    });
+
+    logger.info(`[ANTISPAM][DEBUG] Debug test user set to ${user.tag} by ${interaction.user.tag}`);
+  },
+
+  async clearDebugUser(interaction) {
+    const { configPath, config } = this.readConfig();
+    config.debug = config.debug || {};
+    config.debug.testUserId = null;
+
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: '✅ Anti-spam debug test user cleared.',
+      ephemeral: true
+    });
+
+    logger.info(`[ANTISPAM][DEBUG] Debug test user cleared by ${interaction.user.tag}`);
   }
 };

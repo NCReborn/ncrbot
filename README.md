@@ -80,6 +80,11 @@ ncrbot/
 - Persistent user activity tracking across sessions
 - Configurable whitelist for users and roles (moderators auto-whitelisted)
 - Toggle and configure via `/antispam` command
+- Debug test mode for alt-account simulation with trigger tokens:
+  - `test:multi` or `multi channel spamming`
+  - `test:carpet` or `carpet bombing`
+  - `test:image` or `image spam`
+  - ⚠️ Safety: disable debug mode after testing
 
 ### ⚖️ Moderation Tools
 - **Warning System:** `/warn` to issue warnings with DM notifications, `/warnings` to view history, `/clearwarnings` to reset (persistent JSON storage)
@@ -216,7 +221,7 @@ The bot will log in, begin polling NexusMods for collection updates, set up the 
 | `/setversion` | Update the bot version and changelog |
 | `/mediachannels` | Manage media-only channel enforcement |
 | `/removecommand` | Remove a mod command from the database |
-| `/antispam` | Manage anti-spam system (status, toggle, whitelist) |
+| `/antispam` | Manage anti-spam system (status, toggle, whitelist, debug-enable/disable, debug-set-user/clear-user) |
 | `/clearwarnings` | Clear all warnings for a user |
 | `/initmegathread` | Initialize the bugs & issues megathread |
 | `/refreshmegathread` | Manually refresh megathread sections |
@@ -253,6 +258,11 @@ The bot will log in, begin polling NexusMods for collection updates, set up the 
 - Use `/botcontrol` to post an interactive control panel for quick mute/unmute/reload/restart
 - Use `/auditlog status` to check which audit events are being logged
 - Use `/antispam status` to review anti-spam configuration and detection stats
+- Debug test flow:
+  - `/antispam debug-set-user user:<alt account>`
+  - `/antispam debug-enable`
+  - Send test messages with `test:multi`, `test:carpet`, `test:image` (can be combined)
+  - Confirm one evolving anti-spam alert message is edited, then run `/antispam debug-disable`
 - Use `/refreshmegathread` to manually refresh forum megathread sections
 - Use `/reload` (via bot control panel) to reload commands after updates
 - To update environment variables, restart the bot process

@@ -3,17 +3,10 @@ const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const SpamActionHandler = require('../services/spam/SpamActionHandler');
 const { handleLeaderboardButton } = require('../commands/streetcred');
 
-// Initialize SpamActionHandler instance
-let spamActionHandler = null;
-
 class ButtonHandlers {
   async handle(interaction, client) {
     const { customId } = interaction;
-
-    // Initialize spamActionHandler on first use if needed
-    if (!spamActionHandler) {
-      spamActionHandler = new SpamActionHandler(client);
-    }
+    const spamActionHandler = SpamActionHandler.getInstance(client);
 
     if (['reload', 'mute', 'unmute', 'restart', 'stop'].includes(customId)) {
       await this.handleBotControl(interaction, client);
