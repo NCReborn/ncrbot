@@ -10,8 +10,6 @@ function checkEnv(requiredExtra = []) {
   const required = [
     'DISCORD_TOKEN',
     'CLIENT_ID',
-    'CRASH_LOG_CHANNEL_ID',
-    'LOG_SCAN_CHANNEL_ID',
     ...requiredExtra
   ];
   const missing = required.filter(key => !process.env[key]);
