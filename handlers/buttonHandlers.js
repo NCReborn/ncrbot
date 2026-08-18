@@ -1,18 +1,24 @@
 const logger = require('../utils/logger');
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const spamActionHandler = require('../services/spam/SpamActionHandler');
+const SpamActionHandler = require('../services/spam/SpamActionHandler');
 const { handleLeaderboardButton } = require('../commands/streetcred');
+
+// Initialize SpamActionHandler instance
+let spamActionHandler = null;
 
 class ButtonHandlers {
   async handle(interaction, client) {
     const { customId } = interaction;
 
+    // Initialize spamActionHandler on first use if needed
+    if (!spamActionHandler) {
+      spamActionHandler = new SpamActionHandler(client);
+    }
+
     if (['reload', 'mute', 'unmute', 'restart', 'stop'].includes(customId)) {
       await this.handleBotControl(interaction, client);
     } else if (customId.startsWith('spam_')) {
-      await spamActionHandler.handleModAction(interaction);
-    } else if (customId.startsWith('nsfw_')) {
-      await nsfwActionHandler.handleModAction(interaction, client);
+      await spamActionHandler.handleInteraction(interaction);
     } else if (customId.startsWith('sc_lb_')) {
       await handleLeaderboardButton(interaction);
     }
