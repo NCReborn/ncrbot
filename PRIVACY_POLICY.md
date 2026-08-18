@@ -17,8 +17,8 @@ When you use the NCReborn Bot, we automatically collect the following informatio
 - **Moderation Actions** - Records of bans, unbans, timeouts, and other moderation actions taken by server staff
 - **Message Content** - Message data including content, timestamps, and channel information for:
   - Image-only channel enforcement
-  - NSFW content detection and filtering
   - Audit logging of deleted and edited messages
+  - Anti-spam detection and filtering
 - **Message Reactions** - Reaction data for tracking user interactions with messages
 
 ### 1.2 Data You Explicitly Provide
@@ -35,7 +35,7 @@ We collect and process your information for the following purposes:
 - Enforcing server rules and maintaining community safety
 - Logging moderation actions for transparency and accountability
 - Tracking member activities for community management
-- Detecting and filtering inappropriate content (NSFW detection)
+- Detecting and filtering spam and malicious content
 
 ### 2.2 Server Administration
 - Managing image-only channels
@@ -109,7 +109,7 @@ To exercise these rights, please contact the server administrators through the #
 
 ## 7. Children's Privacy
 
-The NCReborn Bot is designed for use by Discord users aged 13 and older (as per Discord's Terms of Service). We do not knowingly collect information from children under 13. If we become aware of such collection, we will take immediate action to delete such information.
+The NCReborn Bot is designed for use by Discord users aged 13 and older (as per Discord's Terms of Service). We do not knowingly collect information from children under 13. If we become aware of any such collection, we will take immediate steps to delete such information and notify affected users.
 
 ## 8. Changes to This Privacy Policy
 
