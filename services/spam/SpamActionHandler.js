@@ -134,44 +134,53 @@ class SpamActionHandler {
    * Send or update an alert message
    */
   async sendOrUpdateAlert(userId, embed) {
-    const alertChannel = await this.client.channels.fetch(spamConfig.alertChannelId);
+    try {
+      const alertChannel = await this.client.channels.fetch(spamConfig.alertChannelId);
 
-    // Update existing alert
-    if (this.activeAlerts.has(userId)) {
-      const alert = this.activeAlerts.get(userId);
-      await alert.message.edit({ embeds: [embed] });
-      alert.embed = embed;
-      return alert.message;
+      // Update existing alert
+      if (this.activeAlerts.has(userId)) {
+        const alert = this.activeAlerts.get(userId);
+        await alert.message.edit({ embeds: [embed] });
+        alert.embed = embed;
+        return alert.message;
+      }
+
+      // Create new alert
+      const message = await alertChannel.send({ embeds: [embed] });
+
+      this.activeAlerts.set(userId, {
+        message,
+        embed,
+        locked: false
+      });
+
+      return message;
+    } catch (err) {
+      logger.error(`[SPAM] Error sending alert: ${err.message}`);
+      return null;
     }
-
-    // Create new alert
-    const message = await alertChannel.send({ embeds: [embed] });
-
-    this.activeAlerts.set(userId, {
-      message,
-      embed,
-      locked: false
-    });
-
-    return message;
   }
 
   /**
    * Apply automatic timeout for high-confidence spam
    */
   async applyAutomaticAction(userId, message, triggeredRules) {
-    const member = await message.guild.members.fetch(userId).catch(() => null);
-    if (!member) return;
+    try {
+      const member = await message.guild.members.fetch(userId).catch(() => null);
+      if (!member) return;
 
-    const timeoutSeconds = this.getTimeoutSeconds(triggeredRules);
+      const timeoutSeconds = this.getTimeoutSeconds(triggeredRules);
 
-    await modActions.timeoutUser(
-      member,
-      timeoutSeconds * 1000,
-      'Automatic spam timeout (high confidence)'
-    );
+      await modActions.timeoutUser(
+        member,
+        timeoutSeconds * 1000,
+        'Automatic spam timeout (high confidence)'
+      );
 
-    logger.info(`[SPAM] Auto-timeout applied to ${member.user.tag}`);
+      logger.info(`[SPAM] Auto-timeout applied to ${member.user.tag}`);
+    } catch (err) {
+      logger.error(`[SPAM] Error applying automatic action: ${err.message}`);
+    }
   }
 
   /**
@@ -189,71 +198,86 @@ class SpamActionHandler {
    * Lock alert after moderator or automatic action
    */
   async lockAlert(userId, alertMessage, originalEmbed, actionDescription) {
-    const moderatorTag = 'System';
-    const moderatorId = 'N/A';
+    try {
+      const moderatorTag = 'System';
+      const moderatorId = 'N/A';
 
-    const finalEmbed = buildFinalActionEmbed({
-      originalEmbed,
-      actionDescription,
-      moderatorTag,
-      moderatorId
-    });
+      const finalEmbed = buildFinalActionEmbed({
+        originalEmbed,
+        actionDescription,
+        moderatorTag,
+        moderatorId
+      });
 
-    await alertMessage.edit({ embeds: [finalEmbed] });
+      await alertMessage.edit({ embeds: [finalEmbed] });
 
-    const alert = this.activeAlerts.get(userId);
-    if (alert) {
-      alert.locked = true;
-      alert.embed = finalEmbed;
+      const alert = this.activeAlerts.get(userId);
+      if (alert) {
+        alert.locked = true;
+        alert.embed = finalEmbed;
+      }
+    } catch (err) {
+      logger.error(`[SPAM] Error locking alert: ${err.message}`);
     }
   }
 
   /**
-   * Handle moderator button interactions
+   * Handle moderator button interactions (formerly handleModAction)
    */
   async handleInteraction(interaction) {
-    const userId = interaction.customId.split(':')[1];
-    const alert = this.activeAlerts.get(userId);
+    try {
+      const userId = interaction.customId.split(':')[1];
+      const alert = this.activeAlerts.get(userId);
 
-    if (!alert || alert.locked) {
-      return interaction.reply({ content: 'This alert is already resolved.', ephemeral: true });
+      if (!alert || alert.locked) {
+        return interaction.reply({ content: 'This alert is already resolved.', ephemeral: true });
+      }
+
+      const member = await interaction.guild.members.fetch(userId).catch(() => null);
+      if (!member) {
+        return interaction.reply({ content: 'User no longer in server.', ephemeral: true });
+      }
+
+      let actionDescription = '';
+      const actionType = interaction.customId.split(':')[0];
+
+      switch (actionType) {
+        case 'spam_falsePositive':
+          await modActions.removeTimeout(member, 'Marked as false positive');
+          actionDescription = 'Marked as false positive — timeout removed';
+          break;
+
+        case 'spam_banUser':
+          await modActions.banUser(interaction.guild, userId, 'Spam — moderator action');
+          actionDescription = 'User banned by moderator';
+          break;
+
+        case 'spam_adjustTimeout':
+          return interaction.reply({
+            content: 'Timeout adjustment is not implemented yet.',
+            ephemeral: true
+          });
+
+        default:
+          return interaction.reply({ content: 'Unknown action.', ephemeral: true });
+      }
+
+      // Lock alert
+      await this.lockAlert(userId, alert.message, alert.embed, actionDescription);
+
+      await interaction.reply({
+        content: `✅ Action applied: ${actionDescription}`,
+        ephemeral: true
+      });
+
+      logger.info(`[SPAM] Moderator action by ${interaction.user.tag}: ${actionDescription} for user ${userId}`);
+    } catch (err) {
+      logger.error(`[SPAM] Error handling interaction: ${err.message}`);
+      await interaction.reply({
+        content: '❌ An error occurred while processing your action.',
+        ephemeral: true
+      }).catch(() => {});
     }
-
-    const member = await interaction.guild.members.fetch(userId).catch(() => null);
-    if (!member) {
-      return interaction.reply({ content: 'User no longer in server.', ephemeral: true });
-    }
-
-    let actionDescription = '';
-
-    switch (interaction.customId.split(':')[0]) {
-      case 'falsePositive':
-        await modActions.removeTimeout(member, 'Marked as false positive');
-        actionDescription = 'Marked as false positive — timeout removed';
-        break;
-
-      case 'banUser':
-        await modActions.banUser(interaction.guild, userId, 'Spam — moderator action');
-        actionDescription = 'User banned by moderator';
-        break;
-
-      case 'adjustTimeout':
-        return interaction.reply({
-          content: 'Timeout adjustment is not implemented yet.',
-          ephemeral: true
-        });
-
-      default:
-        return interaction.reply({ content: 'Unknown action.', ephemeral: true });
-    }
-
-    // Lock alert
-    await this.lockAlert(userId, alert.message, alert.embed, actionDescription);
-
-    await interaction.reply({
-      content: `Action applied: ${actionDescription}`,
-      ephemeral: true
-    });
   }
 }
 
