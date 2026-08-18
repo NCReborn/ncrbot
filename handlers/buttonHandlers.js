@@ -1,7 +1,6 @@
 const logger = require('../utils/logger');
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const spamActionHandler = require('../services/spam/SpamActionHandler');
-const nsfwActionHandler = require('../services/nsfw/NsfwActionHandler');
 const { handleLeaderboardButton } = require('../commands/streetcred');
 
 class ButtonHandlers {
