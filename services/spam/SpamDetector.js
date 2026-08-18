@@ -287,6 +287,7 @@ class SpamDetector {
     return {
       detected: true,
       userId,
+      userTag: member.user.tag,
       triggeredRules,
       evidence: evidence.length > 0 ? evidence : this.getRecentMessages(userId, 3),
       accountCreated: member.user.createdTimestamp,
@@ -314,6 +315,25 @@ class SpamDetector {
 
   getUserActivity(userId) {
     return this.userActivity.get(userId) || null;
+  }
+
+  /**
+   * Clear all tracked activity for a user.
+   * Used by debug reset commands so a new test run starts clean.
+   */
+  resetUserState(userId) {
+    this.userActivity.delete(userId);
+    logger.info(`[SPAM][DETECTOR] Activity state reset for user ${userId}`);
+  }
+
+  /**
+   * Clear tracked activity for all users.
+   */
+  resetAllState() {
+    const count = this.userActivity.size;
+    this.userActivity.clear();
+    logger.info(`[SPAM][DETECTOR] Activity state reset for all users (${count} entries cleared)`);
+    return count;
   }
 }
 

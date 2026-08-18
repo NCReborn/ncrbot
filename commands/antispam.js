@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('disc
 const fs = require('fs');
 const path = require('path');
 const spamDetector = require('../services/spam/SpamDetector');
+const SpamActionHandler = require('../services/spam/SpamActionHandler');
 const logger = require('../utils/logger');
 
 module.exports = {
@@ -66,6 +67,22 @@ module.exports = {
       subcommand
         .setName('debug-clear-user')
         .setDescription('Clear anti-spam debug test user')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('debug-reset-user')
+        .setDescription('Reset all cached anti-spam state for a specific user (for re-testing)')
+        .addUserOption(option =>
+          option
+            .setName('user')
+            .setDescription('The user whose state should be reset')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('debug-reset-all')
+        .setDescription('Reset all cached anti-spam state for all users (clears all active incidents)')
     ),
 
   async execute(interaction) {
@@ -96,6 +113,12 @@ module.exports = {
           break;
         case 'debug-clear-user':
           await this.clearDebugUser(interaction);
+          break;
+        case 'debug-reset-user':
+          await this.resetDebugUser(interaction);
+          break;
+        case 'debug-reset-all':
+          await this.resetDebugAll(interaction);
           break;
       }
     } catch (error) {
@@ -356,5 +379,39 @@ module.exports = {
     });
 
     logger.info(`[ANTISPAM][DEBUG] Debug test user cleared by ${interaction.user.tag}`);
+  },
+
+  async resetDebugUser(interaction) {
+    const user = interaction.options.getUser('user');
+    const spamHandler = SpamActionHandler.getInstance();
+
+    spamDetector.resetUserState(user.id);
+    if (spamHandler) spamHandler.resetUserState(user.id);
+
+    const cleared = [
+      '• Detector activity window',
+      '• Active alert / alert lock',
+    ].join('\n');
+
+    await interaction.reply({
+      content: `✅ Anti-spam state reset for ${user.tag} (\`${user.id}\`).\nCleared:\n${cleared}`,
+      ephemeral: true
+    });
+
+    logger.info(`[ANTISPAM][DEBUG] State reset for user ${user.tag} (${user.id}) by ${interaction.user.tag}`);
+  },
+
+  async resetDebugAll(interaction) {
+    const spamHandler = SpamActionHandler.getInstance();
+
+    const detectorCount = spamDetector.resetAllState();
+    const handlerCount = spamHandler ? spamHandler.resetAllState() : 0;
+
+    await interaction.reply({
+      content: `✅ Anti-spam state reset for all users.\nCleared ${detectorCount} detector entries and ${handlerCount} active alert(s).`,
+      ephemeral: true
+    });
+
+    logger.info(`[ANTISPAM][DEBUG] Full state reset by ${interaction.user.tag} (detector: ${detectorCount}, handler: ${handlerCount})`);
   }
 };
