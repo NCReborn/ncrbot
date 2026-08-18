@@ -148,20 +148,30 @@ class SpamDetector {
     // Load rule configs
     const cfg = this.config.rules;
 
-    // Run rule modules
-    const ruleResults = [
+    // Run synchronous rule modules
+    const syncRuleResults = [
       multiChannelSpam(message, activity, cfg.multiChannelSpam),
       rapidPosting(message, activity, cfg.rapidPosting),
       imageSpam(message, activity, cfg.imageSpam),
       suspiciousPatterns(message, activity, cfg.suspiciousPatterns, activityStats),
       newAccountRule(member, cfg.newAccountMonitoring, triggeredRules),
       dormantUserSpam(message, activityStats, cfg.dormantUserSpam),
-      channelCarpetBomb(message, activity, cfg.channelCarpetBomb),
-
-      // NEW advanced rules
-      await dormantActivation(message, activityStats),
-      await singleImageScam(message, activityStats)
+      channelCarpetBomb(message, activity, cfg.channelCarpetBomb)
     ];
+
+    // Run async rule modules and wait for results
+    let asyncRuleResults = [];
+    try {
+      asyncRuleResults = await Promise.all([
+        dormantActivation(message, activityStats),
+        singleImageScam(message, activityStats)
+      ]);
+    } catch (err) {
+      logger.error(`[SPAM] Error running async rules: ${err.message}`);
+    }
+
+    // Combine all rule results
+    const ruleResults = [...syncRuleResults, ...asyncRuleResults];
 
     // Collect triggered rules
     for (const result of ruleResults) {
