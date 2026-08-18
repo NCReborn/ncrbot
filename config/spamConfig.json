@@ -122,5 +122,10 @@
   "whitelist": {
     "users": [],
     "roles": []
+  },
+
+  "debug": {
+    "enabled": false,
+    "testUserId": null
   }
 }

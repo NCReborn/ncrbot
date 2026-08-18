@@ -13,9 +13,17 @@ const spamConfig = require('../../config/spamConfig.json');
 class SpamActionHandler {
   constructor(client) {
     this.client = client;
-
-    // Track active alerts: userId -> { message, embed, locked }
     this.activeAlerts = new Map();
+    this.alertLocks = new Map();
+  }
+
+  static getInstance(client) {
+    if (!SpamActionHandler.instance) {
+      SpamActionHandler.instance = new SpamActionHandler(client);
+    } else if (client) {
+      SpamActionHandler.instance.client = client;
+    }
+    return SpamActionHandler.instance;
   }
 
   /**
@@ -134,31 +142,45 @@ class SpamActionHandler {
    * Send or update an alert message
    */
   async sendOrUpdateAlert(userId, embed) {
-    try {
-      const alertChannel = await this.client.channels.fetch(spamConfig.alertChannelId);
+    const lock = this.alertLocks.get(userId) || Promise.resolve();
+    const operation = lock.then(async () => {
+      try {
+        const alertChannel = await this.client.channels.fetch(spamConfig.alertChannelId);
 
-      // Update existing alert
-      if (this.activeAlerts.has(userId)) {
-        const alert = this.activeAlerts.get(userId);
-        await alert.message.edit({ embeds: [embed] });
-        alert.embed = embed;
-        return alert.message;
+        // Update existing alert
+        if (this.activeAlerts.has(userId)) {
+          const alert = this.activeAlerts.get(userId);
+          await alert.message.edit({ embeds: [embed] });
+          alert.embed = embed;
+          logger.info(`[SPAM] Edited existing alert for user ${userId} (message ${alert.message.id})`);
+          return alert.message;
+        }
+
+        // Create new alert
+        const message = await alertChannel.send({ embeds: [embed] });
+
+        this.activeAlerts.set(userId, {
+          message,
+          embed,
+          locked: false
+        });
+        logger.info(`[SPAM] Created new alert for user ${userId} (message ${message.id})`);
+
+        return message;
+      } catch (err) {
+        logger.error(`[SPAM] Error sending alert: ${err.message}`);
+        return null;
       }
+    });
 
-      // Create new alert
-      const message = await alertChannel.send({ embeds: [embed] });
+    this.alertLocks.set(userId, operation);
+    operation.finally(() => {
+      if (this.alertLocks.get(userId) === operation) {
+        this.alertLocks.delete(userId);
+      }
+    });
 
-      this.activeAlerts.set(userId, {
-        message,
-        embed,
-        locked: false
-      });
-
-      return message;
-    } catch (err) {
-      logger.error(`[SPAM] Error sending alert: ${err.message}`);
-      return null;
-    }
+    return operation;
   }
 
   /**
@@ -280,5 +302,7 @@ class SpamActionHandler {
     }
   }
 }
+
+SpamActionHandler.instance = null;
 
 module.exports = SpamActionHandler;

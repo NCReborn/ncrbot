@@ -80,8 +80,7 @@ module.exports = {
   async execute(message, client) {
     await handleModRequestModeration(message);
 
-    // Initialize SpamActionHandler
-    const spamActionHandler = new SpamActionHandler(client);
+    const spamActionHandler = SpamActionHandler.getInstance(client);
 
     // Log analysis for crash log channel
     if (
