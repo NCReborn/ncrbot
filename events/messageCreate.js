@@ -5,7 +5,7 @@ const { loadResponses } = require('../utils/autoResponder');
 const { PermissionChecker } = require('../utils/permissions');
 const CONSTANTS = require('../config/constants');
 const spamDetector = require('../services/spam/SpamDetector');
-const spamActionHandler = require('../services/spam/SpamActionHandler');
+const SpamActionHandler = require('../services/spam/SpamActionHandler');
 const streetCredService = require('../services/StreetCredService');
 const scs = streetCredService;
 const analyticsService = require('../services/AnalyticsService');
@@ -77,6 +77,8 @@ function buildStreetCredAnnouncement(member, result) {
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
+    // Initialize SpamActionHandler
+    const spamActionHandler = new SpamActionHandler(client);
 
     // Log analysis for crash log channel
     if (
@@ -142,37 +144,38 @@ module.exports = {
       const detectionResult = await spamDetector.detectSpam(message, message.member);
       
       if (detectionResult?.detected) {
-        await spamActionHandler.handleDetection(client, message, message.member, detectionResult);
+        await spamActionHandler.handleDetection(detectionResult, message);
       }
     } catch (err) {
       logger.error('[SPAM] Error:', err);
     }
 
-    // NSFW scanning
-    try {
-      if (
-        !message.author.bot &&
-        message.guild &&
-        !PermissionChecker.hasModRole(message.member) &&
-        nsfwDetector.isMonitoredChannel(message.channelId) &&
-        message.attachments.size > 0
-      ) {
-        for (const [, attachment] of message.attachments) {
-          if (!attachment.contentType?.startsWith('image/')) continue;
-
-          const result = await nsfwDetector.classifyImage(attachment.url);
-          if (!result || result.skipped) continue;
-
-          if (result.confidenceLevel === 'high') {
-            await nsfwActionHandler.handleHighConfidence(client, message, result.predictions, attachment.url, result.hash);
-          } else if (result.confidenceLevel === 'medium') {
-            await nsfwActionHandler.handleMediumConfidence(client, message, result.predictions, attachment.url, result.hash);
-          }
-        }
-      }
-    } catch (err) {
-      logger.error('[NSFW] Error during image scanning:', err);
-    }
+    // NSFW scanning - DISABLED
+    // TODO: Re-enable if NsfwDetector service is restored
+    // try {
+    //   if (
+    //     !message.author.bot &&
+    //     message.guild &&
+    //     !PermissionChecker.hasModRole(message.member) &&
+    //     nsfwDetector.isMonitoredChannel(message.channelId) &&
+    //     message.attachments.size > 0
+    //   ) {
+    //     for (const [, attachment] of message.attachments) {
+    //       if (!attachment.contentType?.startsWith('image/')) continue;
+    //
+    //       const result = await nsfwDetector.classifyImage(attachment.url);
+    //       if (!result || result.skipped) continue;
+    //
+    //       if (result.confidenceLevel === 'high') {
+    //         await nsfwActionHandler.handleHighConfidence(client, message, result.predictions, attachment.url, result.hash);
+    //       } else if (result.confidenceLevel === 'medium') {
+    //         await nsfwActionHandler.handleMediumConfidence(client, message, result.predictions, attachment.url, result.hash);
+    //       }
+    //     }
+    //   }
+    // } catch (err) {
+    //   logger.error('[NSFW] Error during image scanning:', err);
+    // }
 
     // ⭐⭐⭐ SNAPMASTER TRACKING ⭐⭐⭐
     try {
