@@ -48,7 +48,7 @@ class SpamDetector {
         enabled: false,
         rules: {},
         whitelist: { users: [], roles: [] },
-        debug: { enabled: false, testUserId: '722448827101085756' }
+        debug: { enabled: false, testUserId: null }
       };
     }
   }

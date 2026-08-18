@@ -13,14 +13,14 @@ const spamConfig = require('../../config/spamConfig.json');
 class SpamActionHandler {
   constructor(client) {
     this.client = client;
-    this.activeAlerts = SpamActionHandler.activeAlerts;
-    this.alertLocks = SpamActionHandler.alertLocks;
+    this.activeAlerts = new Map();
+    this.alertLocks = new Map();
   }
 
   static getInstance(client) {
     if (!SpamActionHandler.instance) {
       SpamActionHandler.instance = new SpamActionHandler(client);
-    } else if (client && !SpamActionHandler.instance.client) {
+    } else if (client) {
       SpamActionHandler.instance.client = client;
     }
     return SpamActionHandler.instance;
@@ -173,12 +173,12 @@ class SpamActionHandler {
       }
     });
 
-    const finalOperation = operation.finally(() => {
-      if (this.alertLocks.get(userId) === finalOperation) {
+    this.alertLocks.set(userId, operation);
+    operation.finally(() => {
+      if (this.alertLocks.get(userId) === operation) {
         this.alertLocks.delete(userId);
       }
     });
-    this.alertLocks.set(userId, finalOperation);
 
     return operation;
   }
@@ -304,7 +304,5 @@ class SpamActionHandler {
 }
 
 SpamActionHandler.instance = null;
-SpamActionHandler.activeAlerts = new Map();
-SpamActionHandler.alertLocks = new Map();
 
 module.exports = SpamActionHandler;

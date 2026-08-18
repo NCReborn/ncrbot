@@ -310,15 +310,17 @@ module.exports = {
     const { configPath, config } = this.readConfig();
     config.debug = config.debug || {};
     config.debug.enabled = enabled;
-
-    if (!config.debug.testUserId) {
-      config.debug.testUserId = '722448827101085756';
-    }
-
     this.writeConfig(configPath, config);
 
+    let content = `${enabled ? '✅' : '❌'} Anti-spam debug mode ${enabled ? 'enabled' : 'disabled'}.`;
+    if (enabled && !config.debug.testUserId) {
+      content += ' Set a test user with `/antispam debug-set-user`.';
+    } else if (enabled && config.debug.testUserId) {
+      content += ` Current test user: <@${config.debug.testUserId}>.`;
+    }
+
     await interaction.reply({
-      content: `${enabled ? '✅' : '❌'} Anti-spam debug mode ${enabled ? 'enabled' : 'disabled'}${config.debug.testUserId ? ` for <@${config.debug.testUserId}>` : ''}.`,
+      content,
       ephemeral: true
     });
 

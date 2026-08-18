@@ -126,6 +126,6 @@
 
   "debug": {
     "enabled": false,
-    "testUserId": "722448827101085756"
+    "testUserId": null
   }
 }
