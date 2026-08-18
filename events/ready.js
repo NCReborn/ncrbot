@@ -1,5 +1,4 @@
 const logger = require('../utils/logger');
-const { sendLogScanButton } = require('../utils/logScanTicket');
 const revisionMonitor = require('../services/RevisionMonitor');
 const cron = require('node-cron');
 const streetCredService = require('../services/StreetCredService');
@@ -14,16 +13,8 @@ module.exports = {
   async execute(client) {
     logger.info(`Logged in as ${client.user.tag}`);
     logger.info(`Loaded ${client.commands.size} commands.`);
-    logger.info(`Crash log channel: ${process.env.CRASH_LOG_CHANNEL_ID}`);
-    logger.info(`Log scan channel: ${process.env.LOG_SCAN_CHANNEL_ID}`);
-    
-    client.user.setActivity('/help for commands', { type: 'LISTENING' });
 
-    try {
-      await sendLogScanButton(client, process.env.LOG_SCAN_CHANNEL_ID);
-    } catch (err) {
-      logger.error(`Error sending log scan button:`, err);
-    }
+    client.user.setActivity('/help for commands', { type: 'LISTENING' });
 
     try {
       await revisionMonitor.start(client);
