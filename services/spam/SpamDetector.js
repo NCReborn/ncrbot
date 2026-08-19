@@ -57,6 +57,16 @@ class SpamDetector {
     this.config = this.loadConfig();
   }
 
+  /**
+   * Returns true if the given channelId is in the configured protected channels list.
+   * Uses channel IDs as source of truth (not names).
+   */
+  isProtectedChannel(channelId) {
+    if (!channelId) return false;
+    const protected_ = this.config.protectedChannels || {};
+    return Object.values(protected_).includes(channelId);
+  }
+
   isWhitelisted(member) {
     if (!member) return false;
 
@@ -199,6 +209,12 @@ class SpamDetector {
     const isDebugTestMessage = this.isDebugTestMessage(message);
     if (!isDebugTestMessage && this.isWhitelisted(member)) return null;
 
+    // Hard bypass: protected channels must never contribute to scoring/escalation
+    if (this.isProtectedChannel(message.channelId)) {
+      logger.info(`[SPAM] Skipping detection for message in protected channel ${message.channelId} (user ${message.author.id})`);
+      return null;
+    }
+
     // Persistent activity tracker
     userActivityTracker.recordMessage(message, member);
 
@@ -270,6 +286,32 @@ class SpamDetector {
       return null;
     }
 
+    // De-duplicate evidence by canonical key (guildId:channelId:messageId).
+    // Only include entries that have at minimum channelId + messageId.
+    const guildId = message.guildId;
+    const evidenceKeysSeen = new Set();
+    const validEvidence = [];
+    for (const ev of evidence) {
+      if (!ev.channelId || !ev.messageId) {
+        logger.debug(`[SPAM] Dropping evidence entry missing channelId or messageId`);
+        continue;
+      }
+      const key = `${guildId}:${ev.channelId}:${ev.messageId}`;
+      if (evidenceKeysSeen.has(key)) {
+        logger.debug(`[SPAM] Dropping duplicate evidence entry ${key}`);
+        continue;
+      }
+      evidenceKeysSeen.add(key);
+      validEvidence.push(ev);
+    }
+
+    // Fall back to recent messages if no valid evidence collected; exclude protected channels
+    const resolvedEvidence = validEvidence.length > 0
+      ? validEvidence
+      : this.getRecentMessages(userId, 3).filter(
+          msg => msg.channelId && !this.isProtectedChannel(msg.channelId)
+        );
+
     // Confidence scoring
     const severityPoints = { critical: 3, high: 2, warning: 1 };
     const confidenceScore = triggeredRules.reduce((sum, rule) => {
@@ -287,9 +329,10 @@ class SpamDetector {
     return {
       detected: true,
       userId,
+      guildId,
       userTag: member.user.tag,
       triggeredRules,
-      evidence: evidence.length > 0 ? evidence : this.getRecentMessages(userId, 3),
+      evidence: resolvedEvidence,
       accountCreated: member.user.createdTimestamp,
       joinedServer: member.joinedTimestamp,
       isNewAccount: newAccountRule(member, cfg.newAccountMonitoring, triggeredRules).triggered,
