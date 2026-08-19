@@ -94,7 +94,7 @@
     },
 
     "singleImageScam": {
-      "enabled": true,
+      "enabled": false,
       "minMessages": 5,
       "minMedia": 3,
       "highRiskChannels": [
@@ -110,7 +110,7 @@
     },
 
     "dormantActivation": {
-      "enabled": true,
+      "enabled": false,
       "minDormantDays": 60,
       "minMessages": 5,
       "minMedia": 3,

@@ -245,10 +245,19 @@ class SpamDetector {
     // Run async rule modules and wait for results
     let asyncRuleResults = [];
     try {
-      asyncRuleResults = await Promise.all([
-        dormantActivation(message, activityStats),
-        singleImageScam(message, activityStats)
-      ]);
+      const asyncRules = [];
+
+      if (cfg.dormantActivation?.enabled) {
+        asyncRules.push(dormantActivation(message, activityStats));
+      }
+
+      if (cfg.singleImageScam?.enabled) {
+        asyncRules.push(singleImageScam(message, activityStats));
+      }
+
+      if (asyncRules.length > 0) {
+        asyncRuleResults = await Promise.all(asyncRules);
+      }
     } catch (err) {
       logger.error(`[SPAM] Error running async rules: ${err.message}`);
     }
