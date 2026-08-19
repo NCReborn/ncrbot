@@ -19,6 +19,14 @@ const spamConfig = require('../../config/spamConfig.json');
 /** Emoji severity icons for triggered rule lines */
 const SEVERITY_ICON = { critical: '🔴', high: '⚠️', warning: '🟡' };
 
+/**
+ * Returns the set of channel IDs that are configured as protected.
+ */
+function getProtectedChannelIds() {
+  const protected_ = spamConfig.protectedChannels || {};
+  return new Set(Object.values(protected_));
+}
+
 class SpamActionHandler {
   constructor(client) {
     this.client = client;
@@ -175,7 +183,10 @@ class SpamActionHandler {
     // Evidence
     const evidenceText = evidence
       .map((ev, i) => {
-        const channelDisplay = ev.channelId ? `<#${ev.channelId}>` : 'Unknown Channel';
+        // Use Discord channel mention when ID is available, otherwise include ID in fallback
+        const channelDisplay = ev.channelId
+          ? `<#${ev.channelId}>`
+          : 'Unknown Channel';
         const attachmentNames = (ev.attachments || [])
           .map(a => a.name || 'attachment')
           .join(', ');
@@ -268,6 +279,20 @@ class SpamActionHandler {
    */
   async applyAutomaticAction(userId, message, triggeredRules, evidence) {
     const actionsTaken = [];
+
+    // Guard: if ALL evidence entries are from protected channels (or have no known channel),
+    // do not auto-timeout. An entry with no channelId is treated as unknown/unresolved —
+    // it must not be counted as confirmation of unprotected-channel activity.
+    const protectedIds = getProtectedChannelIds();
+    const hasUnprotectedEvidence = (evidence || []).some(
+      ev => ev.channelId && !protectedIds.has(ev.channelId)
+    );
+
+    if (!hasUnprotectedEvidence) {
+      logger.info(`[SPAM] Suppressed auto-action for user ${userId} — all evidence is from protected channels or unresolved`);
+      actionsTaken.push('Auto-action suppressed: all triggering messages are from protected channels (pending staff review)');
+      return actionsTaken;
+    }
 
     try {
       const member = await message.guild.members.fetch(userId).catch(() => null);
