@@ -5,6 +5,11 @@
  * ----------------------
  * Detects scammers who post a single image with no text.
  * Works for new accounts, dormant accounts, and compromised accounts.
+ * 
+ * Safeguards for legitimate users:
+ * - Requires images without ANY accompanying text (images with captions are safe)
+ * - Longer grace period for very new users (< 24 hours)
+ * - Higher trigger threshold (score >= 6) to reduce false positives
  */
 
 module.exports = async function singleImageScamRule(message, userActivity) {
@@ -12,6 +17,7 @@ module.exports = async function singleImageScamRule(message, userActivity) {
   let score = 0;
 
   const now = Date.now();
+  // STRICT: Only flag image-only messages with NO text whatsoever
   const isImageOnly = message.attachments.size > 0 && !message.content;
 
   if (!isImageOnly) {
@@ -24,21 +30,23 @@ module.exports = async function singleImageScamRule(message, userActivity) {
 
   // --- Core Image-Only Trigger ---
   score += 2;
-  evidence.push("Message contains only an image");
+  evidence.push("Message contains only an image (no text context)");
 
-  // --- New Joiner Indicators ---
-  if (joinAgeDays < 7) {
+  // --- New Joiner Indicators (MORE LENIENT) ---
+  // SAFEGUARD: Reduced from 7 days to 24 hours grace period
+  if (joinAgeDays < 1) {
     score += 2;
-    evidence.push("User joined the server recently (< 7 days)");
+    evidence.push("User joined the server very recently (< 24 hours)");
   }
 
+  // SAFEGUARD: Lower weight for message history on new users
   if (totalMessages < 5) {
-    score += 2;
-    evidence.push(`User has very low message history (${totalMessages} messages)`);
+    score += 1; // Reduced from 2 to 1
+    evidence.push(`User has low message history (${totalMessages} messages)`);
   }
 
   if (totalMedia < 3) {
-    score += 2;
+    score += 1; // Reduced from 2 to 1
     evidence.push("User rarely posts media");
   }
 
@@ -76,7 +84,9 @@ module.exports = async function singleImageScamRule(message, userActivity) {
   //   evidence.push("Image hash matches known scam image");
   // }
 
-  const triggered = score >= 4;
+  // SAFEGUARD: Increased trigger threshold from 4 to 6
+  // Requires more evidence before flagging as scam
+  const triggered = score >= 6;
 
   return {
     triggered,
