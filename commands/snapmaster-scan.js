@@ -1,4 +1,3 @@
-name=commands/snapmaster-scan.js (updated)
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const snapmaster = require("../utils/snapmaster");
 const { PermissionChecker } = require("../utils/permissions");
