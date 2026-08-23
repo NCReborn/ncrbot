@@ -13,18 +13,31 @@ function saveDB(db) {
 }
 
 module.exports = {
-    addSubmission(userId, imageCount, messageLink) {
+    addSubmission(userId, imageCount, messageLink, imageUrls = []) {
         const db = loadDB();
 
         if (!db[userId]) {
             db[userId] = {
                 count: 0,
-                messages: []
+                messages: [],
+                imageUrls: []
             };
+        }
+
+        // Backward compatibility: ensure imageUrls and messages arrays exist
+        if (!db[userId].imageUrls) {
+            db[userId].imageUrls = [];
+        }
+        if (!db[userId].messages) {
+            db[userId].messages = [];
         }
 
         db[userId].count += imageCount;
         db[userId].messages.push(messageLink);
+
+        if (imageUrls.length > 0) {
+            db[userId].imageUrls.push(...imageUrls);
+        }
 
         saveDB(db);
     },

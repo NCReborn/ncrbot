@@ -185,11 +185,13 @@ module.exports = {
 
       if (!message.author.bot && message.channel.id === SHOWCASE_CHANNEL) {
         const attachments = [...message.attachments.values()];
-        const imageCount = attachments.filter(a => a.contentType?.startsWith("image")).length;
+        const imageAttachments = attachments.filter(a => a.contentType?.startsWith("image"));
+        const imageCount = imageAttachments.length;
 
         if (imageCount > 0) {
           const link = `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`;
-          snapmaster.addSubmission(message.author.id, imageCount, link);
+          const imageUrls = imageAttachments.map(a => a.url);
+          snapmaster.addSubmission(message.author.id, imageCount, link, imageUrls);
 
           console.log(`SnapMaster: +${imageCount} submission(s) for ${message.author.tag}`);
         }
