@@ -61,6 +61,16 @@ module.exports = {
         return;
       }
 
+      // Build forum posts for eligible users
+      try {
+        const { buildSnapmasterForum } = require('../commands/snapmaster-forum');
+        await buildSnapmasterForum(channel.guild);
+        logger.info('[SNAPMASTER] Forum posts created successfully.');
+      } catch (err) {
+        logger.error('[SNAPMASTER] Error creating forum posts:', err);
+      }
+
+      // Send summary to admin channel
       const eligible = snapmaster.getEligible(5);
       const all = snapmaster.getAll();
 
