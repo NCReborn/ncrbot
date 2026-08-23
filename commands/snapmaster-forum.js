@@ -57,10 +57,14 @@ async function buildSnapmasterForum(guild) {
     // Archive all active threads from the previous month
     await archiveOldSnapmasterThreads(forumChannel);
 
+    const monthYear = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
     // Create a thread for each eligible user
     for (const user of eligible) {
         const userData = snapmaster.getUser(user.userId);
-        if (!userData || userData.messages.length === 0) continue;
+        const imageUrls = userData?.imageUrls ?? [];
+        const messages = userData?.messages ?? [];
+        if (imageUrls.length === 0 && messages.length === 0) continue;
 
         let displayName;
         try {
@@ -70,7 +74,7 @@ async function buildSnapmasterForum(guild) {
             displayName = user.userId;
         }
 
-        const threadTitle = `@${displayName} — ${user.count} submissions`;
+        const threadTitle = `@${displayName} — ${user.count} submissions (${monthYear})`;
 
         const thread = await forumChannel.threads.create({
             name: threadTitle,
@@ -79,18 +83,39 @@ async function buildSnapmasterForum(guild) {
             }
         });
 
-        // Post submissions in batches of 5 as embeds
-        const chunks = chunkArray(userData.messages, 5);
-        for (const chunk of chunks) {
-            const embeds = chunk.map(link =>
-                new EmbedBuilder()
-                    .setTitle("Submission")
-                    .setURL(link)
-                    .setDescription(`[View in Discord](${link})`)
+        if (imageUrls.length > 0) {
+            // Group images into chunks of 4 per embed
+            const imageChunks = chunkArray(imageUrls, 4);
+            for (const chunk of imageChunks) {
+                const embed = new EmbedBuilder()
                     .setColor(0x00aaff)
-                    .setTimestamp()
-            );
-            await thread.send({ embeds });
+                    .setTimestamp();
+
+                // First image is the main embed image; additional images are linked as fields
+                chunk.forEach((url, index) => {
+                    if (index === 0) {
+                        embed.setImage(url);
+                    } else {
+                        embed.addFields({ name: `Image ${index + 1}`, value: `[View](${url})`, inline: true });
+                    }
+                });
+
+                await thread.send({ embeds: [embed] });
+            }
+        } else {
+            // Fallback: post message links if no image URLs are stored
+            const chunks = chunkArray(messages, 5);
+            for (const chunk of chunks) {
+                const embeds = chunk.map(link =>
+                    new EmbedBuilder()
+                        .setTitle("Submission")
+                        .setURL(link)
+                        .setDescription(`[View in Discord](${link})`)
+                        .setColor(0x00aaff)
+                        .setTimestamp()
+                );
+                await thread.send({ embeds });
+            }
         }
 
         // Lock thread to prevent user comments
