@@ -1,3 +1,4 @@
+name=commands/snapmaster-scan.js (updated)
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const snapmaster = require("../utils/snapmaster");
 const { PermissionChecker } = require("../utils/permissions");
@@ -50,11 +51,14 @@ module.exports = {
                 ) continue;
 
                 const attachments = [...msg.attachments.values()];
-                const imageCount = attachments.filter(a => a.contentType?.startsWith("image")).length;
+                const imageAttachments = attachments.filter(a => a.contentType?.startsWith("image"));
+                const imageCount = imageAttachments.length;
 
                 if (imageCount > 0) {
                     const link = `https://discord.com/channels/${msg.guild.id}/${msg.channel.id}/${msg.id}`;
-                    snapmaster.addSubmission(msg.author.id, imageCount, link);
+                    // NEW: Extract image URLs and pass them to addSubmission
+                    const imageUrls = imageAttachments.map(a => a.url);
+                    snapmaster.addSubmission(msg.author.id, imageCount, link, imageUrls);
                     totalImages += imageCount;
                 }
             }
