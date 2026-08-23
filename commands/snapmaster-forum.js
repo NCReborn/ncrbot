@@ -1,4 +1,3 @@
-name=commands/snapmaster-forum.js
 const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require("discord.js");
 const snapmaster = require("../utils/snapmaster");
 const { PermissionChecker } = require("../utils/permissions");
