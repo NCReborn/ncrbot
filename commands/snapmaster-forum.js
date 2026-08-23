@@ -5,7 +5,7 @@ const logger = require("../utils/logger");
 
 const MIN_SUBMISSIONS = 5;
 // Set SNAPMASTER_FORUM_CHANNEL_ID in your environment, or replace this fallback with your actual forum channel ID
-const FORUM_CHANNEL_ID = process.env.SNAPMASTER_FORUM_CHANNEL_ID || "1324990321393930240";
+const FORUM_CHANNEL_ID = process.env.SNAPMASTER_FORUM_CHANNEL_ID || "1541146355391537343";
 
 module.exports = {
     data: new SlashCommandBuilder()
