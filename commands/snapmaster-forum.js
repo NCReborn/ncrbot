@@ -3,11 +3,12 @@ const snapmaster = require("../utils/snapmaster");
 const { PermissionChecker } = require("../utils/permissions");
 const logger = require("../utils/logger");
 const fetch = require("node-fetch");
-const { Readable } = require("stream");
 
 const MIN_SUBMISSIONS = 5;
 // Set SNAPMASTER_FORUM_CHANNEL_ID in your environment, or replace this fallback with your actual forum channel ID
 const FORUM_CHANNEL_ID = process.env.SNAPMASTER_FORUM_CHANNEL_ID || "1541146355391537343";
+const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8MB per image
+const MAX_MESSAGE_SIZE = 20 * 1024 * 1024; // 20MB per message
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -94,6 +95,7 @@ async function buildSnapmasterForum(guild) {
                 chunkCount++;
                 try {
                     const attachments = [];
+                    let messageSize = 0;
                     let successCount = 0;
                     
                     // Fetch and create attachments for each image with delay
@@ -103,22 +105,28 @@ async function buildSnapmasterForum(guild) {
                             const response = await fetch(imageUrl, { timeout: 8000 });
                             if (!response.ok) throw new Error(`HTTP ${response.status}`);
                             
-                            // Use stream instead of buffer to reduce memory
-                            const buffer = await response.buffer();
+                            let buffer = await response.buffer();
                             
-                            // Check buffer size (skip if > 25MB per image)
-                            if (buffer.length > 25 * 1024 * 1024) {
-                                logger.warn(`[SNAPMASTER_FORUM] Image too large, skipping: ${imageUrl}`);
+                            // Check buffer size - skip if too large
+                            if (buffer.length > MAX_FILE_SIZE) {
+                                logger.warn(`[SNAPMASTER_FORUM] Image too large (${(buffer.length / 1024 / 1024).toFixed(2)}MB), skipping: ${imageUrl}`);
                                 continue;
+                            }
+                            
+                            // Check if adding this attachment would exceed message size
+                            if (messageSize + buffer.length > MAX_MESSAGE_SIZE) {
+                                logger.warn(`[SNAPMASTER_FORUM] Message size limit reached, moving to next batch`);
+                                break;
                             }
                             
                             const filename = `image_${i + 1}.${getFileExtension(imageUrl)}`;
                             const attachment = new AttachmentBuilder(buffer, { name: filename });
                             attachments.push(attachment);
+                            messageSize += buffer.length;
                             successCount++;
                             
                             // Small delay between fetches
-                            await new Promise(resolve => setTimeout(resolve, 150));
+                            await new Promise(resolve => setTimeout(resolve, 200));
                         } catch (fetchErr) {
                             logger.warn(`[SNAPMASTER_FORUM] Failed to fetch image: ${fetchErr.message}`);
                         }
@@ -127,16 +135,12 @@ async function buildSnapmasterForum(guild) {
                     // Only send if we have attachments
                     if (attachments.length > 0) {
                         await thread.send({ files: attachments });
-                        logger.info(`[SNAPMASTER_FORUM] Sent chunk ${chunkCount} with ${successCount} images`);
+                        logger.info(`[SNAPMASTER_FORUM] Sent chunk ${chunkCount} with ${successCount} images (${(messageSize / 1024 / 1024).toFixed(2)}MB)`);
                     }
                     
                     // Delay between messages
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await new Promise(resolve => setTimeout(resolve, 1500));
                     
-                    // Force garbage collection every 10 chunks
-                    if (chunkCount % 10 === 0 && global.gc) {
-                        global.gc();
-                    }
                 } catch (err) {
                     logger.error(`[SNAPMASTER_FORUM] Error uploading chunk ${chunkCount}: ${err.message}`);
                     // Fallback: send links if image uploading fails
