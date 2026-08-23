@@ -84,14 +84,16 @@ async function buildSnapmasterForum(guild) {
         });
 
         if (imageUrls.length > 0) {
-            // Create one embed per image (Discord only shows 1 image per embed)
-            for (const imageUrl of imageUrls) {
-                const embed = new EmbedBuilder()
-                    .setColor(0x00aaff)
-                    .setImage(imageUrl)
-                    .setTimestamp();
-
-                await thread.send({ embeds: [embed] });
+            // Group images into chunks of 4 per message
+            const imageChunks = chunkArray(imageUrls, 4);
+            for (const chunk of imageChunks) {
+                const embeds = chunk.map(imageUrl =>
+                    new EmbedBuilder()
+                        .setColor(0x00aaff)
+                        .setImage(imageUrl)
+                        .setTimestamp()
+                );
+                await thread.send({ embeds });
             }
         } else {
             // Fallback: post message links if no image URLs are stored
