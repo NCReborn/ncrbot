@@ -1,3 +1,4 @@
+name=commands/snapmaster-forum.js
 const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require("discord.js");
 const snapmaster = require("../utils/snapmaster");
 const { PermissionChecker } = require("../utils/permissions");
@@ -84,21 +85,12 @@ async function buildSnapmasterForum(guild) {
         });
 
         if (imageUrls.length > 0) {
-            // Group images into chunks of 4 per embed
-            const imageChunks = chunkArray(imageUrls, 4);
-            for (const chunk of imageChunks) {
+            // Create one embed per image (Discord only shows 1 image per embed)
+            for (const imageUrl of imageUrls) {
                 const embed = new EmbedBuilder()
                     .setColor(0x00aaff)
+                    .setImage(imageUrl)
                     .setTimestamp();
-
-                // First image is the main embed image; additional images are linked as fields
-                chunk.forEach((url, index) => {
-                    if (index === 0) {
-                        embed.setImage(url);
-                    } else {
-                        embed.addFields({ name: `Image ${index + 1}`, value: `[View](${url})`, inline: true });
-                    }
-                });
 
                 await thread.send({ embeds: [embed] });
             }
