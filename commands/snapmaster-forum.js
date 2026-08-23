@@ -84,53 +84,54 @@ async function buildSnapmasterForum(guild) {
             }
         });
 
-        if (imageUrls.length > 0) {
-            // Group images into chunks of 4 per message
-            const imageChunks = chunkArray(imageUrls, 4);
-            for (const chunk of imageChunks) {
+        name=commands/snapmaster-forum.js (updated image fetching section)
+if (imageUrls.length > 0) {
+    // Group images into chunks of 4 per message
+    const imageChunks = chunkArray(imageUrls, 4);
+    for (const chunk of imageChunks) {
+        try {
+            const attachments = [];
+            
+            // Fetch and create attachments for each image with delay
+            for (let i = 0; i < chunk.length; i++) {
+                const imageUrl = chunk[i];
                 try {
-                    const attachments = [];
+                    const response = await fetch(imageUrl, { timeout: 10000 });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const buffer = await response.buffer();
                     
-                    // Fetch and create attachments for each image
-                    for (let i = 0; i < chunk.length; i++) {
-                        const imageUrl = chunk[i];
-                        const response = await fetch(imageUrl);
-                        const buffer = await response.buffer();
-                        
-                        // Generate filename with index
-                        const filename = `image_${i + 1}.${getFileExtension(imageUrl)}`;
-                        const attachment = new AttachmentBuilder(buffer, { name: filename });
-                        attachments.push(attachment);
-                    }
+                    // Generate filename with index
+                    const filename = `image_${i + 1}.${getFileExtension(imageUrl)}`;
+                    const attachment = new AttachmentBuilder(buffer, { name: filename });
+                    attachments.push(attachment);
                     
-                    // Send all 4 images in one message
-                    await thread.send({ files: attachments });
-                } catch (err) {
-                    logger.error(`[SNAPMASTER_FORUM] Error fetching/uploading images: ${err.message}`);
-                    // Fallback: send links if image fetching fails
-                    const embed = new EmbedBuilder()
-                        .setColor(0x00aaff)
-                        .setTitle("Submissions")
-                        .setDescription(chunk.map((url, i) => `[Image ${i + 1}](${url})`).join("\n"))
-                        .setTimestamp();
-                    await thread.send({ embeds: [embed] });
+                    // Small delay between fetches to avoid rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (fetchErr) {
+                    logger.warn(`[SNAPMASTER_FORUM] Failed to fetch image ${i + 1}: ${fetchErr.message}`);
+                    // Continue without this image instead of failing the whole chunk
                 }
             }
-        } else {
-            // Fallback: post message links if no image URLs are stored
-            const chunks = chunkArray(messages, 5);
-            for (const chunk of chunks) {
-                const embeds = chunk.map(link =>
-                    new EmbedBuilder()
-                        .setTitle("Submission")
-                        .setURL(link)
-                        .setDescription(`[View in Discord](${link})`)
-                        .setColor(0x00aaff)
-                        .setTimestamp()
-                );
-                await thread.send({ embeds });
+            
+            // Only send if we have attachments
+            if (attachments.length > 0) {
+                await thread.send({ files: attachments });
             }
+            
+            // Delay between messages to avoid hitting rate limits
+            await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) {
+            logger.error(`[SNAPMASTER_FORUM] Error uploading image batch: ${err.message}`);
+            // Fallback: send links if image uploading fails
+            const embed = new EmbedBuilder()
+                .setColor(0x00aaff)
+                .setTitle("Submissions")
+                .setDescription(chunk.map((url, i) => `[Image ${i + 1}](${url})`).join("\n"))
+                .setTimestamp();
+            await thread.send({ embeds: [embed] });
         }
+    }
+}
 
         // Lock thread to prevent user comments
         await thread.setLocked(true);
