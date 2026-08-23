@@ -91,19 +91,15 @@ async function buildSnapmasterForum(guild) {
             for (const chunk of imageChunks) {
                 chunkCount++;
                 try {
-                    // Post image links as embeds with previews instead of trying to upload
+                    // Post image links as embeds with large preview
                     const embed = new EmbedBuilder()
                         .setColor(0x00aaff)
                         .setTitle("📸 Submissions")
                         .setDescription(
                             chunk.map((url, i) => `[Image ${i + 1}](${url})`).join(" • ")
                         )
+                        .setImage(chunk[0]) // Set first image as large preview
                         .setTimestamp();
-                    
-                    // Set first image as thumbnail preview
-                    if (chunk.length > 0) {
-                        embed.setThumbnail(chunk[0]);
-                    }
                     
                     await thread.send({ embeds: [embed] });
                     logger.info(`[SNAPMASTER_FORUM] Sent chunk ${chunkCount} with ${chunk.length} image links`);
