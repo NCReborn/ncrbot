@@ -6,28 +6,13 @@ module.exports = {
 
   groups: [
     {
-      name: 'NCR_CORE',
-      displayName: 'NCR Core',
-      channelId: process.env.NCR_CORE_CHANGELOG_CHANNEL_ID || '1285797113879334962',
-      members: ['rcuccp'],
+      name: 'NCR',
+      displayName: 'NCR',
+      channelId: process.env.NCR_CHANGELOG_CHANNEL_ID || '1285797113879334962',
+      members: ['rcuccp', 'srpv39', 'vfy7w1'],
       template: 'ncr',
-      gameVersion: '2.3'
-    },
-    {
-      name: 'NCR_EXTRAS',
-      displayName: 'NCR Extras',
-      channelId: process.env.NCR_EXTRAS_CHANGELOG_CHANNEL_ID || '1285797113879334962',
-      members: ['srpv39'],
-      template: 'ncr',
-      gameVersion: '2.3'
-    },
-    {
-      name: 'NCR_BODY',
-      displayName: 'NCR Body',
-      channelId: process.env.NCR_BODY_CHANGELOG_CHANNEL_ID || '1285797113879334962',
-      members: ['vfy7w1'],
-      template: 'ncr',
-      gameVersion: '2.3'
+      gameVersion: '2.3',
+      combined: true
     },
     {
       name: 'SUB2_REBORN',
@@ -40,9 +25,9 @@ module.exports = {
   ],
 
   collections: [
-    { slug: 'rcuccp', display: 'NCR Core', group: 'NCR_CORE', priority: 1 },
-    { slug: 'srpv39', display: 'NCR Extras', group: 'NCR_EXTRAS', priority: 1 },
-    { slug: 'vfy7w1', display: 'NCR Body', group: 'NCR_BODY', priority: 1 },
+    { slug: 'rcuccp', display: 'NCR Core', group: 'NCR', priority: 1 },
+    { slug: 'srpv39', display: 'NCR Extras', group: 'NCR', priority: 2 },
+    { slug: 'vfy7w1', display: 'NCR Body', group: 'NCR', priority: 3 },
     { slug: '9htmlb', display: 'Subnautica 2 Reborn', group: 'SUB2_REBORN', priority: 1 }
   ],
 
