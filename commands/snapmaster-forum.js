@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ChannelType, AttachmentBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require("discord.js");
 const snapmaster = require("../utils/snapmaster");
 const { PermissionChecker } = require("../utils/permissions");
 const logger = require("../utils/logger");
@@ -47,7 +47,7 @@ async function buildSnapmasterForum(guild) {
 
     const eligible = snapmaster.getEligible(MIN_SUBMISSIONS);
     if (eligible.length === 0) {
-        logger.info('[SNAPMASTER_FORUM] No eligible users this month — skipping forum generation.');
+        logger.info("[SNAPMASTER_FORUM] No eligible users this month — skipping forum generation.");
         return;
     }
 
@@ -57,14 +57,20 @@ async function buildSnapmasterForum(guild) {
     // Archive all active threads from the previous month
     await archiveOldSnapmasterThreads(forumChannel);
 
-    const monthYear = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const monthYear = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
     // Create a thread for each eligible user
     for (const user of eligible) {
         const userData = snapmaster.getUser(user.userId);
-        const imageUrls = userData?.imageUrls ?? [];
-        const messages = userData?.messages ?? [];
-        if (imageUrls.length === 0 && messages.length === 0) continue;
+
+        // Prefer in-Discord message jump links
+        const rawMessages = Array.isArray(userData?.messages) ? userData.messages : [];
+        const messageLinks = normalizeAndDedupeJumpLinks(rawMessages);
+
+        // Legacy fallback only
+        const imageUrls = Array.isArray(userData?.imageUrls) ? dedupeStrings(userData.imageUrls) : [];
+
+        if (messageLinks.length === 0 && imageUrls.length === 0) continue;
 
         let displayName;
         try {
@@ -83,53 +89,81 @@ async function buildSnapmasterForum(guild) {
             }
         });
 
-        if (imageUrls.length > 0) {
-            // Group images into chunks of 4 per message
-            const imageChunks = chunkArray(imageUrls, 4);
-            let chunkCount = 0;
-            
-            for (const chunk of imageChunks) {
-                chunkCount++;
+        if (messageLinks.length > 0) {
+            // Primary: post durable message jump links in chunks
+            const chunks = chunkArray(messageLinks, 10);
+            let chunkIndex = 0;
+
+            for (const chunk of chunks) {
+                chunkIndex++;
+
+                const embed = new EmbedBuilder()
+                    .setColor(0x00aaff)
+                    .setTitle("📎 Submission Links")
+                    .setDescription(
+                        chunk
+                            .map((link, i) => `${i + 1}. [View Submission](${link})`)
+                            .join("\n")
+                    )
+                    .setFooter({ text: `Chunk ${chunkIndex}/${chunks.length}` })
+                    .setTimestamp();
+
                 try {
-                    // Post image links as embeds with large preview
-                    const embed = new EmbedBuilder()
-                        .setColor(0x00aaff)
-                        .setTitle("📸 Submissions")
-                        .setDescription(
-                            chunk.map((url, i) => `[Image ${i + 1}](${url})`).join(" • ")
-                        )
-                        .setImage(chunk[0]) // Set first image as large preview
-                        .setTimestamp();
-                    
-                    await thread.send({ embeds: [embed] });
-                    logger.info(`[SNAPMASTER_FORUM] Sent chunk ${chunkCount} with ${chunk.length} image links`);
-                    
-                    // Delay between messages
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await thread.send({
+                        embeds: [embed],
+                        allowedMentions: { parse: [] }
+                    });
+
+                    logger.info(
+                        `[SNAPMASTER_FORUM] Sent message-link chunk ${chunkIndex}/${chunks.length} for ${user.userId}`
+                    );
+
+                    // Small delay between messages
+                    await delay(350);
                 } catch (err) {
-                    logger.error(`[SNAPMASTER_FORUM] Error posting chunk ${chunkCount}: ${err.message}`);
+                    logger.error(
+                        `[SNAPMASTER_FORUM] Error posting message-link chunk ${chunkIndex}: ${err.message}`
+                    );
                 }
             }
         } else {
-            // Fallback: post message links if no image URLs are stored
-            const chunks = chunkArray(messages, 5);
+            // Fallback for historical data that has only image URLs
+            const chunks = chunkArray(imageUrls, 4);
+            let chunkIndex = 0;
+
             for (const chunk of chunks) {
-                const embeds = chunk.map(link =>
-                    new EmbedBuilder()
-                        .setTitle("Submission")
-                        .setURL(link)
-                        .setDescription(`[View in Discord](${link})`)
-                        .setColor(0x00aaff)
-                        .setTimestamp()
-                );
-                await thread.send({ embeds });
+                chunkIndex++;
+                try {
+                    const embed = new EmbedBuilder()
+                        .setColor(0xffa500)
+                        .setTitle("📸 Legacy Submission URLs")
+                        .setDescription(
+                            "⚠️ These are older direct image URLs and may expire.\n\n" +
+                            chunk.map((url, i) => `${i + 1}. [Image ${i + 1}](${url})`).join("\n")
+                        )
+                        .setFooter({ text: `Chunk ${chunkIndex}/${chunks.length}` })
+                        .setTimestamp();
+
+                    await thread.send({ embeds: [embed] });
+                    logger.info(
+                        `[SNAPMASTER_FORUM] Sent legacy image-url chunk ${chunkIndex}/${chunks.length} for ${user.userId}`
+                    );
+
+                    await delay(350);
+                } catch (err) {
+                    logger.error(
+                        `[SNAPMASTER_FORUM] Error posting legacy image chunk ${chunkIndex}: ${err.message}`
+                    );
+                }
             }
         }
 
         // Lock thread to prevent user comments
         await thread.setLocked(true);
 
-        logger.info(`[SNAPMASTER_FORUM] Created thread for ${user.userId} (${displayName}) with ${user.count} submissions`);
+        logger.info(
+            `[SNAPMASTER_FORUM] Created thread for ${user.userId} (${displayName}) with ${user.count} submissions`
+        );
     }
 
     logger.info(`[SNAPMASTER_FORUM] Completed: ${eligible.length} threads created`);
@@ -151,6 +185,21 @@ function chunkArray(array, size) {
         chunks.push(array.slice(i, i + size));
     }
     return chunks;
+}
+
+function dedupeStrings(values) {
+    return [...new Set(values.filter(v => typeof v === "string" && v.trim().length > 0))];
+}
+
+function normalizeAndDedupeJumpLinks(values) {
+    const links = dedupeStrings(values);
+
+    // Keep only Discord message jump-link format: /channels/<guild>/<channel>/<message>
+    return links.filter(link => /^https:\/\/discord\.com\/channels\/\d+\/\d+\/\d+$/.test(link));
+}
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 module.exports.buildSnapmasterForum = buildSnapmasterForum;
