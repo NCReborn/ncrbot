@@ -16,7 +16,7 @@ module.exports = function multiChannelSpamRule(message, activity, config) {
       triggered: true,
       ruleName: "Multi-Channel Spam",
       score: 2,
-      evidence: recentMessages.slice(0, 5).map(msg => ({
+      evidence: recentMessages.map(msg => ({
         messageId: msg.id,
         channelId: msg.channelId,
         content: msg.content.substring(0, 100),

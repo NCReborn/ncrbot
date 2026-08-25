@@ -317,7 +317,7 @@ class SpamDetector {
     // Fall back to recent messages if no valid evidence collected; exclude protected channels
     const resolvedEvidence = validEvidence.length > 0
       ? validEvidence
-      : this.getRecentMessages(userId, 3).filter(
+      : this.getRecentMessages(userId, 10).filter(
           msg => msg.channelId && !this.isProtectedChannel(msg.channelId)
         );
 
