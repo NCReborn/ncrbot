@@ -20,13 +20,15 @@ function findResponse(trigger) {
 }
 
 // Add or update response
-function upsertResponse(trigger, response, wildcard) {
+// allowedChannelIds: string[] — empty/null means global (all channels)
+function upsertResponse(trigger, response, wildcard, allowedChannelIds = []) {
   let responses = loadResponses();
   const index = responses.findIndex(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+  const record = { trigger, response, wildcard, allowedChannelIds: allowedChannelIds ?? [] };
   if (index !== -1) {
-    responses[index] = { trigger, response, wildcard };
+    responses[index] = record;
   } else {
-    responses.push({ trigger, response, wildcard });
+    responses.push(record);
   }
   saveResponses(responses);
 }

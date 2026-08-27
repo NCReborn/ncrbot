@@ -1,6 +1,6 @@
 const logger = require('../utils/logger');
-const { PermissionFlagsBits } = require('discord.js');
-const { upsertResponse } = require('../utils/autoResponder');
+const { PermissionFlagsBits, ActionRowBuilder, ChannelSelectMenuBuilder, ChannelType } = require('discord.js');
+const { upsertResponse, loadResponses } = require('../utils/autoResponder');
 const fs = require('fs');
 const path = require('path');
 
@@ -46,15 +46,38 @@ class ModalHandlers {
       return;
     }
 
-    upsertResponse(trigger, response, wildcard);
+    // Preserve existing allowedChannelIds when editing
+    const existing = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+    const allowedChannelIds = existing?.allowedChannelIds ?? [];
+
+    upsertResponse(trigger, response, wildcard, allowedChannelIds);
 
     const action = interaction.customId === 'autoresponder_add' ? 'Added' : 'Updated';
-    await interaction.reply({ 
-      content: `${action} auto-response for trigger: \`${trigger}\``, 
-      ephemeral: true 
-    });
-    
     logger.info(`[AUTORESPONDER] ${action} trigger "${trigger}" by ${interaction.user.tag}`);
+
+    // Follow-up with a channel select menu for optional channel scoping
+    const channelSelect = new ChannelSelectMenuBuilder()
+      .setCustomId(`autoresponder_channels:${trigger}`)
+      .setPlaceholder('Select channels (leave empty to trigger in all channels)')
+      .setMinValues(0)
+      .setMaxValues(25)
+      .addChannelTypes(ChannelType.GuildText, ChannelType.GuildForum, ChannelType.GuildVoice);
+
+    const row = new ActionRowBuilder().addComponents(channelSelect);
+
+    const currentScope =
+      allowedChannelIds.length > 0
+        ? `Currently scoped to: ${allowedChannelIds.map(id => `<#${id}>`).join(', ')}`
+        : 'Currently global (all channels).';
+
+    await interaction.reply({
+      content:
+        `${action} auto-response for trigger: \`${trigger}\`\n\n` +
+        `${currentScope}\n` +
+        `Use the menu below to restrict this trigger to specific channels, or dismiss to keep the current scope.`,
+      components: [row],
+      ephemeral: true
+    });
   }
 
   async handleNCRBotMessage(interaction) {

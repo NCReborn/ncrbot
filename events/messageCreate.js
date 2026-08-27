@@ -129,7 +129,13 @@ module.exports = {
             ? msgContent.includes(trigger)
             : msgContent === trigger;
 
-          if (isMatch) {
+          const allowedChannels = entry.allowedChannelIds;
+          const channelAllowed =
+            !allowedChannels ||
+            allowedChannels.length === 0 ||
+            allowedChannels.includes(message.channelId);
+
+          if (isMatch && channelAllowed) {
             await message.channel.send({ content: entry.response });
             break;
           }
