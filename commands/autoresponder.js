@@ -80,7 +80,11 @@ module.exports = {
           const entries = responses.map(r => {
             // Suppress embeds in the response text
             const responseText = suppressEmbeds(r.response);
-            return `**Trigger:** \`${r.trigger}\` ${r.wildcard ? '*(wildcard)*' : ''}\n**Response:** ${responseText}`;
+            const channelScope =
+              r.allowedChannelIds && r.allowedChannelIds.length > 0
+                ? `**Channels:** ${r.allowedChannelIds.map(id => `<#${id}>`).join(', ')}`
+                : `**Channels:** All (global)`;
+            return `**Trigger:** \`${r.trigger}\` ${r.wildcard ? '*(wildcard)*' : ''}\n**Response:** ${responseText}\n${channelScope}`;
           });
           
           let chunk = '';

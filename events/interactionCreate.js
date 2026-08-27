@@ -5,6 +5,7 @@ const { handleLogScanTicketInteraction } = require('../utils/logScanTicket');
 const modalHandlers = require('../handlers/modalHandlers');
 const buttonHandlers = require('../handlers/buttonHandlers');
 const commandHandlers = require('../handlers/commandHandlers');
+const { loadResponses, upsertResponse } = require('../utils/autoResponder');
 
 module.exports = {
   name: 'interactionCreate',
@@ -18,6 +19,8 @@ module.exports = {
         await modalHandlers.handle(interaction, client);
       } else if (interaction.isButton()) {
         await buttonHandlers.handle(interaction, client);
+      } else if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('autoresponder_channels:')) {
+        await handleAutoResponderChannelSelect(interaction);
       } else if (interaction.type === InteractionType.ApplicationCommand) {
         await commandHandlers.handle(interaction, client);
       }
@@ -37,3 +40,35 @@ module.exports = {
     }
   }
 };
+
+async function handleAutoResponderChannelSelect(interaction) {
+  const trigger = interaction.customId.slice('autoresponder_channels:'.length);
+  const selectedChannelIds = interaction.values; // array of channel ID strings
+
+  const existing = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+  if (!existing) {
+    await interaction.update({
+      content: `Could not find auto-response for trigger \`${trigger}\`. It may have been deleted.`,
+      components: []
+    });
+    return;
+  }
+
+  // Validate selected channels belong to this guild
+  const guildChannelIds = new Set(interaction.guild.channels.cache.keys());
+  const validChannelIds = selectedChannelIds.filter(id => guildChannelIds.has(id));
+
+  upsertResponse(existing.trigger, existing.response, existing.wildcard, validChannelIds);
+
+  const scopeMsg =
+    validChannelIds.length > 0
+      ? `Now scoped to: ${validChannelIds.map(id => `<#${id}>`).join(', ')}`
+      : 'Now global (triggers in all channels).';
+
+  logger.info(`[AUTORESPONDER] Channel scope updated for trigger "${trigger}" by ${interaction.user.tag}: [${validChannelIds.join(', ')}]`);
+
+  await interaction.update({
+    content: `✅ Channel scope updated for trigger \`${trigger}\`.\n${scopeMsg}`,
+    components: []
+  });
+}
