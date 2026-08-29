@@ -64,17 +64,21 @@ Each audit log includes:
 
 ## Configuration
 
-Events are configured in `config/auditConfig.json`:
+Events are configured per guild in `config/auditConfig.json`:
 
 ```json
 {
-  "auditChannelId": "channel_id_here",
-  "events": {
-    "eventName": {
-      "enabled": true,
-      "name": "Display Name",
-      "color": 16729943,
-      "emoji": "🔨"
+  "guildConfigs": {
+    "guild_id_here": {
+      "auditChannelId": "channel_id_here",
+      "events": {
+        "eventName": {
+          "enabled": true,
+          "name": "Display Name",
+          "color": 16729943,
+          "emoji": "🔨"
+        }
+      }
     }
   }
 }

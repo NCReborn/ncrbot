@@ -73,13 +73,14 @@ module.exports = {
       if (subcommand === 'toggle') {
         const eventName = interaction.options.getString('event');
         const enabled = interaction.options.getBoolean('enabled');
+        const guildId = interaction.guildId;
 
-        const success = auditLogger.toggleEvent(eventName, enabled);
+        const success = auditLogger.toggleEvent(guildId, eventName, enabled);
         
         if (success) {
-          const eventConfig = auditLogger.getEventConfig(eventName);
+          const eventConfig = auditLogger.getEventConfig(guildId, eventName);
           await interaction.reply({
-            content: `✅ **${eventConfig.name}** audit logging has been **${enabled ? 'enabled' : 'disabled'}**.`,
+            content: `✅ **${eventConfig.name}** audit logging has been **${enabled ? 'enabled' : 'disabled'}** for this server.`,
             ephemeral: true
           });
         } else {
@@ -100,6 +101,14 @@ module.exports = {
           return;
         }
 
+        if (channel.guildId !== interaction.guildId) {
+          await interaction.reply({
+            content: '❌ The audit log channel must belong to this server.',
+            ephemeral: true
+          });
+          return;
+        }
+
         // Test if bot can send messages to this channel
         try {
           await channel.send('🔍 Testing audit log permissions...').then(msg => msg.delete());
@@ -111,16 +120,16 @@ module.exports = {
           return;
         }
 
-        auditLogger.setAuditChannel(channel.id);
+        auditLogger.setAuditChannel(interaction.guildId, channel.id);
         
         await interaction.reply({
-          content: `✅ Audit log channel has been set to ${channel}.`,
+          content: `✅ Audit log channel has been set to ${channel} for this server.`,
           ephemeral: true
         });
 
       } else if (subcommand === 'status') {
-        const auditChannelId = auditLogger.getAuditChannel();
-        const events = auditLogger.getAllEvents();
+        const auditChannelId = auditLogger.getAuditChannel(interaction.guildId);
+        const events = auditLogger.getAllEvents(interaction.guildId);
 
         const embed = new EmbedBuilder()
           .setTitle('🔍 Audit Log Configuration')
@@ -177,7 +186,7 @@ module.exports = {
         }
 
         embed.setFooter({
-          text: 'Use /auditlog toggle to enable/disable events • /auditlog channel to set audit channel'
+          text: 'This server only • Use /auditlog toggle to enable/disable events • /auditlog channel to set audit channel'
         });
 
         await interaction.reply({ embeds: [embed], ephemeral: true });
