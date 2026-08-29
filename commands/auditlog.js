@@ -128,8 +128,10 @@ module.exports = {
         });
 
       } else if (subcommand === 'status') {
+        const guildConfig = auditLogger.getGuildConfig(interaction.guildId);
         const auditChannelId = auditLogger.getAuditChannel(interaction.guildId);
-        const events = auditLogger.getAllEvents(interaction.guildId);
+        const events = auditLogger.getAllEvents(interaction.guildId) || {};
+        const hasGuildConfig = Boolean(guildConfig);
 
         const embed = new EmbedBuilder()
           .setTitle('🔍 Audit Log Configuration')
@@ -157,15 +159,25 @@ module.exports = {
         const enabledEvents = [];
         const disabledEvents = [];
 
-        for (const [eventKey, eventConfig] of Object.entries(events)) {
-          if (eventConfig.enabled) {
-            enabledEvents.push(`${eventConfig.emoji} ${eventConfig.name}`);
-          } else {
-            disabledEvents.push(`${eventConfig.emoji} ${eventConfig.name}`);
+        if (hasGuildConfig) {
+          for (const eventConfig of Object.values(events)) {
+            if (eventConfig.enabled) {
+              enabledEvents.push(`${eventConfig.emoji} ${eventConfig.name}`);
+            } else {
+              disabledEvents.push(`${eventConfig.emoji} ${eventConfig.name}`);
+            }
           }
         }
 
-        if (enabledEvents.length > 0) {
+        if (!hasGuildConfig) {
+          embed.addFields([
+            {
+              name: 'Events',
+              value: 'ℹ️ No guild-specific audit settings saved yet. Set an audit channel to initialize logging for this server.',
+              inline: false
+            }
+          ]);
+        } else if (enabledEvents.length > 0) {
           embed.addFields([
             { 
               name: '✅ Enabled Events', 

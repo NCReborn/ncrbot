@@ -36,7 +36,6 @@ const DEFAULT_EVENTS = {
 class AuditLogger {
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config', 'auditConfig.json');
-    this.defaultEvents = this.cloneDefaultEvents();
     this.config = this.loadConfig();
   }
 
@@ -59,29 +58,23 @@ class AuditLogger {
   }
 
   normalizeConfig(rawConfig = {}) {
-    const legacyEvents = this.normalizeEvents(rawConfig.events || {});
     const guildConfigs = rawConfig.guildConfigs || {};
     const normalizedGuildConfigs = {};
 
     for (const [guildId, guildConfig] of Object.entries(guildConfigs)) {
       normalizedGuildConfigs[guildId] = {
         auditChannelId: guildConfig?.auditChannelId || null,
-        events: this.normalizeEvents(guildConfig?.events || legacyEvents)
+        events: this.normalizeEvents(guildConfig?.events || {})
       };
     }
 
-    return {
-      config: { guildConfigs: normalizedGuildConfigs },
-      defaultEvents: legacyEvents
-    };
+    return { guildConfigs: normalizedGuildConfigs };
   }
 
   loadConfig() {
     try {
       const data = fs.readFileSync(this.configPath, 'utf8');
-      const { config, defaultEvents } = this.normalizeConfig(JSON.parse(data));
-      this.defaultEvents = defaultEvents;
-      return config;
+      return this.normalizeConfig(JSON.parse(data));
     } catch (error) {
       logger.error('Failed to load audit config:', error);
       return { guildConfigs: {} };
@@ -102,7 +95,7 @@ class AuditLogger {
     if (!this.config.guildConfigs[guildId]) {
       this.config.guildConfigs[guildId] = {
         auditChannelId: null,
-        events: JSON.parse(JSON.stringify(this.defaultEvents))
+        events: this.cloneDefaultEvents()
       };
       if (persist) {
         this.saveConfig();
@@ -112,8 +105,13 @@ class AuditLogger {
     return this.config.guildConfigs[guildId];
   }
 
+  getGuildConfig(guildId) {
+    if (!guildId) return null;
+    return this.config.guildConfigs[guildId] || null;
+  }
+
   isEventEnabled(guildId, eventName) {
-    const guildConfig = this.ensureGuildConfig(guildId);
+    const guildConfig = this.getGuildConfig(guildId);
     return guildConfig?.events?.[eventName]?.enabled || false;
   }
 
@@ -135,18 +133,37 @@ class AuditLogger {
   }
 
   getAuditChannel(guildId) {
-    const guildConfig = this.ensureGuildConfig(guildId);
+    const guildConfig = this.getGuildConfig(guildId);
     return guildConfig?.auditChannelId || null;
   }
 
   getEventConfig(guildId, eventName) {
-    const guildConfig = this.ensureGuildConfig(guildId);
+    const guildConfig = this.getGuildConfig(guildId);
     return guildConfig?.events?.[eventName] || null;
   }
 
   getAllEvents(guildId) {
-    const guildConfig = this.ensureGuildConfig(guildId);
-    return guildConfig?.events || JSON.parse(JSON.stringify(this.defaultEvents));
+    const guildConfig = this.getGuildConfig(guildId);
+    return guildConfig?.events || null;
+  }
+
+  async resolveAuditChannel(client, guildId) {
+    const configuredChannelId = this.getAuditChannel(guildId);
+    if (!configuredChannelId) return null;
+
+    const cachedChannel = client.channels?.cache?.get(configuredChannelId);
+    const channel = cachedChannel || await client.channels.fetch(configuredChannelId, { force: false }).catch(() => null);
+    if (!channel) {
+      logger.warn(`Audit channel ${configuredChannelId} not found for guild ${guildId}`);
+      return null;
+    }
+
+    if (channel.guildId !== guildId) {
+      logger.warn(`Audit channel ${configuredChannelId} does not belong to guild ${guildId}. Skipping audit log.`);
+      return null;
+    }
+
+    return channel;
   }
 
   createBaseEmbed(eventName, user, guild) {
@@ -178,20 +195,9 @@ class AuditLogger {
     const guildId = guild?.id;
     if (!guildId || !this.isEventEnabled(guildId, eventName)) return;
 
-    const channelId = this.getAuditChannel(guildId);
-    if (!channelId) return;
-
     try {
-      const channel = await client.channels.fetch(channelId);
-      if (!channel) {
-        logger.warn(`Audit channel ${channelId} not found for guild ${guildId}`);
-        return;
-      }
-
-      if (channel.guildId !== guildId) {
-        logger.warn(`Audit channel ${channelId} does not belong to guild ${guildId}. Skipping audit log.`);
-        return;
-      }
+      const channel = await this.resolveAuditChannel(client, guildId);
+      if (!channel) return;
 
       await channel.send({ embeds: [embed] });
     } catch (error) {
