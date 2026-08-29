@@ -5,7 +5,7 @@ const logger = require('./logger');
 require('dotenv').config();
 require('./envCheck').checkEnv();
 
-const GUILD_ID = process.env.GUILD_ID || '1285796904160202752';
+const GUILD_IDS = (process.env.GUILD_ID || '1285796904160202752').split(',').map(id => id.trim());
 
 async function syncSlashCommands() {
   const commands = [];
@@ -47,15 +47,20 @@ async function syncSlashCommands() {
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-  logger.info(`Registering ${commands.length} application (/) commands for guild ${GUILD_ID}:`);
-  commands.forEach(cmd => logger.info(`   - ${cmd.name}`));
+  // Register commands to ALL guilds
+  for (const GUILD_ID of GUILD_IDS) {
+    logger.info(`Registering ${commands.length} application (/) commands for guild ${GUILD_ID}:`);
+    commands.forEach(cmd => logger.info(`   - ${cmd.name}`));
 
-  await rest.put(
-    Routes.applicationGuildCommands(process.env.CLIENT_ID, GUILD_ID),
-    { body: commands },
-  );
+    await rest.put(
+      Routes.applicationGuildCommands(process.env.DISCORD_TOKEN, GUILD_ID),
+      { body: commands },
+    );
 
-  logger.info('Successfully reloaded application (/) commands for guild.');
+    logger.info(`✅ Successfully reloaded application (/) commands for guild ${GUILD_ID}.`);
+  }
+
+  logger.info(`✅ Command sync complete for ${GUILD_IDS.length} guild(s).`);
 }
 
 module.exports = { syncSlashCommands };
