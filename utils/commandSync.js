@@ -53,7 +53,7 @@ async function syncSlashCommands() {
     commands.forEach(cmd => logger.info(`   - ${cmd.name}`));
 
     await rest.put(
-      Routes.applicationGuildCommands(process.env.DISCORD_TOKEN, GUILD_ID),
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, GUILD_ID),  // ✅ FIXED
       { body: commands },
     );
 
