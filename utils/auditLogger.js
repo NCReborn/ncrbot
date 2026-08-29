@@ -63,22 +63,25 @@ class AuditLogger {
     const guildConfigs = rawConfig.guildConfigs || {};
     const normalizedGuildConfigs = {};
 
-    this.defaultEvents = legacyEvents;
-
     for (const [guildId, guildConfig] of Object.entries(guildConfigs)) {
       normalizedGuildConfigs[guildId] = {
         auditChannelId: guildConfig?.auditChannelId || null,
-        events: this.normalizeEvents(guildConfig?.events || this.defaultEvents)
+        events: this.normalizeEvents(guildConfig?.events || legacyEvents)
       };
     }
 
-    return { guildConfigs: normalizedGuildConfigs };
+    return {
+      config: { guildConfigs: normalizedGuildConfigs },
+      defaultEvents: legacyEvents
+    };
   }
 
   loadConfig() {
     try {
       const data = fs.readFileSync(this.configPath, 'utf8');
-      return this.normalizeConfig(JSON.parse(data));
+      const { config, defaultEvents } = this.normalizeConfig(JSON.parse(data));
+      this.defaultEvents = defaultEvents;
+      return config;
     } catch (error) {
       logger.error('Failed to load audit config:', error);
       return { guildConfigs: {} };
@@ -93,7 +96,7 @@ class AuditLogger {
     }
   }
 
-  ensureGuildConfig(guildId) {
+  ensureGuildConfig(guildId, persist = false) {
     if (!guildId) return null;
 
     if (!this.config.guildConfigs[guildId]) {
@@ -101,7 +104,9 @@ class AuditLogger {
         auditChannelId: null,
         events: JSON.parse(JSON.stringify(this.defaultEvents))
       };
-      this.saveConfig();
+      if (persist) {
+        this.saveConfig();
+      }
     }
 
     return this.config.guildConfigs[guildId];
