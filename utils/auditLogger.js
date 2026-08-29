@@ -16,19 +16,68 @@ function formatUserTag(user) {
   return user.username || user.tag || 'Unknown User';
 }
 
+const DEFAULT_EVENTS = {
+  guildBanAdd: { enabled: true, name: 'Member Banned', color: 16729943, emoji: '🔨' },
+  guildBanRemove: { enabled: true, name: 'Member Unbanned', color: 3069299, emoji: '🔓' },
+  guildMemberAdd: { enabled: true, name: 'Member Joined', color: 3069299, emoji: '📥' },
+  guildMemberRemove: { enabled: true, name: 'Member Left/Kicked', color: 16742273, emoji: '📤' },
+  guildMemberUpdate: { enabled: true, name: 'Member Updated', color: 3622906, emoji: '✏️' },
+  messageDelete: { enabled: true, name: 'Message Deleted', color: 16729943, emoji: '🗑️' },
+  messageUpdate: { enabled: true, name: 'Message Edited', color: 16752451, emoji: '✏️' },
+  channelCreate: { enabled: true, name: 'Channel Created', color: 3069299, emoji: '📝' },
+  channelDelete: { enabled: true, name: 'Channel Deleted', color: 16729943, emoji: '🗑️' },
+  channelUpdate: { enabled: true, name: 'Channel Updated', color: 3622906, emoji: '✏️' },
+  threadCreate: { enabled: true, name: 'Thread Created', color: 3069299, emoji: '🧵' },
+  threadDelete: { enabled: true, name: 'Thread Deleted', color: 16729943, emoji: '🗑️' },
+  threadUpdate: { enabled: true, name: 'Thread Updated', color: 3622906, emoji: '✏️' },
+  guildMemberTimeout: { enabled: true, name: 'Member Timeout', color: 16752451, emoji: '⏰' }
+};
+
 class AuditLogger {
   constructor() {
     this.configPath = path.join(__dirname, '..', 'config', 'auditConfig.json');
     this.config = this.loadConfig();
   }
 
+  cloneDefaultEvents() {
+    return JSON.parse(JSON.stringify(DEFAULT_EVENTS));
+  }
+
+  normalizeEvents(events = {}) {
+    const normalizedEvents = this.cloneDefaultEvents();
+
+    for (const [eventName, eventConfig] of Object.entries(events)) {
+      if (!normalizedEvents[eventName]) continue;
+      normalizedEvents[eventName] = {
+        ...normalizedEvents[eventName],
+        ...eventConfig
+      };
+    }
+
+    return normalizedEvents;
+  }
+
+  normalizeConfig(rawConfig = {}) {
+    const guildConfigs = rawConfig.guildConfigs || {};
+    const normalizedGuildConfigs = {};
+
+    for (const [guildId, guildConfig] of Object.entries(guildConfigs)) {
+      normalizedGuildConfigs[guildId] = {
+        auditChannelId: guildConfig?.auditChannelId || null,
+        events: this.normalizeEvents(guildConfig?.events || {})
+      };
+    }
+
+    return { guildConfigs: normalizedGuildConfigs };
+  }
+
   loadConfig() {
     try {
       const data = fs.readFileSync(this.configPath, 'utf8');
-      return JSON.parse(data);
+      return this.normalizeConfig(JSON.parse(data));
     } catch (error) {
       logger.error('Failed to load audit config:', error);
-      return { auditChannelId: null, events: {} };
+      return { guildConfigs: {} };
     }
   }
 
@@ -40,38 +89,87 @@ class AuditLogger {
     }
   }
 
-  isEventEnabled(eventName) {
-    return this.config.events[eventName]?.enabled || false;
-  }
+  ensureGuildConfig(guildId, persist = false) {
+    if (!guildId) return null;
 
-  toggleEvent(eventName, enabled) {
-    if (this.config.events[eventName]) {
-      this.config.events[eventName].enabled = enabled;
-      this.saveConfig();
-      return true;
+    if (!this.config.guildConfigs[guildId]) {
+      this.config.guildConfigs[guildId] = {
+        auditChannelId: null,
+        events: this.cloneDefaultEvents()
+      };
+      if (persist) {
+        this.saveConfig();
+      }
     }
-    return false;
+
+    return this.config.guildConfigs[guildId];
   }
 
-  setAuditChannel(channelId) {
-    this.config.auditChannelId = channelId;
+  getGuildConfig(guildId) {
+    if (!guildId) return null;
+    return this.config.guildConfigs[guildId] || null;
+  }
+
+  isEventEnabled(guildId, eventName) {
+    const guildConfig = this.getGuildConfig(guildId);
+    return guildConfig?.events?.[eventName]?.enabled || false;
+  }
+
+  toggleEvent(guildId, eventName, enabled) {
+    const guildConfig = this.ensureGuildConfig(guildId);
+    if (!guildConfig?.events?.[eventName]) return false;
+
+    guildConfig.events[eventName].enabled = enabled;
+    this.saveConfig();
+    return true;
+  }
+
+  setAuditChannel(guildId, channelId) {
+    const guildConfig = this.ensureGuildConfig(guildId);
+    if (!guildConfig) return;
+
+    guildConfig.auditChannelId = channelId;
     this.saveConfig();
   }
 
-  getAuditChannel() {
-    return this.config.auditChannelId;
+  getAuditChannel(guildId) {
+    const guildConfig = this.getGuildConfig(guildId);
+    return guildConfig?.auditChannelId || null;
   }
 
-  getEventConfig(eventName) {
-    return this.config.events[eventName] || null;
+  getEventConfig(guildId, eventName) {
+    const guildConfig = this.getGuildConfig(guildId);
+    return guildConfig?.events?.[eventName] || null;
   }
 
-  getAllEvents() {
-    return this.config.events;
+  getAllEvents(guildId) {
+    const guildConfig = this.getGuildConfig(guildId);
+    return guildConfig?.events || null;
+  }
+
+  async resolveAuditChannel(client, guildId) {
+    const configuredChannelId = this.getAuditChannel(guildId);
+    if (!configuredChannelId) return null;
+
+    const cachedChannel = client.channels?.cache?.get(configuredChannelId);
+    const channel = cachedChannel || await client.channels.fetch(configuredChannelId, { force: false }).catch(() => null);
+    if (!channel) {
+      logger.warn(`Audit channel ${configuredChannelId} not found for guild ${guildId}`);
+      return null;
+    }
+
+    if (channel.guildId !== guildId) {
+      logger.warn(`Audit channel ${configuredChannelId} does not belong to guild ${guildId}. Skipping audit log.`);
+      return null;
+    }
+
+    return channel;
   }
 
   createBaseEmbed(eventName, user, guild) {
-    const eventConfig = this.getEventConfig(eventName);
+    if (!guild?.id) return null;
+
+    const eventConfig = this.getEventConfig(guild.id, eventName);
     if (!eventConfig) return null;
 
     const embed = new EmbedBuilder()
@@ -79,7 +177,7 @@ class AuditLogger {
       .setTitle(`${eventConfig.emoji} ${eventConfig.name}`)
       .setTimestamp()
       .setFooter({
-        text: `ID: ${user?.id || 'Unknown'} • ${guild?.name || 'Unknown Guild'}`,
+        text: `ID: ${user?.id || 'Unknown'} • ${guild?.name || 'Unknown Guild'} (${guild.id})`,
         iconURL: guild?.iconURL() || null
       });
 
@@ -93,18 +191,13 @@ class AuditLogger {
     return embed;
   }
 
-  async sendAuditLog(client, eventName, embed) {
-    if (!this.isEventEnabled(eventName)) return;
-
-    const channelId = this.getAuditChannel();
-    if (!channelId) return;
+  async sendAuditLog(client, eventName, embed, guild) {
+    const guildId = guild?.id;
+    if (!guildId || !this.isEventEnabled(guildId, eventName)) return;
 
     try {
-      const channel = await client.channels.fetch(channelId);
-      if (!channel) {
-        logger.warn(`Audit channel ${channelId} not found`);
-        return;
-      }
+      const channel = await this.resolveAuditChannel(client, guildId);
+      if (!channel) return;
 
       await channel.send({ embeds: [embed] });
     } catch (error) {
@@ -149,7 +242,7 @@ class AuditLogger {
       { name: 'Reason', value: reason, inline: false }
     ]);
 
-    await this.sendAuditLog(client, 'guildBanAdd', embed);
+    await this.sendAuditLog(client, 'guildBanAdd', embed, ban.guild);
   }
 
   async logMemberUnbanned(client, ban) {
@@ -185,7 +278,7 @@ class AuditLogger {
       { name: 'Reason', value: reason, inline: false }
     ]);
 
-    await this.sendAuditLog(client, 'guildBanRemove', embed);
+    await this.sendAuditLog(client, 'guildBanRemove', embed, ban.guild);
   }
 
   // ============================
@@ -204,7 +297,7 @@ class AuditLogger {
       { name: 'Member Count', value: `${member.guild.memberCount}`, inline: true }
     ]);
 
-    await this.sendAuditLog(client, 'guildMemberAdd', embed);
+    await this.sendAuditLog(client, 'guildMemberAdd', embed, member.guild);
   }
 
   async logMemberLeft(client, member) {
@@ -262,7 +355,7 @@ class AuditLogger {
       }
     }
 
-    await this.sendAuditLog(client, 'guildMemberRemove', embed);
+    await this.sendAuditLog(client, 'guildMemberRemove', embed, member.guild);
   }
 
   // ============================
@@ -335,7 +428,7 @@ class AuditLogger {
             { name: 'Reason', value: reason, inline: false }
           ]);
 
-          await this.sendAuditLog(client, 'guildMemberTimeout', timeoutEmbed);
+          await this.sendAuditLog(client, 'guildMemberTimeout', timeoutEmbed, newMember.guild);
         }
       } else if (oldMember.communicationDisabledUntil) {
         changes.push({
@@ -375,7 +468,7 @@ class AuditLogger {
       ...changes
     ]);
 
-    await this.sendAuditLog(client, 'guildMemberUpdate', embed);
+    await this.sendAuditLog(client, 'guildMemberUpdate', embed, newMember.guild);
   }
 
   // ============================
@@ -383,7 +476,8 @@ class AuditLogger {
   // ============================
 
   async logMessageDeleted(client, message, executorOverride = null) {
-    if (message.channelId === this.getAuditChannel()) return;
+    if (!message.guild?.id) return;
+    if (message.channelId === this.getAuditChannel(message.guild.id)) return;
 
     const embed = this.createBaseEmbed('messageDelete', message.author, message.guild);
     if (!embed) return;
@@ -446,7 +540,7 @@ class AuditLogger {
       embed.addFields([{ name: 'Attachments', value: attachments, inline: false }]);
     }
 
-    await this.sendAuditLog(client, 'messageDelete', embed);
+    await this.sendAuditLog(client, 'messageDelete', embed, message.guild);
   }
 
   // ============================
@@ -455,7 +549,8 @@ class AuditLogger {
 
   async logMessageUpdated(client, oldMessage, newMessage) {
     if (newMessage.author?.bot || oldMessage.content === newMessage.content) return;
-    if (newMessage.channelId === this.getAuditChannel()) return;
+    if (!newMessage.guild?.id) return;
+    if (newMessage.channelId === this.getAuditChannel(newMessage.guild.id)) return;
 
     const embed = this.createBaseEmbed('messageUpdate', newMessage.author, newMessage.guild);
     if (!embed) return;
@@ -480,7 +575,7 @@ class AuditLogger {
       embed.addFields([{ name: 'After', value: newContent || 'No content', inline: false }]);
     }
 
-    await this.sendAuditLog(client, 'messageUpdate', embed);
+    await this.sendAuditLog(client, 'messageUpdate', embed, newMessage.guild);
   }
 
   // ============================
@@ -502,8 +597,7 @@ class AuditLogger {
       embed.addFields([{ name: 'Category', value: channel.parent.name, inline: true }]);
     }
 
-    await this.sendAudit
-        await this.sendAuditLog(client, 'channelCreate', embed);
+    await this.sendAuditLog(client, 'channelCreate', embed, channel.guild);
   }
 
   async logChannelDeleted(client, channel) {
@@ -521,7 +615,7 @@ class AuditLogger {
       embed.addFields([{ name: 'Category', value: channel.parent.name, inline: true }]);
     }
 
-    await this.sendAuditLog(client, 'channelDelete', embed);
+    await this.sendAuditLog(client, 'channelDelete', embed, channel.guild);
   }
 
   async logChannelUpdated(client, oldChannel, newChannel) {
@@ -554,7 +648,7 @@ class AuditLogger {
       ...changes
     ]);
 
-    await this.sendAuditLog(client, 'channelUpdate', embed);
+    await this.sendAuditLog(client, 'channelUpdate', embed, newChannel.guild);
   }
 
   // ============================
@@ -581,7 +675,7 @@ class AuditLogger {
       ]);
     }
 
-    await this.sendAuditLog(client, 'threadCreate', embed);
+    await this.sendAuditLog(client, 'threadCreate', embed, thread.guild);
   }
 
   async logThreadDeleted(client, thread) {
@@ -604,7 +698,7 @@ class AuditLogger {
       ]);
     }
 
-    await this.sendAuditLog(client, 'threadDelete', embed);
+    await this.sendAuditLog(client, 'threadDelete', embed, thread.guild);
   }
 
   async logThreadUpdated(client, oldThread, newThread) {
@@ -648,7 +742,7 @@ class AuditLogger {
       ...changes
     ]);
 
-    await this.sendAuditLog(client, 'threadUpdate', embed);
+    await this.sendAuditLog(client, 'threadUpdate', embed, newThread.guild);
   }
 }
 
