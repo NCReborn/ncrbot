@@ -26,7 +26,7 @@ BOT_SPAM_CHANNEL_IDS=1285796904160202752:1406269920211374080,222222222222222222:
 ## Backward compatibility notes
 
 - If only one guild is configured (`GUILD_IDS` has a single ID or only `GUILD_ID` is set), legacy `constants.CHANNELS.SHOWCASE` and `constants.CHANNELS.BOT_SPAM` continue to be used as fallback for that guild.
-- Autoresponder data is now stored per guild. Existing legacy/global `data/autoResponses.json` array data is automatically migrated to the first guild that accesses autoresponder data, then saved under a guild-specific partition.
+- Autoresponder data is now stored per guild. Existing legacy/global `data/autoResponses.json` array data is automatically migrated into the legacy guild from `GUILD_ID` (if set), otherwise into the first guild that accesses autoresponder data, then saved under a guild-specific partition.
 
 ## Missing mapping visibility
 
@@ -36,3 +36,5 @@ On startup, the bot logs warnings for any configured guild IDs missing:
 - bot spam mapping
 
 Warnings include the exact guild IDs missing mappings and the env key to set.
+
+If `GUILD_IDS` is not set, startup checks fall back to all guilds the bot is currently connected to.

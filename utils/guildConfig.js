@@ -94,8 +94,8 @@ function logMissingRequiredGuildChannelMappings(client) {
   const missingBotSpam = [];
 
   for (const guildId of guildIdsToCheck) {
-    const hasShowcase = Boolean(showcaseMap[guildId]) || legacySingleGuildId === guildId;
-    const hasBotSpam = Boolean(botSpamMap[guildId]) || legacySingleGuildId === guildId;
+    const hasShowcase = Boolean(showcaseMap[guildId]) || (legacySingleGuildId === guildId && Boolean(CONSTANTS.CHANNELS.SHOWCASE));
+    const hasBotSpam = Boolean(botSpamMap[guildId]) || (legacySingleGuildId === guildId && Boolean(CONSTANTS.CHANNELS.BOT_SPAM));
 
     if (!hasShowcase) missingShowcase.push(guildId);
     if (!hasBotSpam) missingBotSpam.push(guildId);

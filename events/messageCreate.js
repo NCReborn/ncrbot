@@ -229,8 +229,7 @@ module.exports = {
             const botSpamChannel = await message.client.channels.fetch(botSpamChannelId).catch(() => null);
             if (!botSpamChannel) {
               logger.warn(`[STREET_CRED] Unable to fetch bot spam channel ${botSpamChannelId} for guild ${message.guild.id}.`);
-            }
-            if (botSpamChannel) {
+            } else {
               const embed = buildStreetCredAnnouncement(message.member, result);
               await botSpamChannel.send({ embeds: [embed] }).catch(() => {});
             }

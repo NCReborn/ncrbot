@@ -5,8 +5,13 @@ const logger = require('./logger');
 
 function readStore() {
   if (!fs.existsSync(filePath)) return { guilds: {}, legacyGlobal: [] };
-  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  return normalizeStore(parsed);
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return normalizeStore(parsed);
+  } catch (err) {
+    logger.error(`[AUTORESPONDER] Failed to parse auto response store: ${err.message}`);
+    return { guilds: {}, legacyGlobal: [] };
+  }
 }
 
 function normalizeStore(parsed) {
@@ -32,14 +37,27 @@ function writeStore(store) {
   fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
 }
 
-function ensureGuildResponses(store, guildId) {
+function getLegacyMigrationGuildId(fallbackGuildId) {
+  const configuredLegacyGuildId = (process.env.GUILD_ID || '').trim();
+  return configuredLegacyGuildId || fallbackGuildId;
+}
+
+function ensureGuildResponses(store, guildId, { migrateLegacy = false } = {}) {
   if (Array.isArray(store.guilds[guildId])) return store.guilds[guildId];
 
-  if (store.legacyGlobal.length > 0) {
-    store.guilds[guildId] = store.legacyGlobal;
+  if (migrateLegacy && store.legacyGlobal.length > 0) {
+    const migratedCount = store.legacyGlobal.length;
+    const migrationGuildId = getLegacyMigrationGuildId(guildId);
+    if (migrationGuildId !== guildId) {
+      logger.info(`[AUTORESPONDER] Deferring legacy auto-response migration to configured legacy guild ${migrationGuildId}.`);
+      store.guilds[guildId] = [];
+      return store.guilds[guildId];
+    }
+
+    store.guilds[guildId] = [...store.legacyGlobal];
     store.legacyGlobal = [];
     writeStore(store);
-    logger.info(`[AUTORESPONDER] Migrated ${store.guilds[guildId].length} legacy auto-response(s) into guild ${guildId}.`);
+    logger.info(`[AUTORESPONDER] Migrated ${migratedCount} legacy auto-response(s) into guild ${guildId}.`);
     return store.guilds[guildId];
   }
 
@@ -53,12 +71,7 @@ function loadResponses(guildId) {
   if (!guildId) {
     return store.legacyGlobal;
   }
-  return ensureGuildResponses(store, guildId);
-}
-
-// Save responses
-function saveResponses(responses) {
-  writeStore(responses);
+  return ensureGuildResponses(store, guildId, { migrateLegacy: true });
 }
 
 // Find by trigger (case insensitive)
@@ -72,7 +85,7 @@ function findResponse(guildId, trigger) {
 function upsertResponse(guildId, trigger, response, wildcard, allowedChannelIds = []) {
   if (!guildId) return;
   const store = readStore();
-  const responses = ensureGuildResponses(store, guildId);
+  const responses = ensureGuildResponses(store, guildId, { migrateLegacy: true });
   const index = responses.findIndex(r => r.trigger.toLowerCase() === trigger.toLowerCase());
   const record = { trigger, response, wildcard, allowedChannelIds: allowedChannelIds ?? [] };
   if (index !== -1) {
@@ -88,14 +101,13 @@ function upsertResponse(guildId, trigger, response, wildcard, allowedChannelIds 
 function deleteResponse(guildId, trigger) {
   if (!guildId) return;
   const store = readStore();
-  const responses = ensureGuildResponses(store, guildId);
+  const responses = ensureGuildResponses(store, guildId, { migrateLegacy: true });
   store.guilds[guildId] = responses.filter(r => r.trigger.toLowerCase() !== trigger.toLowerCase());
   writeStore(store);
 }
 
 module.exports = {
   loadResponses,
-  saveResponses,
   findResponse,
   upsertResponse,
   deleteResponse,
