@@ -5,6 +5,7 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
+const { logMissingRequiredGuildChannelMappings } = require('./utils/guildConfig');
 
 // Error handling
 process.on('uncaughtException', (err) => {
@@ -118,6 +119,7 @@ logger.info(`✨ Events loaded successfully`);
 
 client.once('ready', () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
+  logMissingRequiredGuildChannelMappings(client);
 });
 
 client.login(process.env.DISCORD_TOKEN);

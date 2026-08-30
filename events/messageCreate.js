@@ -10,9 +10,12 @@ const streetCredService = require('../services/StreetCredService');
 const scs = streetCredService;
 const analyticsService = require('../services/AnalyticsService');
 const { handleModRequestModeration } = require('../moderation/modRequestGuard');
+const { getGuildChannelId } = require('../utils/guildConfig');
 
 // ⭐ SnapMaster
 const snapmaster = require('../utils/snapmaster');
+const warnedMissingShowcaseGuilds = new Set();
+const warnedMissingBotSpamGuilds = new Set();
 
 /**
  * Build a Street Creed announcement embed for first-time rank or level-up.
@@ -120,7 +123,7 @@ module.exports = {
     // Autoresponder (mods only)
     try {
       if (!message.author.bot && PermissionChecker.hasModRole(message.member)) {
-        const responses = loadResponses();
+        const responses = loadResponses(message.guild?.id);
         for (const entry of responses) {
           const msgContent = message.content.toLowerCase();
           const trigger = entry.trigger.toLowerCase();
@@ -187,9 +190,13 @@ module.exports = {
 
     // ⭐⭐⭐ SNAPMASTER TRACKING ⭐⭐⭐
     try {
-      const SHOWCASE_CHANNEL = "1285797205927792782";
+      const showcaseChannelId = getGuildChannelId(message.guild?.id, 'showcase');
+      if (message.guild && !showcaseChannelId && !warnedMissingShowcaseGuilds.has(message.guild.id)) {
+        warnedMissingShowcaseGuilds.add(message.guild.id);
+        logger.warn(`[SNAPMASTER] Missing showcase channel mapping for guild ${message.guild.id}.`);
+      }
 
-      if (!message.author.bot && message.channel.id === SHOWCASE_CHANNEL) {
+      if (!message.author.bot && showcaseChannelId && message.channel.id === showcaseChannelId) {
         const attachments = [...message.attachments.values()];
         const imageAttachments = attachments.filter(a => a.contentType?.startsWith("image"));
         const imageCount = imageAttachments.length;
@@ -212,10 +219,20 @@ module.exports = {
         const result = await streetCredService.trackMessage(message);
 
         if (result && result.changed && result.tier >= 1) {
-          const botSpamChannel = await message.client.channels.fetch(CONSTANTS.CHANNELS.BOT_SPAM).catch(() => null);
-          if (botSpamChannel) {
-            const embed = buildStreetCredAnnouncement(message.member, result);
-            await botSpamChannel.send({ embeds: [embed] }).catch(() => {});
+          const botSpamChannelId = getGuildChannelId(message.guild.id, 'botSpam');
+          if (!botSpamChannelId) {
+            if (!warnedMissingBotSpamGuilds.has(message.guild.id)) {
+              warnedMissingBotSpamGuilds.add(message.guild.id);
+              logger.warn(`[STREET_CRED] Missing bot spam channel mapping for guild ${message.guild.id}.`);
+            }
+          } else {
+            const botSpamChannel = await message.client.channels.fetch(botSpamChannelId).catch(() => null);
+            if (!botSpamChannel) {
+              logger.warn(`[STREET_CRED] Unable to fetch bot spam channel ${botSpamChannelId} for guild ${message.guild.id}.`);
+            } else {
+              const embed = buildStreetCredAnnouncement(message.member, result);
+              await botSpamChannel.send({ embeds: [embed] }).catch(() => {});
+            }
           }
         }
       } catch (err) {

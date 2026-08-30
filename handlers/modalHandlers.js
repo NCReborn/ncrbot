@@ -33,6 +33,15 @@ class ModalHandlers {
   }
 
   async handleAutoResponder(interaction) {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({
+        content: 'This action can only be used in a server.',
+        ephemeral: true
+      });
+      return;
+    }
+
     const trigger = interaction.fields.getTextInputValue('trigger').trim();
     const response = interaction.fields.getTextInputValue('response').trim();
     const wildcardRaw = interaction.fields.getTextInputValue('wildcard').trim().toLowerCase();
@@ -47,10 +56,10 @@ class ModalHandlers {
     }
 
     // Preserve existing allowedChannelIds when editing
-    const existing = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+    const existing = loadResponses(guildId).find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
     const allowedChannelIds = existing?.allowedChannelIds ?? [];
 
-    upsertResponse(trigger, response, wildcard, allowedChannelIds);
+    upsertResponse(guildId, trigger, response, wildcard, allowedChannelIds);
 
     const action = interaction.customId === 'autoresponder_add' ? 'Added' : 'Updated';
     logger.info(`[AUTORESPONDER] ${action} trigger "${trigger}" by ${interaction.user.tag}`);

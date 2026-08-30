@@ -185,10 +185,14 @@ All configuration is managed through `.env`.
 | `LOG_SCAN_CHANNEL_ID` | ✅       | Channel ID for scan button/modal submissions         |
 | `OPENAI_API_KEY`      | ❌       | OpenAI API key for AI-powered log analysis           |
 | `AUTO_SYNC_COMMANDS`  | ❌       | Auto-sync slash commands on startup (default: false)  |
-| `GUILD_ID`            | ❌       | Guild ID for command sync                            |
+| `GUILD_IDS`           | ❌       | Comma-separated guild IDs for command sync (preferred) |
+| `GUILD_ID`            | ❌       | Legacy single guild ID (used when `GUILD_IDS` unset) |
+| `SHOWCASE_CHANNEL_IDS`| ❌       | Per-guild showcase channel map (`guildId:channelId,...`) |
+| `BOT_SPAM_CHANNEL_IDS`| ❌       | Per-guild StreetCred announcement channel map (`guildId:channelId,...`) |
 | `LOG_LEVEL`           | ❌       | Winston log level (default: info)                    |
 
 See `.env.example` for a complete template.
+See `MULTI_GUILD_SETUP.md` for multi-guild mapping setup details and migration notes.
 
 ---
 
