@@ -10,14 +10,14 @@
       "embedFooter": "Night City Reborn • Enjoy your stay!"
     },
 
-    "YOUR_NEW_GUILD_ID": {
+    "1543366600525217802": {
       "enabled": true,
-      "channelId": "YOUR_NEW_GUILD_WELCOME_CHANNEL",
-      "message": "Welcome to **{server}**! {user} with you, there are **{memberCount}** of us. 🥳🎉",
-      "logo": "YOUR_NEW_GUILD_LOGO_URL",
+      "channelId": "1543379870803951816",
+      "message": "Preem, a new Choomba {user} has joined the family, there are now **{memberCount}** family members here. 🥳🎉",
+      "logo": "https://github.com/NCReborn/content-images/blob/main/Choomba_Collection.png?raw=true",
       "embedColor": "#2B2D31",
       "showUsernameBelowAvatar": true,
-      "embedFooter": "Your New Server • Enjoy your stay!"
+      "embedFooter": "Cyberpunk Preem Edition • We hope you enjoy your stay!"
     }
   }
 }
