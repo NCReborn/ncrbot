@@ -23,13 +23,13 @@ module.exports = {
         return;
       }
 
-      // 4. Build formatted message
+      // 4. Build formatted message (your original system)
       const formattedMessage = guildConfig.message
         .replace('{server}', member.guild.name)
         .replace('{user}', `<@${member.id}>`)
         .replace('{memberCount}', member.guild.memberCount);
 
-      // 5. Build embed (restored original formatting)
+      // 5. Build embed (your original layout)
       const embed = new EmbedBuilder()
         .setColor(guildConfig.embedColor || '#2B2D31')
         .setDescription(formattedMessage)
