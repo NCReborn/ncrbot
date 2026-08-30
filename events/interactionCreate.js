@@ -42,10 +42,19 @@ module.exports = {
 };
 
 async function handleAutoResponderChannelSelect(interaction) {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.update({
+      content: 'This action can only be used in a server.',
+      components: []
+    });
+    return;
+  }
+
   const trigger = interaction.customId.slice('autoresponder_channels:'.length);
   const selectedChannelIds = interaction.values; // array of channel ID strings
 
-  const existing = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+  const existing = loadResponses(guildId).find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
   if (!existing) {
     await interaction.update({
       content: `Could not find auto-response for trigger \`${trigger}\`. It may have been deleted.`,
@@ -58,7 +67,7 @@ async function handleAutoResponderChannelSelect(interaction) {
   const guildChannelIds = new Set(interaction.guild.channels.cache.keys());
   const validChannelIds = selectedChannelIds.filter(id => guildChannelIds.has(id));
 
-  upsertResponse(existing.trigger, existing.response, existing.wildcard, validChannelIds);
+  upsertResponse(guildId, existing.trigger, existing.response, existing.wildcard, validChannelIds);
 
   const scopeMsg =
     validChannelIds.length > 0

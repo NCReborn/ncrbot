@@ -2,12 +2,17 @@ const { REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
+const { getConfiguredGuildIds } = require('./guildConfig');
 require('dotenv').config();
 require('./envCheck').checkEnv();
 
-const GUILD_IDS = (process.env.GUILD_ID || '1285796904160202752').split(',').map(id => id.trim());
-
 async function syncSlashCommands() {
+  const guildIds = getConfiguredGuildIds();
+  if (guildIds.length === 0) {
+    logger.error('[COMMAND_SYNC] No guild IDs configured. Set GUILD_IDS (preferred) or GUILD_ID.');
+    throw new Error('Missing guild configuration for command sync.');
+  }
+
   const commands = [];
   const commandsPath = path.join(__dirname, '../commands');
   const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -48,7 +53,7 @@ async function syncSlashCommands() {
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
   // Register commands to ALL guilds
-  for (const GUILD_ID of GUILD_IDS) {
+  for (const GUILD_ID of guildIds) {
     logger.info(`Registering ${commands.length} application (/) commands for guild ${GUILD_ID}:`);
     commands.forEach(cmd => logger.info(`   - ${cmd.name}`));
 
@@ -60,7 +65,7 @@ async function syncSlashCommands() {
     logger.info(`✅ Successfully reloaded application (/) commands for guild ${GUILD_ID}.`);
   }
 
-  logger.info(`✅ Command sync complete for ${GUILD_IDS.length} guild(s).`);
+  logger.info(`✅ Command sync complete for ${guildIds.length} guild(s).`);
 }
 
 module.exports = { syncSlashCommands };

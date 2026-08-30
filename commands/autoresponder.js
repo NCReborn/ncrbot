@@ -51,12 +51,17 @@ module.exports = {
 
       const sub = interaction.options.getSubcommand();
       logger.info(`[AUTORESPONDER] Subcommand: ${sub}`);
+      const guildId = interaction.guildId;
+      if (!guildId) {
+        await interaction.reply({ content: 'This command can only be used in a server.', flags: MessageFlags.Ephemeral });
+        return;
+      }
 
       // List responses
       if (sub === 'list') {
         let responses;
         try {
-          responses = loadResponses();
+          responses = loadResponses(guildId);
           logger.info('[AUTORESPONDER] Loaded responses:', responses);
         } catch (err) {
           logger.error('[AUTORESPONDER] Error loading responses:', err);
@@ -150,7 +155,7 @@ module.exports = {
         logger.info(`[AUTORESPONDER] Edit requested for trigger: ${trigger}`);
         let entry;
         try {
-          entry = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+          entry = loadResponses(guildId).find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
         } catch (err) {
           logger.error('[AUTORESPONDER] Error loading responses for edit:', err);
           await interaction.reply({ content: 'Failed to load auto-responses.', flags: MessageFlags.Ephemeral });
@@ -205,7 +210,7 @@ module.exports = {
         logger.info(`[AUTORESPONDER] Delete requested for trigger: ${trigger}`);
         let entry;
         try {
-          entry = loadResponses().find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+          entry = loadResponses(guildId).find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
         } catch (err) {
           logger.error('[AUTORESPONDER] Error loading responses for delete:', err);
           await interaction.reply({ content: 'Failed to load auto-responses.', flags: MessageFlags.Ephemeral });
@@ -217,7 +222,7 @@ module.exports = {
           return;
         }
         try {
-          deleteResponse(trigger);
+          deleteResponse(guildId, trigger);
           logger.info(`[AUTORESPONDER] Deleted response for trigger: ${trigger}`);
         } catch (err) {
           logger.error('[AUTORESPONDER] Error deleting response:', err);
