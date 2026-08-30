@@ -14,7 +14,7 @@
       "enabled": true,
       "channelId": "1543379870803951816",
       "message": "Preem, a new Choomba {user} has joined the family, there are now **{memberCount}** family members here. 🥳🎉",
-      "logo": "https://github.com/NCReborn/content-images/blob/main/Choomba_Collection.png?raw=true",
+      "logo": "https://raw.githubusercontent.com/NCReborn/content-images/main/Choomba_Collection.png",
       "embedColor": "#2B2D31",
       "showUsernameBelowAvatar": true,
       "embedFooter": "Cyberpunk Preem Edition • We hope you enjoy your stay!"
