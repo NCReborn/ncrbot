@@ -13,11 +13,11 @@
     "YOUR_NEW_GUILD_ID": {
       "enabled": true,
       "channelId": "YOUR_NEW_GUILD_WELCOME_CHANNEL",
-      "message": "Welcome to **{server}**! {user}, enjoy your stay in the Subnautica 2 Reborn depths! 🌊🐠",
-      "logo": "https://raw.githubusercontent.com/NCReborn/content-images/main/sub2/content.png",
-      "embedColor": "#1B4FFF",
+      "message": "Welcome to **{server}**! {user} with you, there are **{memberCount}** of us. 🥳🎉",
+      "logo": "YOUR_NEW_GUILD_LOGO_URL",
+      "embedColor": "#2B2D31",
       "showUsernameBelowAvatar": true,
-      "embedFooter": "Subnautica 2 Reborn • Dive deep!"
+      "embedFooter": "Your New Server • Enjoy your stay!"
     }
   }
 }
