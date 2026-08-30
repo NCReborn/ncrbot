@@ -7,47 +7,36 @@ module.exports = {
   name: 'guildMemberAdd',
   async execute(member, client) {
     try {
-      //
-      // 1. Existing audit logging (keep this)
-      //
+      // 1. Existing audit logging
       await auditLogger.logMemberJoined(client, member);
 
-      //
       // 2. Multi‑guild welcome system
-      //
       const guildId = member.guild.id;
-
-      // Check if this guild has a welcome config block
       const guildConfig = welcomeConfig.guilds[guildId];
-      if (!guildConfig) {
-        // No welcome config for this guild — silently skip
-        return;
-      }
+      if (!guildConfig) return;
 
-      // Resolve welcome channel
-      const channel = member.guild.channels.cache.get(guildConfig.welcomeChannel);
+      // 3. Correct field name: channelId
+      const channel = member.guild.channels.cache.get(guildConfig.channelId);
       if (!channel) {
-        logger.warn(`Welcome channel ${guildConfig.welcomeChannel} not found in guild ${guildId}`);
+        logger.warn(`Welcome channel ${guildConfig.channelId} not found in guild ${guildId}`);
         return;
       }
 
-      //
-      // 3. Build the welcome embed
-      //
+      // 4. Build embed
       const embed = new EmbedBuilder()
-        .setColor(guildConfig.color || '#00ff9f')
-        .setTitle(guildConfig.welcomeMessage)
+        .setColor(guildConfig.embedColor || '#00ff9f')
         .setDescription(
-          guildConfig.description ||
-          `Welcome <@${member.id}>!\nYou are member **#${member.guild.memberCount}** 🎉`
+          guildConfig.message
+            .replace('{server}', member.guild.name)
+            .replace('{user}', `<@${member.id}>`)
+            .replace('{memberCount}', member.guild.memberCount)
         )
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setImage(guildConfig.image)
+        .setImage(guildConfig.logo)
+        .setFooter({ text: guildConfig.embedFooter || '' })
         .setTimestamp();
 
-      //
-      // 4. Send the welcome message
-      //
+      // 5. Send welcome
       await channel.send({ embeds: [embed] });
 
     } catch (error) {
