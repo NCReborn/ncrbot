@@ -5,8 +5,9 @@ module.exports = {
   name: 'guildMemberAdd',
   async execute(member, client) {
     try {
-      // unchanged: let auditLogger handle everything
+      // Audit log (unchanged)
       await auditLogger.logMemberJoined(client, member);
+
     } catch (error) {
       logger.error('Error logging member join event:', error);
     }
