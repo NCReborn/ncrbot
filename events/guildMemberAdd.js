@@ -7,12 +7,12 @@ module.exports = {
   name: 'guildMemberAdd',
   async execute(member, client) {
     try {
-      // keep audit logging
+      // keep your existing audit logging
       await auditLogger.logMemberJoined(client, member);
 
       const guildId = member.guild.id;
 
-      // get this guild's welcome config
+      // get this guild's welcome config (new: per‑guild)
       const guildConfig = welcomeConfig.guilds[guildId];
       if (!guildConfig || !guildConfig.enabled) return;
 
@@ -22,7 +22,7 @@ module.exports = {
         return;
       }
 
-      // use the format from welcomeConfig
+      // this is the exact formatting logic your old system used
       const formattedMessage = guildConfig.message
         .replace('{server}', member.guild.name)
         .replace('{user}', `<@${member.id}>`)
