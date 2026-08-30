@@ -10,33 +10,43 @@ module.exports = {
       // 1. Existing audit logging
       await auditLogger.logMemberJoined(client, member);
 
-      // 2. Multi‑guild welcome system
       const guildId = member.guild.id;
-      const guildConfig = welcomeConfig.guilds[guildId];
-      if (!guildConfig) return;
 
-      // 3. Correct field name: channelId
+      // 2. Load per‑guild config
+      const guildConfig = welcomeConfig.guilds[guildId];
+      if (!guildConfig || !guildConfig.enabled) return;
+
+      // 3. Resolve welcome channel
       const channel = member.guild.channels.cache.get(guildConfig.channelId);
       if (!channel) {
         logger.warn(`Welcome channel ${guildConfig.channelId} not found in guild ${guildId}`);
         return;
       }
 
-      // 4. Build embed
+      // 4. Build formatted message
+      const formattedMessage = guildConfig.message
+        .replace('{server}', member.guild.name)
+        .replace('{user}', `<@${member.id}>`)
+        .replace('{memberCount}', member.guild.memberCount);
+
+      // 5. Build embed (restored original formatting)
       const embed = new EmbedBuilder()
-        .setColor(guildConfig.embedColor || '#00ff9f')
-        .setDescription(
-          guildConfig.message
-            .replace('{server}', member.guild.name)
-            .replace('{user}', `<@${member.id}>`)
-            .replace('{memberCount}', member.guild.memberCount)
-        )
+        .setColor(guildConfig.embedColor || '#2B2D31')
+        .setDescription(formattedMessage)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .setImage(guildConfig.logo)
         .setFooter({ text: guildConfig.embedFooter || '' })
         .setTimestamp();
 
-      // 5. Send welcome
+      // 6. Username below avatar (your original feature)
+      if (guildConfig.showUsernameBelowAvatar) {
+        embed.setAuthor({
+          name: member.user.username,
+          iconURL: member.user.displayAvatarURL({ dynamic: true })
+        });
+      }
+
+      // 7. Send welcome
       await channel.send({ embeds: [embed] });
 
     } catch (error) {
