@@ -204,78 +204,128 @@ module.exports = {
   },
 
   // STATUS
-  async showStatus(interaction) {
-    const config = spamDetector.config;
-    const guildId = interaction.guildId;
+async showStatus(interaction) {
+  const config = spamDetector.config;
+  const guildId = interaction.guildId;
 
-    const guildCfg = config.guilds?.[guildId];
-    const alertChannelId = guildCfg?.alertChannelId || config.alertChannelId;
+  const guildCfg = config.guilds?.[guildId];
+  const alertChannelId = guildCfg?.alertChannelId || config.alertChannelId;
 
-    const cfgRules = guildCfg?.rules || config.rules;
+  const cfgRules = guildCfg?.rules || config.rules;
 
-    const embed = new EmbedBuilder()
-      .setTitle('🛡️ Anti-Spam System Status')
-      .setColor(config.enabled ? 0x00FF00 : 0xFF0000)
-      .setTimestamp()
-      .addFields([
-        {
-          name: 'System Status',
-          value: config.enabled ? '✅ Enabled' : '❌ Disabled',
-          inline: true
-        },
-        {
-          name: 'Alert Channel',
-          value: alertChannelId ? `<#${alertChannelId}>` : 'Not set',
-          inline: true
-        },
-        {
-          name: 'Default Timeout',
-          value: `${config.defaultTimeoutSeconds / 3600} hours`,
-          inline: true
-        }
-      ]);
+  const embed = new EmbedBuilder()
+    .setTitle('🛡️ Anti-Spam System Status')
+    .setColor(config.enabled ? 0x00FF00 : 0xFF0000)
+    .setTimestamp()
+    .addFields([
+      {
+        name: 'System Status',
+        value: config.enabled ? '✅ Enabled' : '❌ Disabled',
+        inline: true
+      },
+      {
+        name: 'Alert Channel',
+        value: alertChannelId ? `<#${alertChannelId}>` : 'Not set',
+        inline: true
+      },
+      {
+        name: 'Default Timeout',
+        value: `${config.defaultTimeoutSeconds / 3600} hours`,
+        inline: true
+      }
+    ]);
 
-    const rules = [];
+  // Multi-Channel Spam
+  embed.addFields([{
+    name: 'Multi-Channel Spam',
+    value: cfgRules.multiChannelSpam?.enabled
+      ? `Enabled\nThreshold: **${cfgRules.multiChannelSpam.channelCount} channels**`
+      : 'Disabled',
+    inline: false
+  }]);
 
-    if (cfgRules.multiChannelSpam?.enabled)
-      rules.push(`Multi-Channel Spam: ${cfgRules.multiChannelSpam.channelCount}+ channels`);
+  // Rapid Posting
+  const rpExcludes = cfgRules.rapidPosting?.excludeChannels || [];
+  embed.addFields([{
+    name: 'Rapid Posting',
+    value: cfgRules.rapidPosting?.enabled
+      ? `Enabled\nThreshold: **${cfgRules.rapidPosting.messageCount} msgs / ${cfgRules.rapidPosting.timeWindowSeconds}s**\nExcluded Channels:\n${
+          rpExcludes.length > 0
+            ? rpExcludes.map(id => `• <#${id}>`).join('\n')
+            : 'None'
+        }`
+      : 'Disabled',
+    inline: false
+  }]);
 
-    if (cfgRules.rapidPosting?.enabled)
-      rules.push(`Rapid Posting: ${cfgRules.rapidPosting.messageCount}+ msgs`);
+  // Image Spam
+  const imgExcludes = cfgRules.imageSpam?.excludeChannels || [];
+  embed.addFields([{
+    name: 'Image Spam',
+    value: cfgRules.imageSpam?.enabled
+      ? `Enabled\nThreshold: **${cfgRules.imageSpam.imageCount} images / ${cfgRules.imageSpam.timeWindowSeconds}s**\nExcluded Channels:\n${
+          imgExcludes.length > 0
+            ? imgExcludes.map(id => `• <#${id}>`).join('\n')
+            : 'None'
+        }`
+      : 'Disabled',
+    inline: false
+  }]);
 
-    if (cfgRules.imageSpam?.enabled)
-      rules.push(`Image Spam: ${cfgRules.imageSpam.imageCount}+ images`);
+  // Carpet-Bomb
+  const carpetWatch = cfgRules.channelCarpetBomb?.watchedChannels || [];
+  embed.addFields([{
+    name: 'Channel Carpet-Bomb',
+    value: cfgRules.channelCarpetBomb?.enabled
+      ? `Enabled\nWatched Channels:\n${
+          carpetWatch.length > 0
+            ? carpetWatch.map(id => `• <#${id}>`).join('\n')
+            : 'None'
+        }\nMin Hits: **${cfgRules.channelCarpetBomb.minChannelHits}**`
+      : 'Disabled',
+    inline: false
+  }]);
 
-    if (cfgRules.suspiciousPatterns?.enabled)
-      rules.push(`Suspicious Patterns: ${cfgRules.suspiciousPatterns.patterns.length} patterns`);
+  // New Account Monitoring
+  embed.addFields([{
+    name: 'New Account Monitoring',
+    value: cfgRules.newAccountMonitoring?.enabled
+      ? `Enabled\nAccount Age Required: **${cfgRules.newAccountMonitoring.accountAgeDays} days**`
+      : 'Disabled',
+    inline: false
+  }]);
 
-    if (cfgRules.newAccountMonitoring?.enabled)
-      rules.push(`New Account: <${cfgRules.newAccountMonitoring.accountAgeDays} days`);
+  // Protected Channels
+  const protectedChannels = [];
+  const guildProtected = guildCfg?.protectedChannels || config.protectedChannels || {};
+  for (const [name, id] of Object.entries(guildProtected)) {
+    protectedChannels.push(`• **${name}**: <#${id}>`);
+  }
+  embed.addFields([{
+    name: 'Protected Channels',
+    value: protectedChannels.length > 0 ? protectedChannels.join('\n') : 'None',
+    inline: false
+  }]);
 
-    embed.addFields([{ name: 'Active Rules', value: rules.join('\n'), inline: false }]);
+  // Whitelist
+  embed.addFields([{
+    name: 'Whitelist',
+    value: `${config.whitelist.users.length} user(s), ${config.whitelist.roles.length} role(s)`,
+    inline: true
+  }]);
 
-    const protectedChannels = [];
-    const guildProtected = guildCfg?.protectedChannels || config.protectedChannels || {};
+  // Debug
+  const debugEnabled = config.debug?.enabled ? 'Enabled' : 'Disabled';
+  const debugUser = config.debug?.testUserId ? `<@${config.debug.testUserId}>` : 'Not set';
+  embed.addFields([{
+    name: 'Debug Mode',
+    value: `${debugEnabled}\nUser: ${debugUser}`,
+    inline: false
+  }]);
 
-    for (const [name, id] of Object.entries(guildProtected)) {
-      protectedChannels.push(`${name}: <#${id}>`);
-    }
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
 
-    embed.addFields([{ name: 'Protected Channels', value: protectedChannels.join('\n'), inline: false }]);
-
-    embed.addFields([{
-      name: 'Whitelist',
-      value: `${config.whitelist.users.length} user(s), ${config.whitelist.roles.length} role(s)`,
-      inline: true
-    }]);
-
-    const debugEnabled = config.debug?.enabled ? 'Enabled' : 'Disabled';
-    const debugUser = config.debug?.testUserId ? `<@${config.debug.testUserId}>` : 'Not set';
-
-    embed.addFields([{ name: 'Debug Mode', value: `${debugEnabled}\nUser: ${debugUser}`, inline: false }]);
-
-    await interaction.reply({ embeds: [embed], ephemeral: true });
-  },
 
   // CONFIG HELPERS
   readConfig() {
