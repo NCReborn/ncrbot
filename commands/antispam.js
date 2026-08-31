@@ -11,24 +11,17 @@ module.exports = {
     .setDescription('Configure anti-spam settings (Moderator+)')
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('status')
-        .setDescription('View anti-spam configuration and status')
+      subcommand.setName('status').setDescription('View anti-spam configuration and status')
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('toggle')
-        .setDescription('Enable or disable the anti-spam system')
+      subcommand.setName('toggle').setDescription('Enable or disable the anti-spam system')
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('whitelist')
         .setDescription('Add a user to the anti-spam whitelist')
         .addUserOption(option =>
-          option
-            .setName('user')
-            .setDescription('The user to whitelist')
-            .setRequired(true)
+          option.setName('user').setDescription('The user to whitelist').setRequired(true)
         )
     )
     .addSubcommand(subcommand =>
@@ -36,53 +29,36 @@ module.exports = {
         .setName('unwhitelist')
         .setDescription('Remove a user from the anti-spam whitelist')
         .addUserOption(option =>
-          option
-            .setName('user')
-            .setDescription('The user to remove from whitelist')
-            .setRequired(true)
+          option.setName('user').setDescription('The user to remove from whitelist').setRequired(true)
         )
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('debug-enable')
-        .setDescription('Enable anti-spam debug test mode')
+      subcommand.setName('debug-enable').setDescription('Enable anti-spam debug test mode')
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('debug-disable')
-        .setDescription('Disable anti-spam debug test mode')
+      subcommand.setName('debug-disable').setDescription('Disable anti-spam debug test mode')
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('debug-set-user')
         .setDescription('Set anti-spam debug test user')
         .addUserOption(option =>
-          option
-            .setName('user')
-            .setDescription('The alt account used for anti-spam debug testing')
-            .setRequired(true)
+          option.setName('user').setDescription('Alt account used for anti-spam debug testing').setRequired(true)
         )
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('debug-clear-user')
-        .setDescription('Clear anti-spam debug test user')
+      subcommand.setName('debug-clear-user').setDescription('Clear anti-spam debug test user')
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('debug-reset-user')
-        .setDescription('Reset all cached anti-spam state for a specific user (for re-testing)')
+        .setDescription('Reset cached anti-spam state for a specific user')
         .addUserOption(option =>
-          option
-            .setName('user')
-            .setDescription('The user whose state should be reset')
-            .setRequired(true)
+          option.setName('user').setDescription('User whose state should be reset').setRequired(true)
         )
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('debug-reset-all')
-        .setDescription('Reset all cached anti-spam state for all users (clears all active incidents)')
+      subcommand.setName('debug-reset-all').setDescription('Reset anti-spam state for all users')
     ),
 
   async execute(interaction) {
@@ -90,36 +66,16 @@ module.exports = {
 
     try {
       switch (subcommand) {
-        case 'status':
-          await this.showStatus(interaction);
-          break;
-        case 'toggle':
-          await this.toggleSystem(interaction);
-          break;
-        case 'whitelist':
-          await this.addWhitelist(interaction);
-          break;
-        case 'unwhitelist':
-          await this.removeWhitelist(interaction);
-          break;
-        case 'debug-enable':
-          await this.setDebugEnabled(interaction, true);
-          break;
-        case 'debug-disable':
-          await this.setDebugEnabled(interaction, false);
-          break;
-        case 'debug-set-user':
-          await this.setDebugUser(interaction);
-          break;
-        case 'debug-clear-user':
-          await this.clearDebugUser(interaction);
-          break;
-        case 'debug-reset-user':
-          await this.resetDebugUser(interaction);
-          break;
-        case 'debug-reset-all':
-          await this.resetDebugAll(interaction);
-          break;
+        case 'status': return this.showStatus(interaction);
+        case 'toggle': return this.toggleSystem(interaction);
+        case 'whitelist': return this.addWhitelist(interaction);
+        case 'unwhitelist': return this.removeWhitelist(interaction);
+        case 'debug-enable': return this.setDebugEnabled(interaction, true);
+        case 'debug-disable': return this.setDebugEnabled(interaction, false);
+        case 'debug-set-user': return this.setDebugUser(interaction);
+        case 'debug-clear-user': return this.clearDebugUser(interaction);
+        case 'debug-reset-user': return this.resetDebugUser(interaction);
+        case 'debug-reset-all': return this.resetDebugAll(interaction);
       }
     } catch (error) {
       logger.error('[ANTISPAM] Error executing antispam command:', error);
@@ -131,88 +87,83 @@ module.exports = {
   },
 
   async showStatus(interaction) {
+    const guildId = interaction.guildId;
     const config = spamDetector.config;
 
+    const guildCfg = config.guilds?.[guildId] || {};
+    const alertChannelId = guildCfg.alertChannelId || config.alertChannelId;
+    const protectedChannels = guildCfg.protectedChannels || config.protectedChannels || {};
+
     const embed = new EmbedBuilder()
-      .setTitle('🛡️ Anti-Spam System Status')
+      .setTitle(`🛡️ Anti-Spam Status — ${interaction.guild.name}`)
       .setColor(config.enabled ? 0x00FF00 : 0xFF0000)
       .setTimestamp()
       .addFields([
-        { 
-          name: 'System Status', 
-          value: config.enabled ? '✅ Enabled' : '❌ Disabled', 
-          inline: true 
+        {
+          name: 'System Status',
+          value: config.enabled ? '✅ Enabled' : '❌ Disabled',
+          inline: true
         },
-        { 
-          name: 'Alert Channel', 
-          value: config.alertChannelId ? `<#${config.alertChannelId}>` : 'Not set', 
-          inline: true 
+        {
+          name: 'Alert Channel',
+          value: alertChannelId ? `<#${alertChannelId}>` : 'Not set',
+          inline: true
         },
-        { 
-          name: 'Default Timeout', 
-          value: `${config.defaultTimeoutSeconds / 3600} hours`, 
-          inline: true 
+        {
+          name: 'Default Timeout',
+          value: `${config.defaultTimeoutSeconds / 3600} hours`,
+          inline: true
         }
       ]);
 
-    // Add rule status
+    // Rules
     const rules = [];
-    if (config.rules.multiChannelSpam?.enabled) {
-      rules.push(`✅ Multi-Channel Spam (${config.rules.multiChannelSpam.channelCount}+ channels in ${config.rules.multiChannelSpam.timeWindowSeconds}s)`);
-    }
-    if (config.rules.rapidPosting?.enabled) {
-      rules.push(`✅ Rapid Posting (${config.rules.rapidPosting.messageCount}+ messages in ${config.rules.rapidPosting.timeWindowSeconds}s)`);
-    }
-    if (config.rules.imageSpam?.enabled) {
-      rules.push(`✅ Image Spam (${config.rules.imageSpam.imageCount}+ images in ${config.rules.imageSpam.timeWindowSeconds}s)`);
-    }
-    if (config.rules.suspiciousPatterns?.enabled) {
-      rules.push(`✅ Suspicious Patterns (${config.rules.suspiciousPatterns.patterns.length} patterns)`);
-    }
-    if (config.rules.newAccountMonitoring?.enabled) {
-      rules.push(`✅ New Account Monitoring (<${config.rules.newAccountMonitoring.accountAgeDays} days)`);
-    }
+    const r = config.rules;
+
+    if (r.multiChannelSpam?.enabled)
+      rules.push(`• Multi-Channel Spam (${r.multiChannelSpam.channelCount}+ channels / ${r.multiChannelSpam.timeWindowSeconds}s)`);
+
+    if (r.rapidPosting?.enabled)
+      rules.push(`• Rapid Posting (${r.rapidPosting.messageCount}+ messages / ${r.rapidPosting.timeWindowSeconds}s)`);
+
+    if (r.imageSpam?.enabled)
+      rules.push(`• Image Spam (${r.imageSpam.imageCount}+ images / ${r.imageSpam.timeWindowSeconds}s)`);
+
+    if (r.suspiciousPatterns?.enabled)
+      rules.push(`• Suspicious Patterns (${r.suspiciousPatterns.patterns.length} patterns)`);
+
+    if (r.newAccountMonitoring?.enabled)
+      rules.push(`• New Account Monitoring (<${r.newAccountMonitoring.accountAgeDays} days)`);
 
     if (rules.length > 0) {
-      embed.addFields([{
-        name: 'Active Rules',
-        value: rules.join('\n'),
-        inline: false
-      }]);
+      embed.addFields([{ name: 'Active Rules', value: rules.join('\n'), inline: false }]);
     }
 
-    // Add protected channels
-    const protectedChannels = [];
-    if (config.protectedChannels?.showcase) {
-      protectedChannels.push(`Showcase: <#${config.protectedChannels.showcase}>`);
-    }
-    if (config.protectedChannels?.gifs) {
-      protectedChannels.push(`GIFs: <#${config.protectedChannels.gifs}>`);
+    // Protected channels
+    const protectedList = Object.entries(protectedChannels).map(
+      ([name, id]) => `• ${name}: <#${id}>`
+    );
+
+    if (protectedList.length > 0) {
+      embed.addFields([{ name: 'Protected Channels', value: protectedList.join('\n'), inline: false }]);
     }
 
-    if (protectedChannels.length > 0) {
-      embed.addFields([{
-        name: 'Protected Channels',
-        value: protectedChannels.join('\n'),
-        inline: false
-      }]);
-    }
-
-    // Add whitelist info
-    const whitelistUsers = config.whitelist?.users?.length || 0;
-    const whitelistRoles = config.whitelist?.roles?.length || 0;
-    
+    // Whitelist
     embed.addFields([{
       name: 'Whitelist',
-      value: `${whitelistUsers} user(s), ${whitelistRoles} role(s)`,
+      value: `${config.whitelist.users.length} user(s), ${config.whitelist.roles.length} role(s)`,
       inline: true
     }]);
 
-    const debugEnabled = config.debug?.enabled ? '✅ Enabled' : '❌ Disabled';
-    const debugUser = config.debug?.testUserId ? `<@${config.debug.testUserId}> (\`${config.debug.testUserId}\`)` : 'Not set';
+    // Debug
+    const debugEnabled = config.debug?.enabled ? 'Enabled' : 'Disabled';
+    const debugUser = config.debug?.testUserId
+      ? `<@${config.debug.testUserId}> (\`${config.debug.testUserId}\`)"
+      : 'Not set';
+
     embed.addFields([{
-      name: 'Debug Test Mode',
-      value: `${debugEnabled}\nUser: ${debugUser}`,
+      name: 'Debug Mode',
+      value: `Status: ${debugEnabled}\nUser: ${debugUser}`,
       inline: false
     }]);
 
@@ -220,102 +171,56 @@ module.exports = {
   },
 
   async toggleSystem(interaction) {
-    const configPath = path.join(__dirname, '../config/spamConfig.json');
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-
+    const { configPath, config } = this.readConfig();
     config.enabled = !config.enabled;
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    
-    // Reload config
-    spamDetector.reloadConfig();
+    this.writeConfig(configPath, config);
 
     const embed = new EmbedBuilder()
       .setTitle('🛡️ Anti-Spam System')
       .setColor(config.enabled ? 0x00FF00 : 0xFF0000)
       .setTimestamp()
-      .addFields([{
-        name: 'Status',
-        value: config.enabled ? '✅ System Enabled' : '❌ System Disabled',
-        inline: false
-      }]);
+      .addFields([{ name: 'Status', value: config.enabled ? 'Enabled' : 'Disabled' }]);
 
     await interaction.reply({ embeds: [embed] });
-
     logger.info(`[ANTISPAM] System ${config.enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
   },
 
   async addWhitelist(interaction) {
     const user = interaction.options.getUser('user');
-    const configPath = path.join(__dirname, '../config/spamConfig.json');
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const { configPath, config } = this.readConfig();
 
-    if (!config.whitelist) {
-      config.whitelist = { users: [], roles: [] };
+    if (!config.whitelist.users.includes(user.id)) {
+      config.whitelist.users.push(user.id);
+      this.writeConfig(configPath, config);
     }
-
-    if (config.whitelist.users.includes(user.id)) {
-      await interaction.reply({
-        content: `ℹ️ ${user.tag} is already whitelisted.`,
-        ephemeral: true
-      });
-      return;
-    }
-
-    config.whitelist.users.push(user.id);
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    
-    // Reload config
-    spamDetector.reloadConfig();
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ User Whitelisted')
+      .setTitle('User Whitelisted')
       .setColor(0x00FF00)
-      .setTimestamp()
       .addFields([
         { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
         { name: 'Added By', value: interaction.user.tag, inline: true }
-      ])
-      .setDescription('This user will not trigger anti-spam detection.')
-      .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 128 }));
+      ]);
 
-    await interaction.reply({ embeds: [embed] });
-
-    logger.info(`[ANTISPAM] User ${user.tag} whitelisted by ${interaction.user.tag}`);
+    await interaction.reply({ embeds: [embed], ephemeral: true });
   },
 
   async removeWhitelist(interaction) {
     const user = interaction.options.getUser('user');
-    const configPath = path.join(__dirname, '../config/spamConfig.json');
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-
-    if (!config.whitelist?.users?.includes(user.id)) {
-      await interaction.reply({
-        content: `ℹ️ ${user.tag} is not in the whitelist.`,
-        ephemeral: true
-      });
-      return;
-    }
+    const { configPath, config } = this.readConfig();
 
     config.whitelist.users = config.whitelist.users.filter(id => id !== user.id);
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    
-    // Reload config
-    spamDetector.reloadConfig();
+    this.writeConfig(configPath, config);
 
     const embed = new EmbedBuilder()
-      .setTitle('🗑️ User Removed from Whitelist')
+      .setTitle('User Removed from Whitelist')
       .setColor(0xFFA500)
-      .setTimestamp()
       .addFields([
         { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
         { name: 'Removed By', value: interaction.user.tag, inline: true }
-      ])
-      .setDescription('This user will now be subject to anti-spam detection.')
-      .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 128 }));
+      ]);
 
-    await interaction.reply({ embeds: [embed] });
-
-    logger.info(`[ANTISPAM] User ${user.tag} removed from whitelist by ${interaction.user.tag}`);
+    await interaction.reply({ embeds: [embed], ephemeral: true });
   },
 
   readConfig() {
@@ -331,87 +236,59 @@ module.exports = {
 
   async setDebugEnabled(interaction, enabled) {
     const { configPath, config } = this.readConfig();
-    config.debug = config.debug || {};
     config.debug.enabled = enabled;
     this.writeConfig(configPath, config);
 
-    let content = `${enabled ? '✅' : '❌'} Anti-spam debug mode ${enabled ? 'enabled' : 'disabled'}.`;
-    if (enabled && !config.debug.testUserId) {
-      content += ' Set a test user with `/antispam debug-set-user`.';
-    } else if (enabled && config.debug.testUserId) {
-      content += ` Current test user: <@${config.debug.testUserId}>.`;
-    }
-
     await interaction.reply({
-      content,
+      content: `${enabled ? 'Debug mode enabled.' : 'Debug mode disabled.'}`,
       ephemeral: true
     });
-
-    logger.info(`[ANTISPAM][DEBUG] Debug mode ${enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
   },
 
   async setDebugUser(interaction) {
     const user = interaction.options.getUser('user');
     const { configPath, config } = this.readConfig();
-    config.debug = config.debug || {};
-    config.debug.testUserId = user.id;
 
+    config.debug.testUserId = user.id;
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `✅ Anti-spam debug test user set to ${user.tag} (\`${user.id}\`).`,
+      content: `Debug test user set to ${user.tag}.`,
       ephemeral: true
     });
-
-    logger.info(`[ANTISPAM][DEBUG] Debug test user set to ${user.tag} by ${interaction.user.tag}`);
   },
 
   async clearDebugUser(interaction) {
     const { configPath, config } = this.readConfig();
-    config.debug = config.debug || {};
     config.debug.testUserId = null;
-
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: '✅ Anti-spam debug test user cleared.',
+      content: 'Debug test user cleared.',
       ephemeral: true
     });
-
-    logger.info(`[ANTISPAM][DEBUG] Debug test user cleared by ${interaction.user.tag}`);
   },
 
   async resetDebugUser(interaction) {
     const user = interaction.options.getUser('user');
-    const spamHandler = SpamActionHandler.getInstance();
+    const guildId = interaction.guildId;
 
-    spamDetector.resetUserState(user.id);
-    if (spamHandler) spamHandler.resetUserState(user.id);
-
-    const cleared = [
-      '• Detector activity window',
-      '• Active alert / alert lock',
-    ].join('\n');
+    spamDetector.resetUserState(guildId, user.id);
+    SpamActionHandler.getInstance().resetUserState(guildId, user.id);
 
     await interaction.reply({
-      content: `✅ Anti-spam state reset for ${user.tag} (\`${user.id}\`).\nCleared:\n${cleared}`,
+      content: `Anti-spam state reset for ${user.tag}.`,
       ephemeral: true
     });
-
-    logger.info(`[ANTISPAM][DEBUG] State reset for user ${user.tag} (${user.id}) by ${interaction.user.tag}`);
   },
 
   async resetDebugAll(interaction) {
-    const spamHandler = SpamActionHandler.getInstance();
-
     const detectorCount = spamDetector.resetAllState();
-    const handlerCount = spamHandler ? spamHandler.resetAllState() : 0;
+    const handlerCount = SpamActionHandler.getInstance().resetAllState();
 
     await interaction.reply({
-      content: `✅ Anti-spam state reset for all users.\nCleared ${detectorCount} detector entries and ${handlerCount} active alert(s).`,
+      content: `Anti-spam state reset for all users.\nDetector entries: ${detectorCount}\nAlerts cleared: ${handlerCount}`,
       ephemeral: true
     });
-
-    logger.info(`[ANTISPAM][DEBUG] Full state reset by ${interaction.user.tag} (detector: ${detectorCount}, handler: ${handlerCount})`);
   }
 };
