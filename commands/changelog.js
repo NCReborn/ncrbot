@@ -1,6 +1,5 @@
 // commands/changelog.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-
 const { fetchRevision, processModFiles, computeDiff } = require('../utils/nexusApi');
 const guildConfigManager = require('../config/guildConfigManager');
 const revisionState = require('../utils/revisionState');
@@ -13,11 +12,12 @@ module.exports = {
     .setName('changelog')
     .setDescription('Manually post a changelog for a collection (Admin only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addStringOption(option =>
+    .addStringOption(option => 
       option
         .setName('collection')
-        .setDescription('Which collection to post changelog for')
+        .setDescription('Select a collection to post changelog for')
         .setRequired(true)
+        .setAutocomplete(true)
     )
     .addIntegerOption(option =>
       option
@@ -34,6 +34,18 @@ module.exports = {
         .setMinValue(1)
     ),
 
+  async autocomplete(interaction) {
+    const guildId = interaction.guild.id;
+    const config = guildConfigManager.loadGuildConfig(guildId);
+
+    const choices = config.collections.map(c => ({
+      name: `${c.display} (${c.slug})`,
+      value: c.slug
+    }));
+
+    await interaction.respond(choices.slice(0, 25)); // Discord limit
+  },
+
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
@@ -43,10 +55,8 @@ module.exports = {
       const currentRev = interaction.options.getInteger('current_revision');
       const prevRev = interaction.options.getInteger('previous_revision');
 
-      // Load guild-specific config
       const guildConfig = guildConfigManager.loadGuildConfig(guildId);
 
-      // Validate collection exists for this guild
       const collection = guildConfig.collections.find(c => c.slug === slug);
       if (!collection) {
         return interaction.editReply({
@@ -54,7 +64,6 @@ module.exports = {
         });
       }
 
-      // Get group config for this collection
       const groupConfig = guildConfig.groups.find(g => g.name === collection.group);
       if (!groupConfig) {
         return interaction.editReply({
@@ -62,9 +71,9 @@ module.exports = {
         });
       }
 
-      // Handle initial changelog (no previous revision)
-      if (prevRev === null) {
-        logger.info(`[CHANGELOG] Posting initial changelog for ${collection.display} (Revision ${currentRev}) in guild ${guildId}`);
+      // Initial changelog
+      if (!prevRev) {
+        logger.info(`[CHANGELOG] Posting initial changelog for ${collection.display} (Rev ${currentRev})`);
 
         const revisionData = await fetchRevision(
           slug,
@@ -106,8 +115,8 @@ module.exports = {
         });
       }
 
-      // Regular changelog (prev → current)
-      logger.info(`[CHANGELOG] Fetching revisions for ${collection.display} (${prevRev} → ${currentRev}) in guild ${guildId}`);
+      // Regular changelog
+      logger.info(`[CHANGELOG] Fetching revisions for ${collection.display} (${prevRev} → ${currentRev})`);
 
       const [oldRevisionData, newRevisionData] = await Promise.all([
         fetchRevision(slug, prevRev, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION),
