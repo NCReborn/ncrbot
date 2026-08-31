@@ -21,15 +21,36 @@ const SEVERITY_ICON = { critical: '🔴', high: '⚠️', warning: '🟡' };
 
 /**
  * Returns the set of channel IDs that are configured as protected.
+ * Supports optional per-guild protected channels via spamConfig.guilds[guildId].protectedChannels.
  */
-function getProtectedChannelIds() {
-  const protected_ = spamConfig.protectedChannels || {};
+function getProtectedChannelIds(guildId) {
+  const guildCfg = spamConfig.guilds?.[guildId];
+  const protected_ = guildCfg?.protectedChannels || spamConfig.protectedChannels || {};
   return new Set(Object.values(protected_));
+}
+
+/**
+ * Resolve alert channel ID for a given guild.
+ * Supports per-guild config via spamConfig.guilds[guildId].alertChannelId,
+ * falling back to global spamConfig.alertChannelId.
+ */
+function getAlertChannelId(guildId) {
+  const guildCfg = spamConfig.guilds?.[guildId];
+  return guildCfg?.alertChannelId || spamConfig.alertChannelId;
+}
+
+/**
+ * Build composite key for per-guild per-user alert state.
+ */
+function buildAlertKey(guildId, userId) {
+  return `${guildId}:${userId}`;
 }
 
 class SpamActionHandler {
   constructor(client) {
     this.client = client;
+
+    // Per-guild per-user alert state: key = `${guildId}:${userId}`
     this.activeAlerts = new Map();
     this.alertLocks = new Map();
   }
@@ -72,10 +93,13 @@ class SpamActionHandler {
    * Handle a spam detection event
    */
   async handleDetection(detection, message) {
-    const { userId, triggeredRules, confidenceLevel, evidence } = detection;
+    const { userId, triggeredRules, confidenceLevel, evidence, guildId } = detection;
+
+    const alertKey = buildAlertKey(guildId, userId);
 
     // If alert already exists and is locked (staff resolved), do nothing
-    if (this.activeAlerts.has(userId) && this.activeAlerts.get(userId).locked) {
+    const existingAlert = this.activeAlerts.get(alertKey);
+    if (existingAlert && existingAlert.locked) {
       return;
     }
 
@@ -91,12 +115,12 @@ class SpamActionHandler {
       fields
     });
 
-    // Send or update alert with action buttons
-    const alertMessage = await this.sendOrUpdateAlert(userId, embed);
+    // Send or update alert with action buttons (per guild)
+    const alertMessage = await this.sendOrUpdateAlert(userId, embed, guildId);
 
     // Apply automatic action if high confidence, then update embed with actions taken
     if (confidenceLevel === 'high') {
-      const actionsTaken = await this.applyAutomaticAction(userId, message, triggeredRules, evidence);
+      const actionsTaken = await this.applyAutomaticAction(userId, message, triggeredRules, evidence, guildId);
 
       // Rebuild embed with Actions Taken field and pending status
       const updatedFields = this.buildFields(detection, actionsTaken);
@@ -107,7 +131,7 @@ class SpamActionHandler {
         fields: updatedFields
       });
 
-      await this.markPendingReview(userId, alertMessage, updatedEmbed);
+      await this.markPendingReview(userId, alertMessage, updatedEmbed, guildId);
     }
   }
 
@@ -183,7 +207,6 @@ class SpamActionHandler {
     // Evidence
     const evidenceText = evidence
       .map((ev, i) => {
-        // Use Discord channel mention when ID is available, otherwise include ID in fallback
         const channelDisplay = ev.channelId
           ? `<#${ev.channelId}>`
           : 'Unknown Channel';
@@ -228,45 +251,58 @@ class SpamActionHandler {
 
   /**
    * Send or update an alert message (always includes action buttons).
+   * Alerts are scoped per guild + user.
    */
-  async sendOrUpdateAlert(userId, embed) {
-    const lock = this.alertLocks.get(userId) || Promise.resolve();
+  async sendOrUpdateAlert(userId, embed, guildId) {
+    const alertKey = buildAlertKey(guildId, userId);
+    const lock = this.alertLocks.get(alertKey) || Promise.resolve();
+
     const operation = lock.then(async () => {
       try {
-        const alertChannel = await this.client.channels.fetch(spamConfig.alertChannelId);
+        const alertChannelId = getAlertChannelId(guildId);
+        if (!alertChannelId) {
+          logger.error(`[SPAM] No alertChannelId configured for guild ${guildId}`);
+          return null;
+        }
+
+        const alertChannel = await this.client.channels.fetch(alertChannelId);
         const components = [this.buildActionRow(userId)];
 
         // Update existing alert
-        if (this.activeAlerts.has(userId)) {
-          const alert = this.activeAlerts.get(userId);
-          if (alert.locked) return alert.message;
-          await alert.message.edit({ embeds: [embed], components });
-          alert.embed = embed;
-          logger.info(`[SPAM] Edited existing alert for user ${userId} (message ${alert.message.id})`);
-          return alert.message;
+        const existingAlert = this.activeAlerts.get(alertKey);
+        if (existingAlert) {
+          if (existingAlert.locked) return existingAlert.message;
+          await existingAlert.message.edit({ embeds: [embed], components });
+          existingAlert.embed = embed;
+          logger.info(
+            `[SPAM] Edited existing alert for user ${userId} in guild ${guildId} (message ${existingAlert.message.id})`
+          );
+          return existingAlert.message;
         }
 
         // Create new alert
         const message = await alertChannel.send({ embeds: [embed], components });
 
-        this.activeAlerts.set(userId, {
+        this.activeAlerts.set(alertKey, {
           message,
           embed,
           locked: false
         });
-        logger.info(`[SPAM] Created new alert for user ${userId} (message ${message.id})`);
+        logger.info(
+          `[SPAM] Created new alert for user ${userId} in guild ${guildId} (message ${message.id})`
+        );
 
         return message;
       } catch (err) {
-        logger.error(`[SPAM] Error sending alert: ${err.message}`);
+        logger.error(`[SPAM] Error sending alert in guild ${guildId}: ${err.message}`);
         return null;
       }
     });
 
-    this.alertLocks.set(userId, operation);
+    this.alertLocks.set(alertKey, operation);
     operation.finally(() => {
-      if (this.alertLocks.get(userId) === operation) {
-        this.alertLocks.delete(userId);
+      if (this.alertLocks.get(alertKey) === operation) {
+        this.alertLocks.delete(alertKey);
       }
     });
 
@@ -277,19 +313,20 @@ class SpamActionHandler {
    * Apply automatic timeout for high-confidence spam and delete spam messages.
    * Returns an array of human-readable action strings for the "Actions Taken" embed field.
    */
-  async applyAutomaticAction(userId, message, triggeredRules, evidence) {
+  async applyAutomaticAction(userId, message, triggeredRules, evidence, guildId) {
     const actionsTaken = [];
 
     // Guard: if ALL evidence entries are from protected channels (or have no known channel),
-    // do not auto-timeout. An entry with no channelId is treated as unknown/unresolved —
-    // it must not be counted as confirmation of unprotected-channel activity.
-    const protectedIds = getProtectedChannelIds();
+    // do not auto-timeout.
+    const protectedIds = getProtectedChannelIds(guildId);
     const hasUnprotectedEvidence = (evidence || []).some(
       ev => ev.channelId && !protectedIds.has(ev.channelId)
     );
 
     if (!hasUnprotectedEvidence) {
-      logger.info(`[SPAM] Suppressed auto-action for user ${userId} — all evidence is from protected channels or unresolved`);
+      logger.info(
+        `[SPAM] Suppressed auto-action for user ${userId} in guild ${guildId} — all evidence is from protected channels or unresolved`
+      );
       actionsTaken.push('Auto-action suppressed: all triggering messages are from protected channels (pending staff review)');
       return actionsTaken;
     }
@@ -308,18 +345,22 @@ class SpamActionHandler {
           const timeoutExpiry = Math.floor((Date.now() + timeoutSeconds * 1000) / 1000);
           actionsTaken.push(`Timed out for ${hours} hour${hours !== 1 ? 's' : ''}`);
           actionsTaken.push(`Timeout expires <t:${timeoutExpiry}:R>`);
-          logger.info(`[SPAM] Auto-timeout applied to ${member.user.tag}`);
+          logger.info(`[SPAM] Auto-timeout applied to ${member.user.tag} in guild ${guildId}`);
         }
       }
     } catch (err) {
-      logger.error(`[SPAM] Error applying automatic action: ${err.message}`);
+      logger.error(`[SPAM] Error applying automatic action in guild ${guildId}: ${err.message}`);
     }
 
     // Delete spam messages by canonical (channelId, messageId) pairs
     const deleteCount = await this.deleteSpamMessages(message.guild, evidence);
     if (deleteCount > 0) {
-      const channelCount = new Set((evidence || []).map(ev => ev.channelId).filter(Boolean)).size;
-      actionsTaken.push(`Deleted ${deleteCount} message${deleteCount !== 1 ? 's' : ''} across ${channelCount} channel${channelCount !== 1 ? 's' : ''}`);
+      const channelCount = new Set(
+        (evidence || []).map(ev => ev.channelId).filter(Boolean)
+      ).size;
+      actionsTaken.push(
+        `Deleted ${deleteCount} message${deleteCount !== 1 ? 's' : ''} across ${channelCount} channel${channelCount !== 1 ? 's' : ''}`
+      );
     }
 
     return actionsTaken;
@@ -343,33 +384,39 @@ class SpamActionHandler {
       }
 
       try {
-        // Resolve channel: cache first, then API fetch (covers voice-channel text chat too)
         let channel = guild.channels.cache.get(channelId);
         if (!channel) {
           channel = await this.client.channels.fetch(channelId).catch(() => null);
         }
 
         if (!channel) {
-          logger.warn(`[SPAM][DELETE] Channel not found: channelId=${channelId}, messageId=${messageId}`);
+          logger.warn(
+            `[SPAM][DELETE] Channel not found: channelId=${channelId}, messageId=${messageId}`
+          );
           continue;
         }
 
-        // Resolve message: cache first, then API fetch
         let msg = channel.messages?.cache?.get(messageId);
         if (!msg) {
           msg = await channel.messages.fetch(messageId).catch(() => null);
         }
 
         if (!msg) {
-          logger.warn(`[SPAM][DELETE] Message not found (already deleted or Unknown Message): channelId=${channelId}, messageId=${messageId}`);
+          logger.warn(
+            `[SPAM][DELETE] Message not found (already deleted or Unknown Message): channelId=${channelId}, messageId=${messageId}`
+          );
           continue;
         }
 
         await msg.delete();
         deleted++;
-        logger.info(`[SPAM][DELETE] Deleted message: channelId=${channelId}, messageId=${messageId}`);
+        logger.info(
+          `[SPAM][DELETE] Deleted message: channelId=${channelId}, messageId=${messageId}`
+        );
       } catch (err) {
-        logger.error(`[SPAM][DELETE] Failed to delete message: channelId=${channelId}, messageId=${messageId} — ${err.message}`);
+        logger.error(
+          `[SPAM][DELETE] Failed to delete message: channelId=${channelId}, messageId=${messageId} — ${err.message}`
+        );
       }
     }
 
@@ -391,28 +438,31 @@ class SpamActionHandler {
    * Update the alert embed to "Pending Staff Review" after automatic action.
    * Buttons remain active; alert is NOT locked.
    */
-  async markPendingReview(userId, alertMessage, updatedEmbed) {
+  async markPendingReview(userId, alertMessage, updatedEmbed, guildId) {
     try {
       const pendingEmbed = buildPendingReviewEmbed({ originalEmbed: updatedEmbed });
       const components = [this.buildActionRow(userId)];
 
       await alertMessage.edit({ embeds: [pendingEmbed], components });
 
-      const alert = this.activeAlerts.get(userId);
+      const alertKey = buildAlertKey(guildId, userId);
+      const alert = this.activeAlerts.get(alertKey);
       if (alert) {
         alert.embed = pendingEmbed;
       }
 
-      logger.info(`[SPAM] Alert for ${userId} updated to Pending Staff Review`);
+      logger.info(
+        `[SPAM] Alert for ${userId} in guild ${guildId} updated to Pending Staff Review`
+      );
     } catch (err) {
-      logger.error(`[SPAM] Error marking alert as pending: ${err.message}`);
+      logger.error(`[SPAM] Error marking alert as pending in guild ${guildId}: ${err.message}`);
     }
   }
 
   /**
    * Lock alert after a staff member explicitly resolves it (removes buttons).
    */
-  async lockAlert(userId, alertMessage, originalEmbed, actionDescription, moderatorTag, moderatorId) {
+  async lockAlert(userId, alertMessage, originalEmbed, actionDescription, moderatorTag, moderatorId, guildId) {
     try {
       const finalEmbed = buildFinalActionEmbed({
         originalEmbed,
@@ -423,15 +473,18 @@ class SpamActionHandler {
 
       await alertMessage.edit({ embeds: [finalEmbed], components: [] });
 
-      const alert = this.activeAlerts.get(userId);
+      const alertKey = buildAlertKey(guildId, userId);
+      const alert = this.activeAlerts.get(alertKey);
       if (alert) {
         alert.locked = true;
         alert.embed = finalEmbed;
       }
 
-      logger.info(`[SPAM] Alert for ${userId} locked/resolved by ${moderatorTag || 'System'}`);
+      logger.info(
+        `[SPAM] Alert for ${userId} in guild ${guildId} locked/resolved by ${moderatorTag || 'System'}`
+      );
     } catch (err) {
-      logger.error(`[SPAM] Error locking alert: ${err.message}`);
+      logger.error(`[SPAM] Error locking alert in guild ${guildId}: ${err.message}`);
     }
   }
 
@@ -443,7 +496,9 @@ class SpamActionHandler {
       const parts = interaction.customId.split(':');
       const actionType = parts[0];
       const userId = parts[1];
-      const alert = this.activeAlerts.get(userId);
+      const guildId = interaction.guildId;
+      const alertKey = buildAlertKey(guildId, userId);
+      const alert = this.activeAlerts.get(alertKey);
 
       if (!alert || alert.locked) {
         return interaction.reply({ content: 'This alert is already resolved.', ephemeral: true });
@@ -485,7 +540,8 @@ class SpamActionHandler {
         alert.embed,
         actionDescription,
         interaction.user.tag,
-        interaction.user.id
+        interaction.user.id,
+        guildId
       );
 
       await interaction.reply({
@@ -493,7 +549,9 @@ class SpamActionHandler {
         ephemeral: true
       });
 
-      logger.info(`[SPAM] Moderator action by ${interaction.user.tag}: ${actionDescription} for user ${userId}`);
+      logger.info(
+        `[SPAM] Moderator action by ${interaction.user.tag} in guild ${guildId}: ${actionDescription} for user ${userId}`
+      );
     } catch (err) {
       logger.error(`[SPAM] Error handling interaction: ${err.message}`);
       await interaction.reply({
@@ -504,13 +562,14 @@ class SpamActionHandler {
   }
 
   /**
-   * Reset all active alert/lock state for a specific user.
+   * Reset all active alert/lock state for a specific user in a specific guild.
    * Used by debug reset commands so a new test run can proceed cleanly.
    */
-  resetUserState(userId) {
-    this.activeAlerts.delete(userId);
-    this.alertLocks.delete(userId);
-    logger.info(`[SPAM] State reset for user ${userId}`);
+  resetUserState(guildId, userId) {
+    const alertKey = buildAlertKey(guildId, userId);
+    this.activeAlerts.delete(alertKey);
+    this.alertLocks.delete(alertKey);
+    logger.info(`[SPAM] State reset for user ${userId} in guild ${guildId}`);
   }
 
   /**
