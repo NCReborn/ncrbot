@@ -221,6 +221,10 @@ class SpamDetector {
     const userId = message.author.id;
     const key = `${guildId}:${userId}`;
 
+    // Per-guild rule config (fallback to global)
+    const guildCfg = this.config.guilds?.[guildId];
+    const cfg = guildCfg?.rules || this.config.rules;
+
     const isDebugTestMessage = this.isDebugTestMessage(message);
     if (!isDebugTestMessage && this.isWhitelisted(member)) return null;
 
@@ -244,10 +248,7 @@ class SpamDetector {
     const triggeredRules = [];
     const evidence = [];
 
-    // Load rule configs
-    const cfg = this.config.rules;
-
-    // Run synchronous rule modules
+    // Run synchronous rule modules with per-guild config
     const syncRuleResults = [
       multiChannelSpam(message, activity, cfg.multiChannelSpam),
       rapidPosting(message, activity, cfg.rapidPosting),
