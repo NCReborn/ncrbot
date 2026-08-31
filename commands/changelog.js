@@ -1,6 +1,10 @@
+// commands/changelog.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+
 const { fetchRevision, processModFiles, computeDiff } = require('../utils/nexusApi');
-const collectionsConfig = require('../config/collections');
+const guildConfigManager = require('../config/guildConfigManager');
+const revisionState = require('../utils/revisionState');
+const GameVersionManager = require('../utils/GameVersionManager');
 const changelogGenerator = require('../services/changelog/ChangelogGenerator');
 const logger = require('../utils/logger');
 
@@ -14,12 +18,6 @@ module.exports = {
         .setName('collection')
         .setDescription('Which collection to post changelog for')
         .setRequired(true)
-        .addChoices(
-          { name: 'NCR Core', value: 'rcuccp' },
-          { name: 'NCR Extras', value: 'srpv39' },
-          { name: 'NCR Body', value: 'vfy7w1' },
-          { name: 'Subnautica 2 Reborn', value: '9htmlb' }
-        )
     )
     .addIntegerOption(option =>
       option
@@ -40,62 +38,77 @@ module.exports = {
     await interaction.deferReply({ ephemeral: true });
 
     try {
+      const guildId = interaction.guild.id;
       const slug = interaction.options.getString('collection');
       const currentRev = interaction.options.getInteger('current_revision');
       const prevRev = interaction.options.getInteger('previous_revision');
 
-      const collection = collectionsConfig.getCollection(slug);
+      // Load guild-specific config
+      const guildConfig = guildConfigManager.loadGuildConfig(guildId);
+
+      // Validate collection exists for this guild
+      const collection = guildConfig.collections.find(c => c.slug === slug);
       if (!collection) {
         return interaction.editReply({
-          content: `❌ Collection ${slug} not found in configuration.`
+          content: `❌ This guild is not configured to track collection slug **${slug}**.`
         });
       }
 
-      const groupConfig = collectionsConfig.getGroupForCollection(slug);
+      // Get group config for this collection
+      const groupConfig = guildConfig.groups.find(g => g.name === collection.group);
       if (!groupConfig) {
         return interaction.editReply({
-          content: `❌ Group configuration not found for ${collection.display}.`
+          content: `❌ Group configuration not found for **${collection.display}**.`
         });
       }
 
       // Handle initial changelog (no previous revision)
       if (prevRev === null) {
-        logger.info(`[CHANGELOG] Posting initial changelog for ${collection.display} (Revision ${currentRev})`);
+        logger.info(`[CHANGELOG] Posting initial changelog for ${collection.display} (Revision ${currentRev}) in guild ${guildId}`);
 
-        const revisionData = await fetchRevision(slug, currentRev, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION);
+        const revisionData = await fetchRevision(
+          slug,
+          currentRev,
+          process.env.NEXUS_API_KEY,
+          process.env.APP_NAME,
+          process.env.APP_VERSION
+        );
+
         const mods = processModFiles(revisionData.modFiles);
 
-        // Create initial diff with all mods as "added"
         const diffs = {
           added: mods,
           updated: [],
           removed: []
         };
 
-        // Build revision data
         const changelogData = {
           collections: [{
-            slug: slug,
+            slug,
             display: collection.display,
             oldRev: 0,
             newRev: currentRev
           }],
-          diffs: diffs
+          diffs
         };
 
-        // Send changelog
-        await changelogGenerator.sendChangelog(interaction.client, groupConfig, changelogData);
+        await changelogGenerator.sendChangelog(
+          interaction.client,
+          guildId,
+          groupConfig,
+          changelogData
+        );
 
-        logger.info(`[CHANGELOG] Successfully posted initial changelog for ${collection.display} (Revision ${currentRev})`);
+        revisionState.setLastPostedRevision(guildId, slug, currentRev, logger);
+
         return interaction.editReply({
           content: `✅ Initial changelog posted for **${collection.display}** (Revision ${currentRev})`
         });
       }
 
-      // Handle regular changelog with comparison
-      logger.info(`[CHANGELOG] Fetching revisions for ${collection.display} (${prevRev} → ${currentRev})`);
+      // Regular changelog (prev → current)
+      logger.info(`[CHANGELOG] Fetching revisions for ${collection.display} (${prevRev} → ${currentRev}) in guild ${guildId}`);
 
-      // Fetch both revisions
       const [oldRevisionData, newRevisionData] = await Promise.all([
         fetchRevision(slug, prevRev, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION),
         fetchRevision(slug, currentRev, process.env.NEXUS_API_KEY, process.env.APP_NAME, process.env.APP_VERSION)
@@ -105,24 +118,29 @@ module.exports = {
       const newMods = processModFiles(newRevisionData.modFiles);
       const diffs = computeDiff(oldMods, newMods);
 
-      // Build revision data
       const revisionData = {
         collections: [{
-          slug: slug,
+          slug,
           display: collection.display,
           oldRev: prevRev,
           newRev: currentRev
         }],
-        diffs: diffs
+        diffs
       };
 
-      // Send changelog
-      await changelogGenerator.sendChangelog(interaction.client, groupConfig, revisionData);
+      await changelogGenerator.sendChangelog(
+        interaction.client,
+        guildId,
+        groupConfig,
+        revisionData
+      );
 
-      logger.info(`[CHANGELOG] Successfully posted changelog for ${collection.display} ${prevRev} → ${currentRev}`);
+      revisionState.setLastPostedRevision(guildId, slug, currentRev, logger);
+
       return interaction.editReply({
         content: `✅ Changelog posted for **${collection.display}** (${prevRev} → ${currentRev})`
       });
+
     } catch (error) {
       logger.error(`[CHANGELOG] Error: ${error.message}`, error);
       return interaction.editReply({
