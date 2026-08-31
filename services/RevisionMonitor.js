@@ -1,7 +1,9 @@
+// services/RevisionMonitor.js
 const logger = require('../utils/logger');
 const { fetchRevision, processModFiles, computeDiff } = require('../utils/nexusApi');
-const { getCollectionRevision, setCollectionRevision, loadState } = require('../utils/revisionState');
-const collectionsConfig = require('../config/collections');
+
+const revisionState = require('../utils/revisionState');
+const guildConfigManager = require('../config/guildConfigManager');
 const changelogGenerator = require('./changelog/ChangelogGenerator');
 
 // Delay helper
@@ -10,37 +12,58 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 class RevisionMonitor {
   constructor() {
     this.pollInterval = 15 * 60 * 1000; // 15 minutes
-    this.pendingUpdates = new Map(); // Map<groupName, Array<updateInfo>>
-    this.combineTimers = new Map(); // Map<groupName, timeoutId>
+    this.pendingUpdates = new Map(); // Map<guildId_groupName, Array<updateInfo>>
+    this.combineTimers = new Map(); // Map<guildId_groupName, timeoutId>
   }
 
   async start(client) {
     logger.info('[REVISION_MONITOR] Starting...');
-    
-    loadState(logger);
+
+    revisionState.loadState(logger);
 
     // Poll immediately
-    await this.checkAllCollections(client);
+    await this.checkAllGuilds(client);
 
     // Then poll every 15 minutes
     setInterval(async () => {
-      await this.checkAllCollections(client);
+      await this.checkAllGuilds(client);
     }, this.pollInterval);
   }
 
-  async checkAllCollections(client) {
-    logger.debug('[REVISION_MONITOR] Checking for updates...');
+  async checkAllGuilds(client) {
+    logger.debug('[REVISION_MONITOR] Checking all guilds...');
 
-    for (const collection of collectionsConfig.collections) {
+    const guilds = client.guilds.cache;
+
+    for (const [guildId, guild] of guilds) {
       try {
-        await this.checkCollection(client, collection);
+        await this.checkGuildCollections(client, guildId);
       } catch (error) {
-        logger.error(`[REVISION_MONITOR] Error checking ${collection.display}:`, error);
+        logger.error(`[REVISION_MONITOR] Error checking guild ${guildId}:`, error);
       }
     }
   }
 
-  async checkCollection(client, collection) {
+  async checkGuildCollections(client, guildId) {
+    const guildConfig = guildConfigManager.loadGuildConfig(guildId);
+
+    if (!guildConfig.collections || guildConfig.collections.length === 0) {
+      logger.warn(`[REVISION_MONITOR] Guild ${guildId} has no collections configured`);
+      return;
+    }
+
+    logger.debug(`[REVISION_MONITOR] Checking ${guildConfig.collections.length} collections for guild ${guildId}`);
+
+    for (const collection of guildConfig.collections) {
+      try {
+        await this.checkCollection(client, guildId, collection);
+      } catch (error) {
+        logger.error(`[REVISION_MONITOR] Error checking ${collection.display} in guild ${guildId}:`, error);
+      }
+    }
+  }
+
+  async checkCollection(client, guildId, collection) {
     const { slug, display } = collection;
 
     const revisionData = await fetchRevision(
@@ -52,14 +75,14 @@ class RevisionMonitor {
     );
 
     const currentRevision = revisionData.revisionNumber;
-    const previousRevision = getCollectionRevision(slug);
+    const previousRevision = revisionState.getCollectionRevision(guildId, slug);
 
     if (!previousRevision || currentRevision > previousRevision) {
-      logger.info(`[REVISION_MONITOR] New revision: ${display} (${previousRevision} → ${currentRevision})`);
+      logger.info(`[REVISION_MONITOR] New revision in guild ${guildId}: ${display} (${previousRevision} → ${currentRevision})`);
 
       const newMods = processModFiles(revisionData.modFiles);
       let oldMods = [];
-      
+
       if (previousRevision) {
         const oldRevisionData = await fetchRevision(
           slug,
@@ -73,9 +96,9 @@ class RevisionMonitor {
 
       const diffs = computeDiff(oldMods, newMods);
 
-      setCollectionRevision(slug, currentRevision);
+      revisionState.setCollectionRevision(guildId, slug, currentRevision, logger);
 
-      await this.postChangelog(client, collection, {
+      await this.queueUpdate(client, guildId, collection, {
         oldRev: previousRevision || 0,
         newRev: currentRevision,
         diffs
@@ -83,83 +106,74 @@ class RevisionMonitor {
     }
   }
 
-  queueUpdate(client, collection, updateData) {
-    const groupConfig = collectionsConfig.getGroupForCollection(collection.slug);
-    
+  queueUpdate(client, guildId, collection, updateData) {
+    const groupConfig = guildConfigManager.getGroupForCollection(guildId, collection.slug);
+
     if (!groupConfig) {
-      logger.warn(`[REVISION_MONITOR] No group found for ${collection.display}`);
+      logger.warn(`[REVISION_MONITOR] No group found for ${collection.display} in guild ${guildId}`);
       return;
     }
 
-    const groupName = groupConfig.name;
+    const key = `${guildId}_${groupConfig.name}`;
 
-    // Initialize pending updates for this group if needed
-    if (!this.pendingUpdates.has(groupName)) {
-      this.pendingUpdates.set(groupName, []);
+    if (!this.pendingUpdates.has(key)) {
+      this.pendingUpdates.set(key, []);
     }
 
-    // Add update to pending queue
-    const updateInfo = {
-      collection,
-      updateData
-    };
-    this.pendingUpdates.get(groupName).push(updateInfo);
-    logger.info(`[REVISION_MONITOR] Queued update for ${collection.display} in group ${groupName}`);
+    const updateInfo = { collection, updateData };
+    this.pendingUpdates.get(key).push(updateInfo);
 
-    // Clear existing timer for this group (to restart the window)
-    if (this.combineTimers.has(groupName)) {
-      clearTimeout(this.combineTimers.get(groupName));
-      logger.debug(`[REVISION_MONITOR] Reset combine window timer for group ${groupName}`);
+    logger.info(`[REVISION_MONITOR] Queued update for ${collection.display} in guild ${guildId}, group ${groupConfig.name}`);
+
+    if (this.combineTimers.has(key)) {
+      clearTimeout(this.combineTimers.get(key));
     }
 
-    // Only start timer if the group has combined mode enabled
     if (groupConfig.combined) {
       const timer = setTimeout(() => {
-        this.processPendingGroup(client, groupName);
-      }, collectionsConfig.combineWindowMs);
-      
-      this.combineTimers.set(groupName, timer);
-      logger.info(`[REVISION_MONITOR] Started ${collectionsConfig.combineWindowMs / 1000}s combine window for group ${groupName}`);
+        this.processPendingGroup(client, guildId, groupConfig.name);
+      }, guildConfig.combineWindowMs || 5000);
+
+      this.combineTimers.set(key, timer);
     } else {
       setImmediate(() => {
-        this.processPendingGroup(client, groupName);
+        this.processPendingGroup(client, guildId, groupConfig.name);
       });
     }
   }
 
-  async processPendingGroup(client, groupName) {
-    // Clear timer
-    if (this.combineTimers.has(groupName)) {
-      clearTimeout(this.combineTimers.get(groupName));
-      this.combineTimers.delete(groupName);
+  async processPendingGroup(client, guildId, groupName) {
+    const key = `${guildId}_${groupName}`;
+
+    if (this.combineTimers.has(key)) {
+      clearTimeout(this.combineTimers.get(key));
+      this.combineTimers.delete(key);
     }
 
-    // Get pending updates
-    const pendingUpdates = this.pendingUpdates.get(groupName);
+    const pendingUpdates = this.pendingUpdates.get(key);
     if (!pendingUpdates || pendingUpdates.length === 0) {
-      logger.warn(`[REVISION_MONITOR] No pending updates for group ${groupName}`);
+      logger.warn(`[REVISION_MONITOR] No pending updates for group ${groupName} in guild ${guildId}`);
       return;
     }
 
-    // Clear pending updates for this group
-    this.pendingUpdates.delete(groupName);
+    this.pendingUpdates.delete(key);
 
-    const groupConfig = collectionsConfig.getGroup(groupName);
+    const guildConfig = guildConfigManager.loadGuildConfig(guildId);
+    const groupConfig = guildConfig.groups.find(g => g.name === groupName);
+
     if (!groupConfig) {
-      logger.error(`[REVISION_MONITOR] Group config not found for ${groupName}`);
+      logger.error(`[REVISION_MONITOR] Group config not found for ${groupName} in guild ${guildId}`);
       return;
     }
 
-    logger.info(`[REVISION_MONITOR] Processing ${pendingUpdates.length} pending update(s) for group ${groupName}`);
+    logger.info(`[REVISION_MONITOR] Processing ${pendingUpdates.length} updates for group ${groupName} in guild ${guildId}`);
 
-    // Sort by collection priority (ensures Core → Extras → Body)
     pendingUpdates.sort((a, b) => {
       const priorityA = a.collection.priority || 0;
       const priorityB = b.collection.priority || 0;
       return priorityA - priorityB;
     });
 
-    // ⭐ NEW LOGIC: Post each collection separately with a delay
     for (const update of pendingUpdates) {
       const { collection, updateData } = update;
 
@@ -175,15 +189,10 @@ class RevisionMonitor {
         diffs: updateData.diffs
       };
 
-      await changelogGenerator.sendChangelog(client, groupConfig, revisionData);
+      await changelogGenerator.sendChangelog(client, guildId, groupConfig, revisionData);
 
-      // Wait 15 seconds before posting the next collection
       await wait(15000);
     }
-  }
-
-  async postChangelog(client, collection, updateData) {
-    this.queueUpdate(client, collection, updateData);
   }
 }
 
