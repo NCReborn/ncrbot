@@ -10,14 +10,8 @@ const userActivityTracker = require('./UserActivityTracker');
 const multiChannelSpam = require('./rules/multiChannelSpam');
 const rapidPosting = require('./rules/rapidPosting');
 const imageSpam = require('./rules/imageSpam');
-const suspiciousPatterns = require('./rules/suspiciousPatterns');
 const newAccountRule = require('./rules/newAccount');
-const dormantUserSpam = require('./rules/dormantUserSpam');
 const channelCarpetBomb = require('./rules/channelCarpetBomb');
-
-// NEW advanced rules
-const dormantActivation = require('./rules/dormantActivation');
-const singleImageScam = require('./rules/singleImageScam');
 
 const CONTENT_PREVIEW_LENGTH = 100;
 const DEBUG_TRIGGER_DESCRIPTIONS = {
