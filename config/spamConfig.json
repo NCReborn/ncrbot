@@ -16,7 +16,6 @@
       "timeWindowSeconds": 30,
       "timeoutSeconds": 43200
     },
-
     "rapidPosting": {
       "enabled": true,
       "messageCount": 8,
@@ -27,7 +26,6 @@
         "1458182870605758611"
       ]
     },
-
     "imageSpam": {
       "enabled": true,
       "imageCount": 6,
@@ -41,7 +39,6 @@
         "1489747895975546950"
       ]
     },
-
     "suspiciousPatterns": {
       "enabled": true,
       "patterns": [
@@ -61,14 +58,12 @@
       "minMessagesExempt": 50,
       "requiresOtherTrigger": false
     },
-
     "newAccountMonitoring": {
       "enabled": true,
       "accountAgeDays": 30,
       "requiresOtherTrigger": true,
       "timeoutSeconds": 43200
     },
-
     "dormantUserSpam": {
       "enabled": true,
       "minServerAgeDays": 1,
@@ -78,7 +73,6 @@
       "timeoutSeconds": 43200,
       "severity": "high"
     },
-
     "channelCarpetBomb": {
       "enabled": true,
       "watchedChannels": [
@@ -92,7 +86,6 @@
       "timeoutSeconds": 43200,
       "severity": "critical"
     },
-
     "singleImageScam": {
       "enabled": false,
       "minMessages": 5,
@@ -108,7 +101,6 @@
       "timeoutSeconds": 43200,
       "severity": "high"
     },
-
     "dormantActivation": {
       "enabled": false,
       "minDormantDays": 60,
@@ -135,7 +127,17 @@
       "protectedChannels": {
         "showcase": "1285797205927792782"
       },
-      "rules": {}
+      "rules": {
+        "multiChannelSpam": {},
+        "rapidPosting": {},
+        "imageSpam": {},
+        "suspiciousPatterns": {},
+        "newAccountMonitoring": {},
+        "dormantUserSpam": {},
+        "channelCarpetBomb": {},
+        "singleImageScam": {},
+        "dormantActivation": {}
+      }
     },
 
     "1543373740019163218": {
@@ -143,7 +145,17 @@
       "protectedChannels": {
         "showcase": "1543381631073525850"
       },
-      "rules": {}
+      "rules": {
+        "multiChannelSpam": {},
+        "rapidPosting": {},
+        "imageSpam": {},
+        "suspiciousPatterns": {},
+        "newAccountMonitoring": {},
+        "dormantUserSpam": {},
+        "channelCarpetBomb": {},
+        "singleImageScam": {},
+        "dormantActivation": {}
+      }
     }
   }
 }
