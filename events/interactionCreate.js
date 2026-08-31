@@ -17,21 +17,35 @@ module.exports = {
       // Route to appropriate handler
       if (interaction.isModalSubmit()) {
         await modalHandlers.handle(interaction, client);
+
       } else if (interaction.isButton()) {
         await buttonHandlers.handle(interaction, client);
+
       } else if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('autoresponder_channels:')) {
         await handleAutoResponderChannelSelect(interaction);
+
+      } else if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
+        const command = client.commands.get(interaction.commandName);
+        if (!command?.autocomplete) return;
+
+        try {
+          await command.autocomplete(interaction);
+        } catch (error) {
+          logger.error(`[AUTOCOMPLETE] /${interaction.commandName} failed:`, error);
+          try { await interaction.respond([]); } catch {}
+        }
+
       } else if (interaction.type === InteractionType.ApplicationCommand) {
         await commandHandlers.handle(interaction, client);
       }
     } catch (error) {
       logger.error('[INTERACTION] Unhandled error:', error);
-      
-      const errorMessage = { 
-        content: 'An unexpected error occurred.', 
-        ephemeral: true 
+
+      const errorMessage = {
+        content: 'An unexpected error occurred.',
+        ephemeral: true
       };
-      
+
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(errorMessage).catch(() => {});
       } else if (interaction.isRepliable()) {
