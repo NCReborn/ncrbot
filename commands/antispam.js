@@ -18,7 +18,7 @@ module.exports = {
     )
     .addSubcommand(sub =>
       sub.setName('whitelist')
-        .setDescription('Add a user to the anti-spam whitelist')
+        .setDescription('Add a user to the whitelist')
         .addUserOption(opt =>
           opt.setName('user').setDescription('User to whitelist').setRequired(true)
         )
