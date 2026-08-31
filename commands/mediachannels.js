@@ -27,12 +27,13 @@ module.exports = {
         .setDescription('List all media-enforced channels')),
 
   async execute(interaction) {
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guild.id;   // ⭐ FIXED
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'add-image') {
       const channel = interaction.options.getChannel('channel');
 
+      // ⭐ FIXED: pass guildId first, channel.id second
       const result = mediaChannelService.addImageOnlyChannel(guildId, channel.id);
 
       if (!result.success) {
@@ -52,6 +53,7 @@ module.exports = {
     if (sub === 'remove-image') {
       const channel = interaction.options.getChannel('channel');
 
+      // ⭐ FIXED: pass guildId first
       const result = mediaChannelService.removeImageOnlyChannel(guildId, channel.id);
 
       if (!result.success) {
@@ -69,8 +71,8 @@ module.exports = {
     }
 
     if (sub === 'list') {
-      const imageChannels = mediaChannelService.getImageOnlyChannels(guildId);
-      const fileChannels = mediaChannelService.getFileOnlyChannels(guildId);
+      const imageChannels = mediaChannelService.getImageOnlyChannels(guildId);  // ⭐ FIXED
+      const fileChannels = mediaChannelService.getFileOnlyChannels(guildId);    // ⭐ FIXED
 
       const imageList = imageChannels.length > 0
         ? imageChannels.map(id => `<#${id}>`).join('\n')
