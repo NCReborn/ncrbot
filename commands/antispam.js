@@ -92,6 +92,25 @@ module.exports = {
             .setDescription('Channel where anti-spam alerts will be posted')
             .setRequired(true)
         )
+    )
+
+    // NEW: SET PROTECTED CHANNEL
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('set-protected-channel')
+        .setDescription('Set a protected channel for this guild (spam rules ignore it)')
+        .addStringOption(option =>
+          option
+            .setName('name')
+            .setDescription('Name/key for this protected channel (e.g. showcase, gifs)')
+            .setRequired(true)
+        )
+        .addChannelOption(option =>
+          option
+            .setName('channel')
+            .setDescription('Channel to protect')
+            .setRequired(true)
+        )
     ),
 
   async execute(interaction) {
@@ -110,6 +129,7 @@ module.exports = {
         case 'debug-reset-user': return this.resetDebugUser(interaction);
         case 'debug-reset-all': return this.resetDebugAll(interaction);
         case 'set-alert-channel': return this.setAlertChannel(interaction);
+        case 'set-protected-channel': return this.setProtectedChannel(interaction);
       }
     } catch (error) {
       logger.error('[ANTISPAM] Error executing command:', error);
@@ -250,6 +270,40 @@ module.exports = {
     });
 
     logger.info(`[ANTISPAM] Alert channel for guild ${guildId} set to ${channel.id} by ${interaction.user.tag}`);
+  },
+
+  // -----------------------------
+  // SET PROTECTED CHANNEL (NEW)
+  // -----------------------------
+  async setProtectedChannel(interaction) {
+    const guildId = interaction.guildId;
+    const name = interaction.options.getString('name');
+    const channel = interaction.options.getChannel('channel');
+
+    if (channel.guildId !== guildId) {
+      return interaction.reply({
+        content: '❌ That channel does not belong to this guild.',
+        ephemeral: true
+      });
+    }
+
+    const { configPath, config } = this.readConfig();
+
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[guildId]) config.guilds[guildId] = {};
+    if (!config.guilds[guildId].protectedChannels)
+      config.guilds[guildId].protectedChannels = {};
+
+    config.guilds[guildId].protectedChannels[name] = channel.id;
+
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: `✅ Protected channel **${name}** set to <#${channel.id}> for this guild.`,
+      ephemeral: true
+    });
+
+    logger.info(`[ANTISPAM] Protected channel '${name}' for guild ${guildId} set to ${channel.id} by ${interaction.user.tag}`);
   },
 
   // -----------------------------
