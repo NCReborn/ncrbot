@@ -1,9 +1,13 @@
+// handlers/imageOnlyHandler.js
 const mediaChannelService = require('../services/MediaChannelService');
 const logger = require('./logger');
 
 module.exports = (client) => {
   client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
+
+    const guildId = message.guild.id;
+    const channelId = message.channel.id;
 
     // Fetch the member object for permission checks
     const member = await message.guild.members.fetch(message.author.id).catch(() => null);
@@ -14,9 +18,10 @@ module.exports = (client) => {
     if (isAdmin) return;
 
     // IMAGE-ONLY CHANNELS
-    if (mediaChannelService.isImageOnlyChannel(message.channel.id)) {
+    if (mediaChannelService.isImageOnlyChannel(guildId, channelId)) {
       const hasImage = message.attachments.some(att => att.contentType && att.contentType.startsWith('image/'));
       const hasLink = /(https?:\/\/[^\s]+)/i.test(message.content);
+
       if (!hasImage && !hasLink) {
         try {
           await message.delete();
@@ -32,8 +37,9 @@ module.exports = (client) => {
     }
 
     // FILE-ONLY CHANNELS
-    if (mediaChannelService.isFileOnlyChannel(message.channel.id)) {
+    if (mediaChannelService.isFileOnlyChannel(guildId, channelId)) {
       const hasFile = message.attachments.size > 0;
+
       if (!hasFile) {
         try {
           await message.delete();
