@@ -1,3 +1,4 @@
+// commands/mediachannels.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const mediaChannelService = require('../services/MediaChannelService');
 const logger = require('../utils/logger');
@@ -26,60 +27,59 @@ module.exports = {
         .setDescription('List all media-enforced channels')),
 
   async execute(interaction) {
+    const guildId = interaction.guild.id;
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'add-image') {
       const channel = interaction.options.getChannel('channel');
-      
-      const result = mediaChannelService.addImageOnlyChannel(channel.id);
-      
+
+      const result = mediaChannelService.addImageOnlyChannel(guildId, channel.id);
+
       if (!result.success) {
-        return interaction.reply({ 
-          content: `⚠️ <#${channel.id}> is already image-only.`, 
-          ephemeral: true 
+        return interaction.reply({
+          content: `⚠️ <#${channel.id}> is already image-only.`,
+          ephemeral: true
         });
       }
-      
-      logger.info(`[MEDIA_CHANNELS] Added image-only channel: ${channel.id} by ${interaction.user.tag}`);
-      
-      return interaction.reply({ 
-        content: `✅ <#${channel.id}> added to image-only enforcement.`, 
-        ephemeral: true 
+
+      logger.info(`[MEDIA_CHANNELS] Added image-only channel ${channel.id} in guild ${guildId}`);
+      return interaction.reply({
+        content: `✅ <#${channel.id}> added to image-only enforcement.`,
+        ephemeral: true
       });
     }
 
     if (sub === 'remove-image') {
       const channel = interaction.options.getChannel('channel');
-      
-      const result = mediaChannelService.removeImageOnlyChannel(channel.id);
-      
+
+      const result = mediaChannelService.removeImageOnlyChannel(guildId, channel.id);
+
       if (!result.success) {
-        return interaction.reply({ 
-          content: `⚠️ <#${channel.id}> is not in the image-only list.`, 
-          ephemeral: true 
+        return interaction.reply({
+          content: `⚠️ <#${channel.id}> is not in the image-only list.`,
+          ephemeral: true
         });
       }
-      
-      logger.info(`[MEDIA_CHANNELS] Removed image-only channel: ${channel.id} by ${interaction.user.tag}`);
-      
-      return interaction.reply({ 
-        content: `✅ <#${channel.id}> removed from image-only enforcement.`, 
-        ephemeral: true 
+
+      logger.info(`[MEDIA_CHANNELS] Removed image-only channel ${channel.id} in guild ${guildId}`);
+      return interaction.reply({
+        content: `✅ <#${channel.id}> removed from image-only enforcement.`,
+        ephemeral: true
       });
     }
 
     if (sub === 'list') {
-      const imageChannels = mediaChannelService.getImageOnlyChannels();
-      const fileChannels = mediaChannelService.getFileOnlyChannels();
-      
+      const imageChannels = mediaChannelService.getImageOnlyChannels(guildId);
+      const fileChannels = mediaChannelService.getFileOnlyChannels(guildId);
+
       const imageList = imageChannels.length > 0
         ? imageChannels.map(id => `<#${id}>`).join('\n')
         : '_None configured_';
-        
+
       const fileList = fileChannels.length > 0
         ? fileChannels.map(id => `<#${id}>`).join('\n')
         : '_None configured_';
-      
+
       return interaction.reply({
         content: `**Image-only channels:**\n${imageList}\n\n**File-only channels:**\n${fileList}`,
         ephemeral: true
