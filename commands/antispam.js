@@ -81,7 +81,7 @@ module.exports = {
         .setDescription('Reset all cached anti-spam state')
     )
 
-    // NEW: SET ALERT CHANNEL
+    // SET ALERT CHANNEL
     .addSubcommand(subcommand =>
       subcommand
         .setName('set-alert-channel')
@@ -94,7 +94,7 @@ module.exports = {
         )
     )
 
-    // NEW: SET PROTECTED CHANNEL
+    // SET PROTECTED CHANNEL
     .addSubcommand(subcommand =>
       subcommand
         .setName('set-protected-channel')
@@ -140,15 +140,16 @@ module.exports = {
     }
   },
 
-  // -----------------------------
   // STATUS
-  // -----------------------------
   async showStatus(interaction) {
     const config = spamDetector.config;
     const guildId = interaction.guildId;
 
     const guildCfg = config.guilds?.[guildId];
     const alertChannelId = guildCfg?.alertChannelId || config.alertChannelId;
+
+    // Per-guild rules view (fallback to global)
+    const cfgRules = guildCfg?.rules || config.rules;
 
     const embed = new EmbedBuilder()
       .setTitle('🛡️ Anti-Spam System Status')
@@ -172,9 +173,7 @@ module.exports = {
         }
       ]);
 
-    // Rules
     const rules = [];
-    const cfgRules = config.rules;
 
     if (cfgRules.multiChannelSpam?.enabled)
       rules.push(`✅ Multi-Channel Spam (${cfgRules.multiChannelSpam.channelCount}+ channels in ${cfgRules.multiChannelSpam.timeWindowSeconds}s)`);
@@ -195,7 +194,6 @@ module.exports = {
       embed.addFields([{ name: 'Active Rules', value: rules.join('\n'), inline: false }]);
     }
 
-    // Protected channels
     const protectedChannels = [];
     const guildProtected = guildCfg?.protectedChannels || config.protectedChannels || {};
 
@@ -207,14 +205,12 @@ module.exports = {
       embed.addFields([{ name: 'Protected Channels', value: protectedChannels.join('\n'), inline: false }]);
     }
 
-    // Whitelist
     embed.addFields([{
       name: 'Whitelist',
       value: `${config.whitelist.users.length} user(s), ${config.whitelist.roles.length} role(s)`,
       inline: true
     }]);
 
-    // Debug
     const debugEnabled = config.debug?.enabled ? '✅ Enabled' : '❌ Disabled';
     const debugUser = config.debug?.testUserId ? `<@${config.debug.testUserId}>` : 'Not set';
 
@@ -227,9 +223,7 @@ module.exports = {
     await interaction.reply({ embeds: [embed], ephemeral: true });
   },
 
-  // -----------------------------
   // CONFIG HELPERS
-  // -----------------------------
   readConfig() {
     const configPath = path.join(__dirname, '../config/spamConfig.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -241,9 +235,7 @@ module.exports = {
     spamDetector.reloadConfig();
   },
 
-  // -----------------------------
-  // SET ALERT CHANNEL (NEW)
-  // -----------------------------
+  // SET ALERT CHANNEL
   async setAlertChannel(interaction) {
     const channel = interaction.options.getChannel('channel');
     const guildId = interaction.guildId;
@@ -272,9 +264,7 @@ module.exports = {
     logger.info(`[ANTISPAM] Alert channel for guild ${guildId} set to ${channel.id} by ${interaction.user.tag}`);
   },
 
-  // -----------------------------
-  // SET PROTECTED CHANNEL (NEW)
-  // -----------------------------
+  // SET PROTECTED CHANNEL
   async setProtectedChannel(interaction) {
     const guildId = interaction.guildId;
     const name = interaction.options.getString('name');
@@ -306,9 +296,7 @@ module.exports = {
     logger.info(`[ANTISPAM] Protected channel '${name}' for guild ${guildId} set to ${channel.id} by ${interaction.user.tag}`);
   },
 
-  // -----------------------------
   // TOGGLE
-  // -----------------------------
   async toggleSystem(interaction) {
     const { configPath, config } = this.readConfig();
 
@@ -323,9 +311,7 @@ module.exports = {
     await interaction.reply({ embeds: [embed] });
   },
 
-  // -----------------------------
   // WHITELIST
-  // -----------------------------
   async addWhitelist(interaction) {
     const user = interaction.options.getUser('user');
     const { configPath, config } = this.readConfig();
@@ -354,9 +340,7 @@ module.exports = {
     });
   },
 
-  // -----------------------------
   // DEBUG
-  // -----------------------------
   async setDebugEnabled(interaction, enabled) {
     const { configPath, config } = this.readConfig();
 
