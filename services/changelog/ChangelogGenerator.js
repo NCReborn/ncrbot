@@ -13,9 +13,9 @@ const Sub2Template = require('./templates/Sub2Template');
 class ChangelogGenerator {
   constructor() {
     this.templates = {
-      'ncr': NCRTemplate,
-      'e33': E33Template,
-      'sub2': Sub2Template
+      ncr: NCRTemplate,
+      e33: E33Template,
+      sub2: Sub2Template
     };
   }
 
@@ -26,7 +26,6 @@ class ChangelogGenerator {
 
   async sendChangelog(client, guildId, groupConfig, revisionData) {
     try {
-      // Fetch the channel from guild-specific config
       const channelId = groupConfig.channelId;
       const channel = await client.channels.fetch(channelId);
 
@@ -35,12 +34,9 @@ class ChangelogGenerator {
         return;
       }
 
-      // Select template based on guild config
       const template = this.getTemplate(groupConfig.template, groupConfig);
 
-      // Determine game version (guild-specific)
       let gameVersion = groupConfig.gameVersion;
-
       if (revisionData.collections && revisionData.collections.length > 0) {
         const slug = revisionData.collections[0].slug;
         gameVersion = GameVersionManager.getVersion(guildId, slug);
@@ -52,13 +48,11 @@ class ChangelogGenerator {
         combined: groupConfig.combined
       };
 
-      // Header embeds
       const headerEmbeds = await template.generateHeaderEmbeds(revisionInfo);
-      if (headerEmbeds.length > 0) {
+      if (headerEmbeds && headerEmbeds.length > 0) {
         await channel.send({ embeds: headerEmbeds });
       }
 
-      // Changes title embed
       const changesTitle = template.generateChangesTitle(revisionInfo);
       const changesTitleEmbed = new EmbedBuilder()
         .setTitle(changesTitle)
@@ -66,7 +60,6 @@ class ChangelogGenerator {
 
       await channel.send({ embeds: [changesTitleEmbed] });
 
-      // Mod changes
       await this.sendModChanges(channel, template, revisionData);
 
       logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId}) in guild ${guildId}`);
@@ -85,7 +78,7 @@ class ChangelogGenerator {
       const addedParts = template.splitLongDescription(addedList);
 
       for (let i = 0; i < addedParts.length; i++) {
-        const title = i === 0 ? "➕ Added Mods" : `➕ Added Mods (Part ${i + 1})`;
+        const title = i === 0 ? '➕ Added Mods' : `➕ Added Mods (Part ${i + 1})`;
         const embed = new EmbedBuilder()
           .setTitle(title)
           .setDescription(addedParts[i])
@@ -94,8 +87,8 @@ class ChangelogGenerator {
       }
     } else {
       const embed = new EmbedBuilder()
-        .setTitle("➕ Added Mods")
-        .setDescription("No mods were added in this revision")
+        .setTitle('➕ Added Mods')
+        .setDescription('No mods were added in this revision')
         .setColor(template.getColor('added'));
       await channel.send({ embeds: [embed] });
     }
@@ -103,20 +96,22 @@ class ChangelogGenerator {
     // Updated mods
     if (diffs.updated && diffs.updated.length > 0) {
       const sortedUpdated = this.sortUpdatedModsAlphabetically(diffs.updated);
-      const updatedList = sortedUpdated.map(mod => {
-        const modName = mod.before.name.replace(/[
+      const updatedList = sortedUpdated
+        .map(mod => {
+          const modName = mod.before.name.replace(/[\
 
 \[\]
 
 ()|]/g, '');
-        const modUrl = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
-        return `• [${modName}](${modUrl}) (v${mod.before.version} → v${mod.after.version})`;
-      }).join('\n');
+          const modUrl = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
+          return `• [${modName}](${modUrl}) (v${mod.before.version} → v${mod.after.version})`;
+        })
+        .join('\n');
 
       const updatedParts = template.splitLongDescription(updatedList);
 
       for (let i = 0; i < updatedParts.length; i++) {
-        const title = i === 0 ? "🔄 Updated Mods" : `🔄 Updated Mods (Part ${i + 1})`;
+        const title = i === 0 ? '🔄 Updated Mods' : `🔄 Updated Mods (Part ${i + 1})`;
         const embed = new EmbedBuilder()
           .setTitle(title)
           .setDescription(updatedParts[i])
@@ -125,8 +120,8 @@ class ChangelogGenerator {
       }
     } else {
       const embed = new EmbedBuilder()
-        .setTitle("🔄 Updated Mods")
-        .setDescription("No mods were updated in this revision")
+        .setTitle('🔄 Updated Mods')
+        .setDescription('No mods were updated in this revision')
         .setColor(template.getColor('updated'));
       await channel.send({ embeds: [embed] });
     }
@@ -138,7 +133,7 @@ class ChangelogGenerator {
       const removedParts = template.splitLongDescription(removedList);
 
       for (let i = 0; i < removedParts.length; i++) {
-        const title = i === 0 ? "🗑️ Removed Mods" : `🗑️ Removed Mods (Part ${i + 1})`;
+        const title = i === 0 ? '🗑️ Removed Mods' : `🗑️ Removed Mods (Part ${i + 1})`;
         const embed = new EmbedBuilder()
           .setTitle(title)
           .setDescription(removedParts[i])
@@ -147,8 +142,8 @@ class ChangelogGenerator {
       }
     } else {
       const embed = new EmbedBuilder()
-        .setTitle("🗑️ Removed Mods")
-        .setDescription("No mods were removed in this revision")
+        .setTitle('🗑️ Removed Mods')
+        .setDescription('No mods were removed in this revision')
         .setColor(template.getColor('removed'));
       await channel.send({ embeds: [embed] });
     }
