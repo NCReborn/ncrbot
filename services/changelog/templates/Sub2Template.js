@@ -5,7 +5,7 @@ class Sub2Template extends BaseTemplate {
   // Collection image URL for thumbnail
   getCollectionImage() {
     //return 'https://media.nexusmods.com/4/4/t/med/44921d47-cdb1-468a-a443-e23247b0f6f9.webp'; // TODO: Add Subnautica 2 collection image URL
-    return 'https://raw.githubusercontent.com/NCReborn/content-images/main/CT2-LOGO-BW-photomode_31052025_114439.png?sanitize=true'; // TODO: Add Subnautica 2 collection image URL
+    return 'https://raw.githubusercontent.com/NCReborn/content-images/refs/heads/main/CT2-LOGO-BW-photomode_31052025_114439.png'; // TODO: Add Subnautica 2 collection image URL
   }
 
   async generateHeaderEmbeds(revisionInfo) {
