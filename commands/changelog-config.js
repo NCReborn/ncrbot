@@ -126,7 +126,7 @@ module.exports = {
             .setDescription('Combine window in milliseconds')
             .setRequired(true)
         )
-    ),
+    )
 
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
