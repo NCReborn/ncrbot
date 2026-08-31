@@ -48,7 +48,7 @@ module.exports = {
         )
     )
 
-    // Set channel for a group
+    // Set channel
     .addSubcommand(sub =>
       sub
         .setName('set-channel')
@@ -65,7 +65,7 @@ module.exports = {
         )
     )
 
-    // Set template for a group
+    // Set template
     .addSubcommand(sub =>
       sub
         .setName('set-template')
@@ -82,7 +82,7 @@ module.exports = {
         )
     )
 
-    // Set game version for a collection
+    // Set game version
     .addSubcommand(sub =>
       sub
         .setName('set-game-version')
@@ -126,7 +126,7 @@ module.exports = {
             .setDescription('Combine window in milliseconds')
             .setRequired(true)
         )
-    )
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
