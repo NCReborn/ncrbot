@@ -35,6 +35,14 @@ module.exports = {
     ),
 
   async autocomplete(interaction) {
+    // Safety: autocomplete can fire in DMs, threads, uncached guilds
+    if (!interaction.guild) {
+      console.log("[DEBUG] Autocomplete: No guild context available");
+      return interaction.respond([
+        { name: "No guild context", value: "none" }
+      ]);
+    }
+
     const guildId = interaction.guild.id;
 
     // Always load fresh config
@@ -44,7 +52,7 @@ module.exports = {
     if (!config || !Array.isArray(config.collections)) {
       console.log(`[DEBUG] Autocomplete: No collections array for guild ${guildId}`);
       return interaction.respond([
-        { name: 'No collections configured', value: 'none' }
+        { name: "No collections configured", value: "none" }
       ]);
     }
 
@@ -52,7 +60,7 @@ module.exports = {
     if (config.collections.length === 0) {
       console.log(`[DEBUG] Autocomplete: Collections empty for guild ${guildId}`);
       return interaction.respond([
-        { name: 'No collections configured', value: 'none' }
+        { name: "No collections configured", value: "none" }
       ]);
     }
 
@@ -70,7 +78,7 @@ module.exports = {
     } catch (err) {
       console.log(`[DEBUG] Autocomplete error: ${err.message}`);
       return interaction.respond([
-        { name: 'Error loading collections', value: 'none' }
+        { name: "Error loading collections", value: "none" }
       ]);
     }
   },
