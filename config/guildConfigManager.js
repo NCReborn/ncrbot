@@ -31,10 +31,12 @@ function loadGuildConfig(guildId) {
     const raw = fs.readFileSync(file, 'utf8');
     const config = JSON.parse(raw);
 
-    // Ensure combineWindowMs exists
     if (typeof config.combineWindowMs !== 'number') {
       config.combineWindowMs = parseInt(process.env.COMBINE_WINDOW_MS || '5000', 10);
     }
+
+    if (!Array.isArray(config.groups)) config.groups = [];
+    if (!Array.isArray(config.collections)) config.collections = [];
 
     return config;
   } catch (err) {
@@ -57,7 +59,6 @@ function saveGuildConfig(guildId, config) {
   }
 }
 
-// Helper lookups (similar to old collections.js, but per guild)
 function getCollection(guildId, slug) {
   const config = loadGuildConfig(guildId);
   return config.collections.find(c => c.slug === slug) || null;
