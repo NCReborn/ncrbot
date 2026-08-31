@@ -499,4 +499,40 @@ module.exports = {
     });
   },
 
-  async clearDebugUser(interaction)
+ async clearDebugUser(interaction) {
+    const { configPath, config } = this.readConfig();
+
+    config.debug.testUserId = null;
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: 'Debug test user cleared.',
+      ephemeral: true
+    });
+  },
+
+  async resetDebugUser(interaction) {
+    const user = interaction.options.getUser('user');
+    const spamHandler = SpamActionHandler.getInstance();
+
+    spamDetector.resetUserState(interaction.guildId, user.id);
+    spamHandler.resetUserState(interaction.guildId, user.id);
+
+    await interaction.reply({
+      content: `Reset anti-spam state for ${user.tag}.`,
+      ephemeral: true
+    });
+  },
+
+  async resetDebugAll(interaction) {
+    const spamHandler = SpamActionHandler.getInstance();
+
+    spamDetector.resetAllState();
+    spamHandler.resetAllState();
+
+    await interaction.reply({
+      content: `Reset all anti-spam state.`,
+      ephemeral: true
+    });
+  }
+};
