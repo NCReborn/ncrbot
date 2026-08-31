@@ -5,9 +5,8 @@ class NCRTemplate extends BaseTemplate {
   // Collection image URLs for thumbnails
   getCollectionImage(slug) {
     const images = {
-      'rcuccp': 'https://media.nexusmods.com/2/6/t/med/261b1f39-12a1-47fb-aad3-0905c472490f.webp', // NCR Core
-      'srpv39': 'https://media.nexusmods.com/9/b/t/med/9b4e7d24-fb71-4b90-9c3c-d7eb21c7a115.webp', // NCR Extras
-      'vfy7w1': 'https://media.nexusmods.com/4/f/t/med/4f93ce82-4edb-4d55-baf3-cf63fad625b0.webp'  // NCR Body
+      'rcuccp': 'https://media.nexusmods.com/2/6/t/med/261b1f39-12a1-47fb-aad3-0905c472490f.webp', // JPE Core
+
     };
     return images[slug] || null;
   }
