@@ -12,7 +12,7 @@ module.exports = {
     .setName('changelog')
     .setDescription('Manually post a changelog for a collection (Admin only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addStringOption(option => 
+    .addStringOption(option =>
       option
         .setName('collection')
         .setDescription('Select a collection to post changelog for')
@@ -35,51 +35,34 @@ module.exports = {
     ),
 
   async autocomplete(interaction) {
-    // Safety: autocomplete can fire in DMs, threads, uncached guilds
-    if (!interaction.guild) {
-      console.log("[DEBUG] Autocomplete: No guild context available");
-      return interaction.respond([
-        { name: "No guild context", value: "none" }
-      ]);
-    }
-
-    const guildId = interaction.guild.id;
-
-    // Always load fresh config
-    const config = guildConfigManager.loadGuildConfig(guildId);
-
-    // Safety: ensure collections exists
-    if (!config || !Array.isArray(config.collections)) {
-      console.log(`[DEBUG] Autocomplete: No collections array for guild ${guildId}`);
-      return interaction.respond([
-        { name: "No collections configured", value: "none" }
-      ]);
-    }
-
-    // Safety: ensure at least one collection exists
-    if (config.collections.length === 0) {
-      console.log(`[DEBUG] Autocomplete: Collections empty for guild ${guildId}`);
-      return interaction.respond([
-        { name: "No collections configured", value: "none" }
-      ]);
-    }
-
-    // Build choices
-    const choices = config.collections.map(c => ({
-      name: `${c.display} (${c.slug})`,
-      value: c.slug
-    }));
-
-    console.log(`[DEBUG] Autocomplete: Returning ${choices.length} choices for guild ${guildId}`);
-
-    // Respond safely
     try {
-      await interaction.respond(choices.slice(0, 25));
-    } catch (err) {
-      console.log(`[DEBUG] Autocomplete error: ${err.message}`);
-      return interaction.respond([
-        { name: "Error loading collections", value: "none" }
-      ]);
+      if (!interaction.inGuild() || !interaction.guildId) {
+        return await interaction.respond([]);
+      }
+
+      const config = guildConfigManager.loadGuildConfig(interaction.guildId);
+      const collections = Array.isArray(config?.collections) ? config.collections : [];
+      const focused = (interaction.options.getFocused() || '').toLowerCase();
+
+      const choices = collections
+        .filter(c =>
+          c?.slug && c?.display &&
+          (
+            !focused ||
+            c.slug.toLowerCase().includes(focused) ||
+            c.display.toLowerCase().includes(focused)
+          )
+        )
+        .slice(0, 25)
+        .map(c => ({
+          name: `${c.display} (${c.slug})`,
+          value: c.slug
+        }));
+
+      await interaction.respond(choices);
+    } catch (error) {
+      logger.error('[CHANGELOG AUTOCOMPLETE] Error:', error);
+      try { await interaction.respond([]); } catch {}
     }
   },
 
