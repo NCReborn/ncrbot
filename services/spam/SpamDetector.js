@@ -25,10 +25,8 @@ class SpamDetector {
     this.configPath = path.join(__dirname, '../../config/spamConfig.json');
     this.config = this.loadConfig();
 
-    // Track user activity per guild: key = `${guildId}:${userId}`
     this.userActivity = new Map();
 
-    // Clean up old activity every 5 minutes
     setInterval(() => this.cleanupOldActivity(), 5 * 60 * 1000);
   }
 
@@ -54,15 +52,9 @@ class SpamDetector {
     this.config = this.loadConfig();
   }
 
-  /**
-   * Returns true if the given channelId is in the configured protected channels list.
-   * Uses channel IDs as source of truth (not names).
-   * Supports optional per-guild protected channels via config.guilds[guildId].protectedChannels.
-   */
   isProtectedChannel(channelId, guildId) {
     if (!channelId) return false;
 
-    // Per-guild override if present
     const guildCfg = this.config.guilds?.[guildId];
     const protected_ = guildCfg?.protectedChannels || this.config.protectedChannels || {};
 
@@ -72,25 +64,13 @@ class SpamDetector {
   isWhitelisted(member) {
     if (!member) return false;
 
-    // Check if user is in whitelist
-    if (this.config.whitelist.users.includes(member.user.id)) {
-      return true;
-    }
+    if (this.config.whitelist.users.includes(member.user.id)) return true;
 
-    // Check if user has whitelisted role
-    if (this.config.whitelist.roles.some(roleId => member.roles.cache.has(roleId))) {
-      return true;
-    }
+    if (this.config.whitelist.roles.some(roleId => member.roles.cache.has(roleId))) return true;
 
-    // Auto-whitelist moderators
-    if (CONSTANTS.ROLES.MODERATOR.some(roleId => member.roles.cache.has(roleId))) {
-      return true;
-    }
+    if (CONSTANTS.ROLES.MODERATOR.some(roleId => member.roles.cache.has(roleId))) return true;
 
-    // Auto-whitelist server boosters
-    if (member.premiumSince) {
-      return true;
-    }
+    if (member.premiumSince) return true;
 
     return false;
   }
@@ -200,10 +180,6 @@ class SpamDetector {
       });
     }
 
-    if (forcedResults.length > 0) {
-      logger.info(`[SPAM][DEBUG] Forced triggers for ${message.author.tag}: ${forcedResults.map(r => r.ruleName).join(', ')}`);
-    }
-
     return forcedResults;
   }
 
@@ -215,25 +191,17 @@ class SpamDetector {
     const userId = message.author.id;
     const key = `${guildId}:${userId}`;
 
-    // Per-guild rule config (fallback to global)
     const guildCfg = this.config.guilds?.[guildId];
     const cfg = guildCfg?.rules || this.config.rules;
 
     const isDebugTestMessage = this.isDebugTestMessage(message);
     if (!isDebugTestMessage && this.isWhitelisted(member)) return null;
 
-    // Hard bypass: protected channels must never contribute to scoring/escalation
     if (this.isProtectedChannel(message.channelId, guildId)) {
-      logger.info(
-        `[SPAM] Skipping detection for message in protected channel ${message.channelId} (guild ${guildId}, user ${message.author.id})`
-      );
       return null;
     }
 
-    // Persistent activity tracker
     userActivityTracker.recordMessage(message, member);
-
-    // Local activity tracker (per guild)
     this.trackMessage(message, member);
 
     const activity = this.userActivity.get(key);
@@ -242,39 +210,15 @@ class SpamDetector {
     const triggeredRules = [];
     const evidence = [];
 
-    // Run synchronous rule modules with per-guild config
     const syncRuleResults = [
       multiChannelSpam(message, activity, cfg.multiChannelSpam),
       rapidPosting(message, activity, cfg.rapidPosting),
       imageSpam(message, activity, cfg.imageSpam),
-      suspiciousPatterns(message, activity, cfg.suspiciousPatterns, activityStats),
       newAccountRule(member, cfg.newAccountMonitoring, triggeredRules),
-      dormantUserSpam(message, activityStats, cfg.dormantUserSpam),
       channelCarpetBomb(message, activity, cfg.channelCarpetBomb)
     ];
 
-    // Run async rule modules and wait for results
-    let asyncRuleResults = [];
-    try {
-      const asyncRules = [];
-
-      if (cfg.dormantActivation?.enabled) {
-        asyncRules.push(dormantActivation(message, activityStats));
-      }
-
-      if (cfg.singleImageScam?.enabled) {
-        asyncRules.push(singleImageScam(message, activityStats));
-      }
-
-      if (asyncRules.length > 0) {
-        asyncRuleResults = await Promise.all(asyncRules);
-      }
-    } catch (err) {
-      logger.error(`[SPAM] Error running async rules: ${err.message}`);
-    }
-
-    // Combine all rule results
-    const ruleResults = [...syncRuleResults, ...asyncRuleResults];
+    const ruleResults = [...syncRuleResults];
 
     if (isDebugTestMessage) {
       const forcedRuleResults = this.getDebugForcedRuleResults(message, cfg);
@@ -288,7 +232,6 @@ class SpamDetector {
       }
     }
 
-    // Collect triggered rules
     for (const result of ruleResults) {
       if (result && result.triggered) {
         triggeredRules.push({
@@ -308,32 +251,22 @@ class SpamDetector {
       return null;
     }
 
-    // De-duplicate evidence by canonical key (guildId:channelId:messageId).
-    // Only include entries that have at minimum channelId + messageId.
     const evidenceKeysSeen = new Set();
     const validEvidence = [];
     for (const ev of evidence) {
-      if (!ev.channelId || !ev.messageId) {
-        logger.debug(`[SPAM] Dropping evidence entry missing channelId or messageId`);
-        continue;
-      }
+      if (!ev.channelId || !ev.messageId) continue;
       const evKey = `${guildId}:${ev.channelId}:${ev.messageId}`;
-      if (evidenceKeysSeen.has(evKey)) {
-        logger.debug(`[SPAM] Dropping duplicate evidence entry ${evKey}`);
-        continue;
-      }
+      if (evidenceKeysSeen.has(evKey)) continue;
       evidenceKeysSeen.add(evKey);
       validEvidence.push(ev);
     }
 
-    // Fall back to recent messages if no valid evidence collected; exclude protected channels
     const resolvedEvidence = validEvidence.length > 0
       ? validEvidence
       : this.getRecentMessages(guildId, userId, 10).filter(
           msg => msg.channelId && !this.isProtectedChannel(msg.channelId, guildId)
         );
 
-    // Confidence scoring
     const severityPoints = { critical: 3, high: 2, warning: 1 };
     const confidenceScore = triggeredRules.reduce((sum, rule) => {
       return sum + (severityPoints[rule.severity] || 0);
@@ -341,11 +274,8 @@ class SpamDetector {
 
     const threshold = this.config.confidenceThreshold ?? 3;
 
-    const onlySuspiciousPattern =
-      triggeredRules.length === 1 && triggeredRules[0].name === "Suspicious Pattern";
-
     const confidenceLevel =
-      (onlySuspiciousPattern || confidenceScore < threshold) ? "low" : "high";
+      confidenceScore < threshold ? "low" : "high";
 
     return {
       detected: true,
@@ -383,23 +313,14 @@ class SpamDetector {
     return this.userActivity.get(key) || null;
   }
 
-  /**
-   * Clear all tracked activity for a user in a specific guild.
-   * Used by debug reset commands so a new test run starts clean.
-   */
   resetUserState(guildId, userId) {
     const key = `${guildId}:${userId}`;
     this.userActivity.delete(key);
-    logger.info(`[SPAM][DETECTOR] Activity state reset for user ${userId} in guild ${guildId}`);
   }
 
-  /**
-   * Clear tracked activity for all users in all guilds.
-   */
   resetAllState() {
     const count = this.userActivity.size;
     this.userActivity.clear();
-    logger.info(`[SPAM][DETECTOR] Activity state reset for all users (${count} entries cleared)`);
     return count;
   }
 }
