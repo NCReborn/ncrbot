@@ -14,29 +14,32 @@ const {
 
 const modActions = require('../../utils/modActions');
 const logger = require('../../utils/logger');
-const spamConfig = require('../../config/spamConfig.json');
+
+// IMPORTANT: use live config from SpamDetector (auto‑reloads)
+const spamDetector = require('./SpamDetector');
 
 /** Emoji severity icons for triggered rule lines */
 const SEVERITY_ICON = { critical: '🔴', high: '⚠️', warning: '🟡' };
 
 /**
- * Returns the set of channel IDs that are configured as protected.
- * Supports optional per-guild protected channels via spamConfig.guilds[guildId].protectedChannels.
+ * Returns the set of protected channel IDs for a guild.
+ * Uses live config from spamDetector.config.
  */
 function getProtectedChannelIds(guildId) {
-  const guildCfg = spamConfig.guilds?.[guildId];
-  const protected_ = guildCfg?.protectedChannels || spamConfig.protectedChannels || {};
+  const cfg = spamDetector.config;
+  const guildCfg = cfg.guilds?.[guildId];
+  const protected_ = guildCfg?.protectedChannels || cfg.protectedChannels || {};
   return new Set(Object.values(protected_));
 }
 
 /**
  * Resolve alert channel ID for a given guild.
- * Supports per-guild config via spamConfig.guilds[guildId].alertChannelId,
- * falling back to global spamConfig.alertChannelId.
+ * Uses live config from spamDetector.config.
  */
 function getAlertChannelId(guildId) {
-  const guildCfg = spamConfig.guilds?.[guildId];
-  return guildCfg?.alertChannelId || spamConfig.alertChannelId;
+  const cfg = spamDetector.config;
+  const guildCfg = cfg.guilds?.[guildId];
+  return guildCfg?.alertChannelId || cfg.alertChannelId;
 }
 
 /**
@@ -50,7 +53,7 @@ class SpamActionHandler {
   constructor(client) {
     this.client = client;
 
-    // Per-guild per-user alert state: key = `${guildId}:${userId}`
+    // Per-guild per-user alert state
     this.activeAlerts = new Map();
     this.alertLocks = new Map();
   }
@@ -64,10 +67,6 @@ class SpamActionHandler {
     return SpamActionHandler.instance;
   }
 
-  /**
-   * Build the moderation action row (buttons).
-   * Matches the professional layout shown: Confirmed Spam | False Positive | Ban User | Adjust Timeout
-   */
   buildActionRow(userId) {
     return new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -89,23 +88,17 @@ class SpamActionHandler {
     );
   }
 
-  /**
-   * Handle a spam detection event
-   */
   async handleDetection(detection, message) {
     const { userId, triggeredRules, confidenceLevel, evidence, guildId } = detection;
 
     const alertKey = buildAlertKey(guildId, userId);
 
-    // If alert already exists and is locked (staff resolved), do nothing
     const existingAlert = this.activeAlerts.get(alertKey);
     if (existingAlert && existingAlert.locked) {
       return;
     }
 
-    // Build initial embed fields (no Actions Taken yet)
     const fields = this.buildFields(detection, []);
-
     const embed = buildSpamAlertEmbed({
       title: confidenceLevel === 'high'
         ? '🚨 Spam Detected & Actioned'
@@ -115,14 +108,17 @@ class SpamActionHandler {
       fields
     });
 
-    // Send or update alert with action buttons (per guild)
     const alertMessage = await this.sendOrUpdateAlert(userId, embed, guildId);
 
-    // Apply automatic action if high confidence, then update embed with actions taken
     if (confidenceLevel === 'high') {
-      const actionsTaken = await this.applyAutomaticAction(userId, message, triggeredRules, evidence, guildId);
+      const actionsTaken = await this.applyAutomaticAction(
+        userId,
+        message,
+        triggeredRules,
+        evidence,
+        guildId
+      );
 
-      // Rebuild embed with Actions Taken field and pending status
       const updatedFields = this.buildFields(detection, actionsTaken);
       const updatedEmbed = buildSpamAlertEmbed({
         title: '🚨 Spam Detected & Actioned',
@@ -135,15 +131,6 @@ class SpamActionHandler {
     }
   }
 
-  /**
-   * Build embed fields to match the screenshot layout:
-   *   User (inline) | Account Created (inline) | Joined Server (inline)
-   *   📊 Server Activity History
-   *   Triggered Rules
-   *   Evidence
-   *   Actions Taken   ← populated after auto-action
-   *   Confidence
-   */
   buildFields(detection, actionsTaken = []) {
     const {
       triggeredRules,
@@ -159,7 +146,6 @@ class SpamActionHandler {
 
     const fields = [];
 
-    // Row 1: User | Account Created | Joined Server (all inline)
     fields.push({
       name: 'User',
       value: `${userTag || 'Unknown'}\n(${userId})`,
@@ -176,7 +162,6 @@ class SpamActionHandler {
       inline: true
     });
 
-    // Server Activity History
     if (activityStats) {
       fields.push({
         name: '📊 Server Activity History',
@@ -184,15 +169,16 @@ class SpamActionHandler {
           `💬 **Messages:** ${activityStats.messages}`,
           `🔗 **Links:** ${activityStats.links}`,
           `🖼️ **Media:** ${activityStats.media}`,
-          `🕐 **First Message:** ${activityStats.firstMessageTimestamp
-            ? `<t:${Math.floor(activityStats.firstMessageTimestamp / 1000)}:R>`
-            : 'Unknown'}`
+          `🕐 **First Message:** ${
+            activityStats.firstMessageTimestamp
+              ? `<t:${Math.floor(activityStats.firstMessageTimestamp / 1000)}:R>`
+              : 'Unknown'
+          }`
         ].join('\n'),
         inline: false
       });
     }
 
-    // Triggered Rules
     fields.push({
       name: 'Triggered Rules',
       value: triggeredRules
@@ -204,7 +190,6 @@ class SpamActionHandler {
       inline: false
     });
 
-    // Evidence
     const evidenceText = evidence
       .map((ev, i) => {
         const channelDisplay = ev.channelId
@@ -230,7 +215,6 @@ class SpamActionHandler {
       inline: false
     });
 
-    // Actions Taken (populated after automatic action)
     if (actionsTaken.length > 0) {
       fields.push({
         name: 'Actions Taken',
@@ -239,7 +223,6 @@ class SpamActionHandler {
       });
     }
 
-    // Confidence
     fields.push({
       name: 'Confidence',
       value: `📊 **Confidence:** ${confidenceLevel.charAt(0).toUpperCase() + confidenceLevel.slice(1)} (score: ${confidenceScore})`,
@@ -249,10 +232,6 @@ class SpamActionHandler {
     return fields;
   }
 
-  /**
-   * Send or update an alert message (always includes action buttons).
-   * Alerts are scoped per guild + user.
-   */
   async sendOrUpdateAlert(userId, embed, guildId) {
     const alertKey = buildAlertKey(guildId, userId);
     const lock = this.alertLocks.get(alertKey) || Promise.resolve();
@@ -268,7 +247,6 @@ class SpamActionHandler {
         const alertChannel = await this.client.channels.fetch(alertChannelId);
         const components = [this.buildActionRow(userId)];
 
-        // Update existing alert
         const existingAlert = this.activeAlerts.get(alertKey);
         if (existingAlert) {
           if (existingAlert.locked) return existingAlert.message;
@@ -280,7 +258,6 @@ class SpamActionHandler {
           return existingAlert.message;
         }
 
-        // Create new alert
         const message = await alertChannel.send({ embeds: [embed], components });
 
         this.activeAlerts.set(alertKey, {
@@ -309,15 +286,9 @@ class SpamActionHandler {
     return operation;
   }
 
-  /**
-   * Apply automatic timeout for high-confidence spam and delete spam messages.
-   * Returns an array of human-readable action strings for the "Actions Taken" embed field.
-   */
   async applyAutomaticAction(userId, message, triggeredRules, evidence, guildId) {
     const actionsTaken = [];
 
-    // Guard: if ALL evidence entries are from protected channels (or have no known channel),
-    // do not auto-timeout.
     const protectedIds = getProtectedChannelIds(guildId);
     const hasUnprotectedEvidence = (evidence || []).some(
       ev => ev.channelId && !protectedIds.has(ev.channelId)
@@ -325,7 +296,7 @@ class SpamActionHandler {
 
     if (!hasUnprotectedEvidence) {
       logger.info(
-        `[SPAM] Suppressed auto-action for user ${userId} in guild ${guildId} — all evidence is from protected channels or unresolved`
+        `[SPAM] Suppressed auto-action for user ${userId} in guild ${guildId} — all evidence is from protected channels`
       );
       actionsTaken.push('Auto-action suppressed: all triggering messages are from protected channels (pending staff review)');
       return actionsTaken;
@@ -352,7 +323,6 @@ class SpamActionHandler {
       logger.error(`[SPAM] Error applying automatic action in guild ${guildId}: ${err.message}`);
     }
 
-    // Delete spam messages by canonical (channelId, messageId) pairs
     const deleteCount = await this.deleteSpamMessages(message.guild, evidence);
     if (deleteCount > 0) {
       const channelCount = new Set(
@@ -366,11 +336,6 @@ class SpamActionHandler {
     return actionsTaken;
   }
 
-  /**
-   * Delete spam messages by (channelId, messageId). Uses cache then API fetch fallback.
-   * Logs each attempt. No channel-type filtering — voice-channel text chat is included.
-   * Returns the number of successfully deleted messages.
-   */
   async deleteSpamMessages(guild, evidence) {
     if (!evidence || evidence.length === 0) return 0;
 
@@ -403,7 +368,7 @@ class SpamActionHandler {
 
         if (!msg) {
           logger.warn(
-            `[SPAM][DELETE] Message not found (already deleted or Unknown Message): channelId=${channelId}, messageId=${messageId}`
+            `[SPAM][DELETE] Message not found: channelId=${channelId}, messageId=${messageId}`
           );
           continue;
         }
@@ -423,21 +388,16 @@ class SpamActionHandler {
     return deleted;
   }
 
-  /**
-   * Determine timeout duration based on triggered rules
-   */
   getTimeoutSeconds(triggeredRules) {
+    const cfg = spamDetector.config;
     for (const rule of triggeredRules) {
-      const cfg = spamConfig.rules[rule.name.replace(/ /g, '')];
-      if (cfg?.timeoutSeconds) return cfg.timeoutSeconds;
+      const ruleKey = rule.name.replace(/ /g, '');
+      const ruleCfg = cfg.rules[ruleKey];
+      if (ruleCfg?.timeoutSeconds) return ruleCfg.timeoutSeconds;
     }
-    return spamConfig.defaultTimeoutSeconds;
+    return cfg.defaultTimeoutSeconds;
   }
 
-  /**
-   * Update the alert embed to "Pending Staff Review" after automatic action.
-   * Buttons remain active; alert is NOT locked.
-   */
   async markPendingReview(userId, alertMessage, updatedEmbed, guildId) {
     try {
       const pendingEmbed = buildPendingReviewEmbed({ originalEmbed: updatedEmbed });
@@ -459,9 +419,6 @@ class SpamActionHandler {
     }
   }
 
-  /**
-   * Lock alert after a staff member explicitly resolves it (removes buttons).
-   */
   async lockAlert(userId, alertMessage, originalEmbed, actionDescription, moderatorTag, moderatorId, guildId) {
     try {
       const finalEmbed = buildFinalActionEmbed({
@@ -488,9 +445,6 @@ class SpamActionHandler {
     }
   }
 
-  /**
-   * Handle moderator button interactions
-   */
   async handleInteraction(interaction) {
     try {
       const parts = interaction.customId.split(':');
@@ -533,7 +487,6 @@ class SpamActionHandler {
           return interaction.reply({ content: 'Unknown action.', ephemeral: true });
       }
 
-      // Staff confirmed — lock alert and remove buttons
       await this.lockAlert(
         userId,
         alert.message,
@@ -561,10 +514,6 @@ class SpamActionHandler {
     }
   }
 
-  /**
-   * Reset all active alert/lock state for a specific user in a specific guild.
-   * Used by debug reset commands so a new test run can proceed cleanly.
-   */
   resetUserState(guildId, userId) {
     const alertKey = buildAlertKey(guildId, userId);
     this.activeAlerts.delete(alertKey);
@@ -572,9 +521,6 @@ class SpamActionHandler {
     logger.info(`[SPAM] State reset for user ${userId} in guild ${guildId}`);
   }
 
-  /**
-   * Reset state for all users (debug reset-all).
-   */
   resetAllState() {
     const count = this.activeAlerts.size;
     this.activeAlerts.clear();
