@@ -36,14 +36,43 @@ module.exports = {
 
   async autocomplete(interaction) {
     const guildId = interaction.guild.id;
+
+    // Always load fresh config
     const config = guildConfigManager.loadGuildConfig(guildId);
 
+    // Safety: ensure collections exists
+    if (!config || !Array.isArray(config.collections)) {
+      console.log(`[DEBUG] Autocomplete: No collections array for guild ${guildId}`);
+      return interaction.respond([
+        { name: 'No collections configured', value: 'none' }
+      ]);
+    }
+
+    // Safety: ensure at least one collection exists
+    if (config.collections.length === 0) {
+      console.log(`[DEBUG] Autocomplete: Collections empty for guild ${guildId}`);
+      return interaction.respond([
+        { name: 'No collections configured', value: 'none' }
+      ]);
+    }
+
+    // Build choices
     const choices = config.collections.map(c => ({
       name: `${c.display} (${c.slug})`,
       value: c.slug
     }));
 
-    await interaction.respond(choices.slice(0, 25)); // Discord limit
+    console.log(`[DEBUG] Autocomplete: Returning ${choices.length} choices for guild ${guildId}`);
+
+    // Respond safely
+    try {
+      await interaction.respond(choices.slice(0, 25));
+    } catch (err) {
+      console.log(`[DEBUG] Autocomplete error: ${err.message}`);
+      return interaction.respond([
+        { name: 'Error loading collections', value: 'none' }
+      ]);
+    }
   },
 
   async execute(interaction) {
