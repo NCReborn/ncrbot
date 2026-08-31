@@ -324,7 +324,7 @@ async showStatus(interaction) {
   }]);
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
-}
+},
 
 
   // CONFIG HELPERS
