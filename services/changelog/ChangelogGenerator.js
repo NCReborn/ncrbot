@@ -1,6 +1,11 @@
+// services/changelog/ChangelogGenerator.js
 const { EmbedBuilder } = require('discord.js');
+
 const logger = require('../../utils/logger');
 const GameVersionManager = require('../../utils/GameVersionManager');
+const guildConfigManager = require('../../config/guildConfigManager');
+
+// Templates
 const NCRTemplate = require('./templates/NCRTemplate');
 const E33Template = require('./templates/E33Template');
 const Sub2Template = require('./templates/Sub2Template');
@@ -14,52 +19,59 @@ class ChangelogGenerator {
     };
   }
 
-  getTemplate(groupConfig) {
-    const TemplateClass = this.templates[groupConfig.template] || NCRTemplate;
+  getTemplate(templateName, groupConfig) {
+    const TemplateClass = this.templates[templateName] || NCRTemplate;
     return new TemplateClass(groupConfig);
   }
 
-  async sendChangelog(client, groupConfig, revisionData) {
+  async sendChangelog(client, guildId, groupConfig, revisionData) {
     try {
+      // Fetch the channel from guild-specific config
       const channelId = groupConfig.channelId;
       const channel = await client.channels.fetch(channelId);
-      
+
       if (!channel) {
-        logger.error(`[CHANGELOG] Channel ${channelId} not found`);
+        logger.error(`[CHANGELOG] Channel ${channelId} not found in guild ${guildId}`);
         return;
       }
 
-      const template = this.getTemplate(groupConfig);
+      // Select template based on guild config
+      const template = this.getTemplate(groupConfig.template, groupConfig);
 
-      // Get the current game version from storage (defaults to groupConfig.gameVersion if not set)
+      // Determine game version (guild-specific)
       let gameVersion = groupConfig.gameVersion;
+
       if (revisionData.collections && revisionData.collections.length > 0) {
-        const collectionSlug = revisionData.collections[0].slug;
-        gameVersion = GameVersionManager.getVersion(collectionSlug);
+        const slug = revisionData.collections[0].slug;
+        gameVersion = GameVersionManager.getVersion(guildId, slug);
       }
 
       const revisionInfo = {
         collections: revisionData.collections,
-        gameVersion: gameVersion,
+        gameVersion,
         combined: groupConfig.combined
       };
 
+      // Header embeds
       const headerEmbeds = await template.generateHeaderEmbeds(revisionInfo);
       if (headerEmbeds.length > 0) {
         await channel.send({ embeds: headerEmbeds });
       }
 
+      // Changes title embed
       const changesTitle = template.generateChangesTitle(revisionInfo);
       const changesTitleEmbed = new EmbedBuilder()
         .setTitle(changesTitle)
         .setColor(template.getColor('changes'));
+
       await channel.send({ embeds: [changesTitleEmbed] });
 
+      // Mod changes
       await this.sendModChanges(channel, template, revisionData);
 
-      logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId})`);
+      logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId}) in guild ${guildId}`);
     } catch (error) {
-      logger.error(`[CHANGELOG] Error generating changelog:`, error);
+      logger.error(`[CHANGELOG] Error generating changelog for guild ${guildId}:`, error);
     }
   }
 
@@ -92,11 +104,15 @@ class ChangelogGenerator {
     if (diffs.updated && diffs.updated.length > 0) {
       const sortedUpdated = this.sortUpdatedModsAlphabetically(diffs.updated);
       const updatedList = sortedUpdated.map(mod => {
-        const modName = mod.before.name.replace(/[\[\]()|]/g, '');
+        const modName = mod.before.name.replace(/[
+
+\[\]
+
+()|]/g, '');
         const modUrl = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
         return `• [${modName}](${modUrl}) (v${mod.before.version} → v${mod.after.version})`;
       }).join('\n');
-      
+
       const updatedParts = template.splitLongDescription(updatedList);
 
       for (let i = 0; i < updatedParts.length; i++) {
