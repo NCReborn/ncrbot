@@ -111,6 +111,62 @@ module.exports = {
             .setDescription('Channel to protect')
             .setRequired(true)
         )
+    )
+
+    // RULE CONFIG COMMANDS
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('set-multichannel-count')
+        .setDescription('Set Multi-Channel Spam threshold for this guild')
+        .addIntegerOption(option =>
+          option.setName('count')
+            .setDescription('Number of unique channels required to trigger')
+            .setRequired(true)
+        )
+    )
+
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('add-rapidposting-exclude')
+        .setDescription('Exclude a channel from Rapid Posting rule (per guild)')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('Channel to exclude')
+            .setRequired(true)
+        )
+    )
+
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('add-imagespam-exclude')
+        .setDescription('Exclude a channel from Image Spam rule (per guild)')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('Channel to exclude')
+            .setRequired(true)
+        )
+    )
+
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('add-carpetbomb-channel')
+        .setDescription('Add a watched channel for Carpet-Bomb rule (per guild)')
+        .addChannelOption(option =>
+          option.setName('channel')
+            .setDescription('Channel to watch for carpet-bombing')
+            .setRequired(true)
+        )
+    )
+
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('set-newaccount-days')
+        .setDescription('Set new-account age threshold for this guild')
+        .addIntegerOption(option =>
+          option.setName('days')
+            .setDescription('Account age in days required to avoid flagging')
+            .setRequired(true)
+        )
     ),
 
   async execute(interaction) {
@@ -130,6 +186,13 @@ module.exports = {
         case 'debug-reset-all': return this.resetDebugAll(interaction);
         case 'set-alert-channel': return this.setAlertChannel(interaction);
         case 'set-protected-channel': return this.setProtectedChannel(interaction);
+
+        // RULE CONFIG
+        case 'set-multichannel-count': return this.setMultiChannelCount(interaction);
+        case 'add-rapidposting-exclude': return this.addRapidPostingExclude(interaction);
+        case 'add-imagespam-exclude': return this.addImageSpamExclude(interaction);
+        case 'add-carpetbomb-channel': return this.addCarpetBombChannel(interaction);
+        case 'set-newaccount-days': return this.setNewAccountDays(interaction);
       }
     } catch (error) {
       logger.error('[ANTISPAM] Error executing command:', error);
@@ -148,7 +211,6 @@ module.exports = {
     const guildCfg = config.guilds?.[guildId];
     const alertChannelId = guildCfg?.alertChannelId || config.alertChannelId;
 
-    // Per-guild rules view (fallback to global)
     const cfgRules = guildCfg?.rules || config.rules;
 
     const embed = new EmbedBuilder()
@@ -176,23 +238,21 @@ module.exports = {
     const rules = [];
 
     if (cfgRules.multiChannelSpam?.enabled)
-      rules.push(`✅ Multi-Channel Spam (${cfgRules.multiChannelSpam.channelCount}+ channels in ${cfgRules.multiChannelSpam.timeWindowSeconds}s)`);
+      rules.push(`Multi-Channel Spam: ${cfgRules.multiChannelSpam.channelCount}+ channels`);
 
     if (cfgRules.rapidPosting?.enabled)
-      rules.push(`✅ Rapid Posting (${cfgRules.rapidPosting.messageCount}+ messages in ${cfgRules.rapidPosting.timeWindowSeconds}s)`);
+      rules.push(`Rapid Posting: ${cfgRules.rapidPosting.messageCount}+ msgs`);
 
     if (cfgRules.imageSpam?.enabled)
-      rules.push(`✅ Image Spam (${cfgRules.imageSpam.imageCount}+ images in ${cfgRules.imageSpam.timeWindowSeconds}s)`);
+      rules.push(`Image Spam: ${cfgRules.imageSpam.imageCount}+ images`);
 
     if (cfgRules.suspiciousPatterns?.enabled)
-      rules.push(`✅ Suspicious Patterns (${cfgRules.suspiciousPatterns.patterns.length} patterns)`);
+      rules.push(`Suspicious Patterns: ${cfgRules.suspiciousPatterns.patterns.length} patterns`);
 
     if (cfgRules.newAccountMonitoring?.enabled)
-      rules.push(`✅ New Account Monitoring (<${cfgRules.newAccountMonitoring.accountAgeDays} days)`);
+      rules.push(`New Account: <${cfgRules.newAccountMonitoring.accountAgeDays} days`);
 
-    if (rules.length > 0) {
-      embed.addFields([{ name: 'Active Rules', value: rules.join('\n'), inline: false }]);
-    }
+    embed.addFields([{ name: 'Active Rules', value: rules.join('\n'), inline: false }]);
 
     const protectedChannels = [];
     const guildProtected = guildCfg?.protectedChannels || config.protectedChannels || {};
@@ -201,9 +261,7 @@ module.exports = {
       protectedChannels.push(`${name}: <#${id}>`);
     }
 
-    if (protectedChannels.length > 0) {
-      embed.addFields([{ name: 'Protected Channels', value: protectedChannels.join('\n'), inline: false }]);
-    }
+    embed.addFields([{ name: 'Protected Channels', value: protectedChannels.join('\n'), inline: false }]);
 
     embed.addFields([{
       name: 'Whitelist',
@@ -211,14 +269,10 @@ module.exports = {
       inline: true
     }]);
 
-    const debugEnabled = config.debug?.enabled ? '✅ Enabled' : '❌ Disabled';
+    const debugEnabled = config.debug?.enabled ? 'Enabled' : 'Disabled';
     const debugUser = config.debug?.testUserId ? `<@${config.debug.testUserId}>` : 'Not set';
 
-    embed.addFields([{
-      name: 'Debug Test Mode',
-      value: `${debugEnabled}\nUser: ${debugUser}`,
-      inline: false
-    }]);
+    embed.addFields([{ name: 'Debug Mode', value: `${debugEnabled}\nUser: ${debugUser}`, inline: false }]);
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
   },
@@ -241,10 +295,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     if (channel.guildId !== guildId) {
-      return interaction.reply({
-        content: '❌ That channel does not belong to this guild.',
-        ephemeral: true
-      });
+      return interaction.reply({ content: '❌ That channel does not belong to this guild.', ephemeral: true });
     }
 
     const { configPath, config } = this.readConfig();
@@ -257,11 +308,9 @@ module.exports = {
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `✅ Anti-spam alert channel set to <#${channel.id}> for this guild.`,
+      content: `Alert channel set to <#${channel.id}>.`,
       ephemeral: true
     });
-
-    logger.info(`[ANTISPAM] Alert channel for guild ${guildId} set to ${channel.id} by ${interaction.user.tag}`);
   },
 
   // SET PROTECTED CHANNEL
@@ -271,10 +320,7 @@ module.exports = {
     const channel = interaction.options.getChannel('channel');
 
     if (channel.guildId !== guildId) {
-      return interaction.reply({
-        content: '❌ That channel does not belong to this guild.',
-        ephemeral: true
-      });
+      return interaction.reply({ content: '❌ That channel does not belong to this guild.', ephemeral: true });
     }
 
     const { configPath, config } = this.readConfig();
@@ -289,58 +335,145 @@ module.exports = {
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `✅ Protected channel **${name}** set to <#${channel.id}> for this guild.`,
+      content: `Protected channel **${name}** set to <#${channel.id}>.`,
       ephemeral: true
     });
-
-    logger.info(`[ANTISPAM] Protected channel '${name}' for guild ${guildId} set to ${channel.id} by ${interaction.user.tag}`);
   },
 
-  // TOGGLE
-  async toggleSystem(interaction) {
+  // RULE CONFIG COMMANDS
+
+  async setMultiChannelCount(interaction) {
+    const guildId = interaction.guildId;
+    const count = interaction.options.getInteger('count');
+
     const { configPath, config } = this.readConfig();
 
-    config.enabled = !config.enabled;
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[guildId]) config.guilds[guildId] = {};
+    if (!config.guilds[guildId].rules) config.guilds[guildId].rules = {};
+    if (!config.guilds[guildId].rules.multiChannelSpam)
+      config.guilds[guildId].rules.multiChannelSpam = {};
+
+    config.guilds[guildId].rules.multiChannelSpam.channelCount = count;
+
     this.writeConfig(configPath, config);
 
-    const embed = new EmbedBuilder()
-      .setTitle('🛡️ Anti-Spam System')
-      .setColor(config.enabled ? 0x00FF00 : 0xFF0000)
-      .addFields([{ name: 'Status', value: config.enabled ? 'Enabled' : 'Disabled' }]);
-
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({
+      content: `Multi-Channel Spam threshold set to **${count} channels**.`,
+      ephemeral: true
+    });
   },
 
-  // WHITELIST
-  async addWhitelist(interaction) {
-    const user = interaction.options.getUser('user');
-    const { configPath, config } = this.readConfig();
+  async addRapidPostingExclude(interaction) {
+    const guildId = interaction.guildId;
+    const channel = interaction.options.getChannel('channel');
 
-    if (!config.whitelist.users.includes(user.id)) {
-      config.whitelist.users.push(user.id);
-      this.writeConfig(configPath, config);
+    if (channel.guildId !== guildId) {
+      return interaction.reply({ content: '❌ Channel is not in this guild.', ephemeral: true });
     }
 
-    await interaction.reply({
-      content: `✅ ${user.tag} added to whitelist.`,
-      ephemeral: true
-    });
-  },
-
-  async removeWhitelist(interaction) {
-    const user = interaction.options.getUser('user');
     const { configPath, config } = this.readConfig();
 
-    config.whitelist.users = config.whitelist.users.filter(id => id !== user.id);
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[guildId]) config.guilds[guildId] = {};
+    if (!config.guilds[guildId].rules) config.guilds[guildId].rules = {};
+    if (!config.guilds[guildId].rules.rapidPosting)
+      config.guilds[guildId].rules.rapidPosting = { excludeChannels: [] };
+
+    const ruleCfg = config.guilds[guildId].rules.rapidPosting;
+
+    if (!ruleCfg.excludeChannels.includes(channel.id))
+      ruleCfg.excludeChannels.push(channel.id);
+
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `🗑️ ${user.tag} removed from whitelist.`,
+      content: `Added <#${channel.id}> to Rapid Posting exclude list.`,
       ephemeral: true
     });
   },
 
-  // DEBUG
+  async addImageSpamExclude(interaction) {
+    const guildId = interaction.guildId;
+    const channel = interaction.options.getChannel('channel');
+
+    if (channel.guildId !== guildId) {
+      return interaction.reply({ content: '❌ Channel is not in this guild.', ephemeral: true });
+    }
+
+    const { configPath, config } = this.readConfig();
+
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[guildId]) config.guilds[guildId] = {};
+    if (!config.guilds[guildId].rules) config.guilds[guildId].rules = {};
+    if (!config.guilds[guildId].rules.imageSpam)
+      config.guilds[guildId].rules.imageSpam = { excludeChannels: [] };
+
+    const ruleCfg = config.guilds[guildId].rules.imageSpam;
+
+    if (!ruleCfg.excludeChannels.includes(channel.id))
+      ruleCfg.excludeChannels.push(channel.id);
+
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: `Added <#${channel.id}> to Image Spam exclude list.`,
+      ephemeral: true
+    });
+  },
+
+  async addCarpetBombChannel(interaction) {
+    const guildId = interaction.guildId;
+    const channel = interaction.options.getChannel('channel');
+
+    if (channel.guildId !== guildId) {
+      return interaction.reply({ content: '❌ Channel is not in this guild.', ephemeral: true });
+    }
+
+    const { configPath, config } = this.readConfig();
+
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[guildId]) config.guilds[guildId] = {};
+    if (!config.guilds[guildId].rules) config.guilds[guildId].rules = {};
+    if (!config.guilds[guildId].rules.channelCarpetBomb)
+      config.guilds[guildId].rules.channelCarpetBomb = { watchedChannels: [] };
+
+    const ruleCfg = config.guilds[guildId].rules.channelCarpetBomb;
+
+    if (!ruleCfg.watchedChannels.includes(channel.id))
+      ruleCfg.watchedChannels.push(channel.id);
+
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: `Added <#${channel.id}> as a watched Carpet-Bomb channel.`,
+      ephemeral: true
+    });
+  },
+
+  async setNewAccountDays(interaction) {
+    const guildId = interaction.guildId;
+    const days = interaction.options.getInteger('days');
+
+    const { configPath, config } = this.readConfig();
+
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[guildId]) config.guilds[guildId] = {};
+    if (!config.guilds[guildId].rules) config.guilds[guildId].rules = {};
+    if (!config.guilds[guildId].rules.newAccountMonitoring)
+      config.guilds[guildId].rules.newAccountMonitoring = {};
+
+    config.guilds[guildId].rules.newAccountMonitoring.accountAgeDays = days;
+
+    this.writeConfig(configPath, config);
+
+    await interaction.reply({
+      content: `New Account threshold set to **${days} days**.`,
+      ephemeral: true
+    });
+  },
+
+  // DEBUG COMMANDS
   async setDebugEnabled(interaction, enabled) {
     const { configPath, config } = this.readConfig();
 
@@ -366,40 +499,4 @@ module.exports = {
     });
   },
 
-  async clearDebugUser(interaction) {
-    const { configPath, config } = this.readConfig();
-
-    config.debug.testUserId = null;
-    this.writeConfig(configPath, config);
-
-    await interaction.reply({
-      content: 'Debug test user cleared.',
-      ephemeral: true
-    });
-  },
-
-  async resetDebugUser(interaction) {
-    const user = interaction.options.getUser('user');
-    const spamHandler = SpamActionHandler.getInstance();
-
-    spamDetector.resetUserState(interaction.guildId, user.id);
-    spamHandler.resetUserState(interaction.guildId, user.id);
-
-    await interaction.reply({
-      content: `Reset anti-spam state for ${user.tag}.`,
-      ephemeral: true
-    });
-  },
-
-  async resetDebugAll(interaction) {
-    const spamHandler = SpamActionHandler.getInstance();
-
-    spamDetector.resetAllState();
-    spamHandler.resetAllState();
-
-    await interaction.reply({
-      content: `Reset all anti-spam state.`,
-      ephemeral: true
-    });
-  }
-};
+  async clearDebugUser(interaction)
