@@ -5,7 +5,7 @@ class NCRTemplate extends BaseTemplate {
   // Collection image URLs for thumbnails
   getCollectionImage(slug) {
     const images = {
-      'rcuccp': 'https://media.nexusmods.com/2/6/t/med/261b1f39-12a1-47fb-aad3-0905c472490f.webp', // JPE Core
+      'rcuccp': 'https://github.com/NCReborn/content-images/blob/main/CT2-LOGO-BW-photomode_31052025_114439.png', // JPE Core
 
     };
     return images[slug] || null;
