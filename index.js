@@ -59,13 +59,17 @@ client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-let runtimeRegistrationFailed = false;
 let loadedCount = 0;
 let failedCount = 0;
 
 for (const file of commandFiles) {
+  console.log(`\n[DEBUG] Attempting to load command file: ${file}`);
+
   try {
     const command = require(`./commands/${file}`);
+
+    console.log(`[DEBUG] Successfully required: ${file}`);
+
     if (Array.isArray(command)) {
       for (const subcommand of command) {
         if (subcommand.data && typeof subcommand.execute === 'function') {
@@ -73,8 +77,7 @@ for (const file of commandFiles) {
           logger.info(`Loaded subcommand: ${subcommand.data.name}`);
           loadedCount++;
         } else {
-          logger.error(`Subcommand in ${file} is missing .data or .execute`);
-          runtimeRegistrationFailed = true;
+          console.error(`[DEBUG] INVALID SUBCOMMAND STRUCTURE in ${file}`);
           failedCount++;
         }
       }
@@ -83,26 +86,23 @@ for (const file of commandFiles) {
       logger.info(`Loaded command: ${command.data.name}`);
       loadedCount++;
     } else {
-      logger.error(`Command file ${file} does not export a valid command with .data and .execute`);
-      runtimeRegistrationFailed = true;
+      console.error(`[DEBUG] INVALID COMMAND STRUCTURE in ${file}`);
       failedCount++;
     }
+
   } catch (err) {
-    logger.error(`Failed to load command ${file}: ${err.message}`);
-    runtimeRegistrationFailed = true;
-    failedCount++;
+    console.error(`\n[DEBUG] ERROR LOADING COMMAND FILE: ${file}`);
+    console.error(`[DEBUG] ERROR MESSAGE: ${err.message}`);
+    console.error(`[DEBUG] STACK TRACE:\n${err.stack}\n`);
+
+    // STOP HERE — this forces Node to reveal the real broken file
+    throw err;
   }
 }
 
 logger.info(`✨ Commands loaded: ${loadedCount} successful, ${failedCount} failed`);
 
-if (runtimeRegistrationFailed) {
-  logger.error('Aborting bot startup due to invalid/malformed commands. Check above logs for details.');
-  logger.error('Command files found: ' + commandFiles.join(', '));
-  process.exit(1);
-}
-
-// Load events from events/ directory
+// Load events
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
