@@ -128,15 +128,73 @@
         "showcase": "1285797205927792782"
       },
       "rules": {
-        "multiChannelSpam": {},
-        "rapidPosting": {},
-        "imageSpam": {},
-        "suspiciousPatterns": {},
-        "newAccountMonitoring": {},
-        "dormantUserSpam": {},
-        "channelCarpetBomb": {},
-        "singleImageScam": {},
-        "dormantActivation": {}
+        "multiChannelSpam": {
+          "enabled": true,
+          "channelCount": 5,
+          "timeWindowSeconds": 30,
+          "timeoutSeconds": 43200
+        },
+        "rapidPosting": {
+          "enabled": true,
+          "messageCount": 8,
+          "timeWindowSeconds": 15,
+          "timeoutSeconds": 43200,
+          "excludeChannels": []
+        },
+        "imageSpam": {
+          "enabled": true,
+          "imageCount": 6,
+          "timeWindowSeconds": 60,
+          "timeoutSeconds": 43200,
+          "excludeChannels": []
+        },
+        "suspiciousPatterns": {
+          "enabled": true,
+          "patterns": [],
+          "timeoutSeconds": 43200,
+          "caseSensitive": false,
+          "minMessagesExempt": 50,
+          "requiresOtherTrigger": false
+        },
+        "newAccountMonitoring": {
+          "enabled": true,
+          "accountAgeDays": 30,
+          "requiresOtherTrigger": true,
+          "timeoutSeconds": 43200
+        },
+        "dormantUserSpam": {
+          "enabled": true,
+          "minServerAgeDays": 1,
+          "maxHistoricalMessages": 2,
+          "maxHistoricalMedia": 0,
+          "minCurrentImages": 3,
+          "timeoutSeconds": 43200,
+          "severity": "high"
+        },
+        "channelCarpetBomb": {
+          "enabled": true,
+          "watchedChannels": [],
+          "minChannelHits": 3,
+          "timeWindowSeconds": 20,
+          "timeoutSeconds": 43200,
+          "severity": "critical"
+        },
+        "singleImageScam": {
+          "enabled": false,
+          "minMessages": 5,
+          "minMedia": 3,
+          "highRiskChannels": [],
+          "timeoutSeconds": 43200,
+          "severity": "high"
+        },
+        "dormantActivation": {
+          "enabled": false,
+          "minDormantDays": 60,
+          "minMessages": 5,
+          "minMedia": 3,
+          "timeoutSeconds": 43200,
+          "severity": "high"
+        }
       }
     },
 
@@ -146,15 +204,73 @@
         "showcase": "1543381631073525850"
       },
       "rules": {
-        "multiChannelSpam": {},
-        "rapidPosting": {},
-        "imageSpam": {},
-        "suspiciousPatterns": {},
-        "newAccountMonitoring": {},
-        "dormantUserSpam": {},
-        "channelCarpetBomb": {},
-        "singleImageScam": {},
-        "dormantActivation": {}
+        "multiChannelSpam": {
+          "enabled": true,
+          "channelCount": 5,
+          "timeWindowSeconds": 30,
+          "timeoutSeconds": 43200
+        },
+        "rapidPosting": {
+          "enabled": true,
+          "messageCount": 8,
+          "timeWindowSeconds": 15,
+          "timeoutSeconds": 43200,
+          "excludeChannels": []
+        },
+        "imageSpam": {
+          "enabled": true,
+          "imageCount": 6,
+          "timeWindowSeconds": 60,
+          "timeoutSeconds": 43200,
+          "excludeChannels": []
+        },
+        "suspiciousPatterns": {
+          "enabled": true,
+          "patterns": [],
+          "timeoutSeconds": 43200,
+          "caseSensitive": false,
+          "minMessagesExempt": 50,
+          "requiresOtherTrigger": false
+        },
+        "newAccountMonitoring": {
+          "enabled": true,
+          "accountAgeDays": 30,
+          "requiresOtherTrigger": true,
+          "timeoutSeconds": 43200
+        },
+        "dormantUserSpam": {
+          "enabled": true,
+          "minServerAgeDays": 1,
+          "maxHistoricalMessages": 2,
+          "maxHistoricalMedia": 0,
+          "minCurrentImages": 3,
+          "timeoutSeconds": 43200,
+          "severity": "high"
+        },
+        "channelCarpetBomb": {
+          "enabled": true,
+          "watchedChannels": [],
+          "minChannelHits": 3,
+          "timeWindowSeconds": 20,
+          "timeoutSeconds": 43200,
+          "severity": "critical"
+        },
+        "singleImageScam": {
+          "enabled": false,
+          "minMessages": 5,
+          "minMedia": 3,
+          "highRiskChannels": [],
+          "timeoutSeconds": 43200,
+          "severity": "high"
+        },
+        "dormantActivation": {
+          "enabled": false,
+          "minDormantDays": 60,
+          "minMessages": 5,
+          "minMedia": 3,
+          "timeoutSeconds": 43200,
+          "severity": "high"
+        }
       }
     }
   }
