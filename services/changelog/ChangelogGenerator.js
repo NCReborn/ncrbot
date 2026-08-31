@@ -103,11 +103,7 @@ class ChangelogGenerator {
       const updatedList = sortedUpdated
         .map(mod => {
           // Clean mod names safely
-          const modName = mod.before.name.replace(/[\
-
-\[\]
-
-()|]/g, '');
+          const modName = mod.before.name.replace(/[\[\]()|]/g, '');
           const modUrl = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
           return `• [${modName}](${modUrl}) (v${mod.before.version} → v${mod.after.version})`;
         })
