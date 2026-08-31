@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const guildConfigManager = require('../config/guildConfigManager');
 const GameVersionManager = require('../utils/GameVersionManager');
 const logger = require('../utils/logger');
@@ -9,7 +9,6 @@ module.exports = {
     .setDescription('Configure changelog settings for this guild (Admin only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 
-    // Add collection
     .addSubcommand(sub =>
       sub
         .setName('add-collection')
@@ -36,7 +35,6 @@ module.exports = {
         )
     )
 
-    // Remove collection
     .addSubcommand(sub =>
       sub
         .setName('remove-collection')
@@ -48,7 +46,6 @@ module.exports = {
         )
     )
 
-    // Set channel
     .addSubcommand(sub =>
       sub
         .setName('set-channel')
@@ -65,7 +62,6 @@ module.exports = {
         )
     )
 
-    // Set template
     .addSubcommand(sub =>
       sub
         .setName('set-template')
@@ -82,7 +78,6 @@ module.exports = {
         )
     )
 
-    // Set game version
     .addSubcommand(sub =>
       sub
         .setName('set-game-version')
@@ -99,7 +94,6 @@ module.exports = {
         )
     )
 
-    // Set priority
     .addSubcommand(sub =>
       sub
         .setName('set-priority')
@@ -116,7 +110,6 @@ module.exports = {
         )
     )
 
-    // Set combine window
     .addSubcommand(sub =>
       sub
         .setName('set-combine-window')
@@ -126,6 +119,12 @@ module.exports = {
             .setDescription('Combine window in milliseconds')
             .setRequired(true)
         )
+    )
+
+    .addSubcommand(sub =>
+      sub
+        .setName('list')
+        .setDescription('Show collections and groups configured for this guild')
     ),
 
   async execute(interaction) {
@@ -133,18 +132,15 @@ module.exports = {
 
     const guildId = interaction.guild.id;
     const config = guildConfigManager.loadGuildConfig(guildId);
-
     const sub = interaction.options.getSubcommand();
 
     try {
-      // ADD COLLECTION
       if (sub === 'add-collection') {
         const slug = interaction.options.getString('slug');
         const display = interaction.options.getString('display');
         const group = interaction.options.getString('group');
         const priority = interaction.options.getInteger('priority');
 
-        // Ensure group exists
         let groupConfig = config.groups.find(g => g.name === group);
         if (!groupConfig) {
           groupConfig = {
@@ -159,12 +155,10 @@ module.exports = {
           config.groups.push(groupConfig);
         }
 
-        // Add slug to group
         if (!groupConfig.members.includes(slug)) {
           groupConfig.members.push(slug);
         }
 
-        // Add collection entry
         config.collections.push({
           slug,
           display,
@@ -177,12 +171,10 @@ module.exports = {
         return interaction.editReply(`✅ Added collection **${display}** (${slug}) to group **${group}**`);
       }
 
-      // REMOVE COLLECTION
       if (sub === 'remove-collection') {
         const slug = interaction.options.getString('slug');
 
         config.collections = config.collections.filter(c => c.slug !== slug);
-
         for (const group of config.groups) {
           group.members = group.members.filter(s => s !== slug);
         }
@@ -192,7 +184,6 @@ module.exports = {
         return interaction.editReply(`🗑️ Removed collection slug **${slug}**`);
       }
 
-      // SET CHANNEL
       if (sub === 'set-channel') {
         const group = interaction.options.getString('group');
         const channel = interaction.options.getChannel('channel');
@@ -208,7 +199,6 @@ module.exports = {
         return interaction.editReply(`📢 Set changelog channel for **${group}** to <#${channel.id}>`);
       }
 
-      // SET TEMPLATE
       if (sub === 'set-template') {
         const group = interaction.options.getString('group');
         const template = interaction.options.getString('template');
@@ -224,7 +214,6 @@ module.exports = {
         return interaction.editReply(`🎨 Template for **${group}** set to **${template}**`);
       }
 
-      // SET GAME VERSION
       if (sub === 'set-game-version') {
         const slug = interaction.options.getString('slug');
         const version = interaction.options.getString('version');
@@ -234,7 +223,6 @@ module.exports = {
         return interaction.editReply(`🛠️ Game version for **${slug}** set to **${version}**`);
       }
 
-      // SET PRIORITY
       if (sub === 'set-priority') {
         const slug = interaction.options.getString('slug');
         const priority = interaction.options.getInteger('priority');
@@ -250,7 +238,6 @@ module.exports = {
         return interaction.editReply(`📌 Priority for **${slug}** set to **${priority}**`);
       }
 
-      // SET COMBINE WINDOW
       if (sub === 'set-combine-window') {
         const ms = interaction.options.getInteger('milliseconds');
 
@@ -258,6 +245,68 @@ module.exports = {
         guildConfigManager.saveGuildConfig(guildId, config);
 
         return interaction.editReply(`⏱️ Combine window set to **${ms}ms**`);
+      }
+
+      if (sub === 'list') {
+        const embed = new EmbedBuilder()
+          .setTitle('Changelog configuration for this guild')
+          .setColor(0x00AEFF);
+
+        if (config.collections.length === 0) {
+          embed.addFields({
+            name: 'Collections',
+            value: 'No collections configured.',
+            inline: false
+          });
+        } else {
+          const collectionsText = config.collections
+            .sort((a, b) => a.priority - b.priority)
+            .map(c =>
+              `• **${c.display}**\n` +
+              `  Slug: \`${c.slug}\`\n` +
+              `  Group: \`${c.group}\`\n` +
+              `  Priority: **${c.priority}**`
+            )
+            .join('\n\n');
+
+          embed.addFields({
+            name: 'Collections',
+            value: collectionsText,
+            inline: false
+          });
+        }
+
+        if (config.groups.length === 0) {
+          embed.addFields({
+            name: 'Groups',
+            value: 'No groups configured.',
+            inline: false
+          });
+        } else {
+          const groupsText = config.groups
+            .map(g =>
+              `• **${g.name}**\n` +
+              `  Display: \`${g.displayName || g.name}\`\n` +
+              `  Channel: ${g.channelId ? `<#${g.channelId}>` : '`Not set`'}\n` +
+              `  Template: \`${g.template || 'ncr'}\`\n` +
+              `  Game Version: \`${g.gameVersion || '1.0'}\`\n` +
+              `  Combined: **${g.combined ? 'Yes' : 'No'}**\n` +
+              `  Members: ${
+                Array.isArray(g.members) && g.members.length
+                  ? g.members.map(m => `\`${m}\``).join(', ')
+                  : '`None`'
+              }`
+            )
+            .join('\n\n');
+
+          embed.addFields({
+            name: 'Groups',
+            value: groupsText,
+            inline: false
+          });
+        }
+
+        return interaction.editReply({ embeds: [embed] });
       }
 
     } catch (err) {
