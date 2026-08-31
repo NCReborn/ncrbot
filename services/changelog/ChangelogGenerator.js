@@ -48,11 +48,13 @@ class ChangelogGenerator {
         combined: groupConfig.combined
       };
 
+      // Header embeds
       const headerEmbeds = await template.generateHeaderEmbeds(revisionInfo);
       if (headerEmbeds && headerEmbeds.length > 0) {
         await channel.send({ embeds: headerEmbeds });
       }
 
+      // Changes title
       const changesTitle = template.generateChangesTitle(revisionInfo);
       const changesTitleEmbed = new EmbedBuilder()
         .setTitle(changesTitle)
@@ -60,6 +62,7 @@ class ChangelogGenerator {
 
       await channel.send({ embeds: [changesTitleEmbed] });
 
+      // Mod changes
       await this.sendModChanges(channel, template, revisionData);
 
       logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId}) in guild ${guildId}`);
@@ -96,8 +99,10 @@ class ChangelogGenerator {
     // Updated mods
     if (diffs.updated && diffs.updated.length > 0) {
       const sortedUpdated = this.sortUpdatedModsAlphabetically(diffs.updated);
+
       const updatedList = sortedUpdated
         .map(mod => {
+          // Clean mod names safely
           const modName = mod.before.name.replace(/[\
 
 \[\]
