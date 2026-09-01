@@ -1,5 +1,4 @@
 const logger = require('../utils/logger');
-const { fetchLogAttachment, analyzeLogForErrors, buildErrorEmbed } = require('../utils/logAnalyzer');
 const { loadResponses } = require('../utils/autoResponder');
 const { PermissionChecker } = require('../utils/permissions');
 const CONSTANTS = require('../config/constants');
