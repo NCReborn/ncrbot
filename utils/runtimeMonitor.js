@@ -247,10 +247,9 @@ function startRuntimeMonitor(client, logger) {
 
   const interval = setInterval(() => {
     const isStale = client.isReady() && state.lastRawAt && Date.now() - state.lastRawAt > staleThresholdMs;
-    logHealth(
-      isStale ? 'warn' : 'info',
-      isStale ? '[HEALTH] No raw Discord events observed within stale threshold' : '[HEALTH] Runtime snapshot'
-    );
+    if (isStale) {
+      logHealth('warn', '[HEALTH] No raw Discord events observed within stale threshold');
+    }
   }, intervalMs);
   interval.unref();
 }
