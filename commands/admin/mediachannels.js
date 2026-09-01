@@ -1,7 +1,7 @@
 // commands/mediachannels.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const mediaChannelService = require('../services/MediaChannelService');
-const logger = require('../utils/logger');
+const mediaChannelService = require('../../services/MediaChannelService');
+const logger = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
