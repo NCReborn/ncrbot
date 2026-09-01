@@ -1,7 +1,7 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
 
-const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
@@ -41,9 +41,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
   ],
 });
-
-const setupGuildProfiles = require('./applyGuildProfiles');
-setupGuildProfiles(client);
 
 const imageOnlyHandler = require('./utils/imageOnlyHandler');
 imageOnlyHandler(client);
@@ -112,7 +109,7 @@ for (const file of eventFiles) {
 
 logger.info(`✨ Events loaded successfully`);
 
-client.once(Events.ClientReady, () => {
+client.once('ready', () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
   logMissingRequiredGuildChannelMappings(client);
 });
