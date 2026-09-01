@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
-const logger = require('../utils/logger');
+const logger = require('../../utils/logger');
 
 const MAX_SLOWMODE_SECONDS = 21600; // 6 hours
 
