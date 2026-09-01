@@ -18,14 +18,9 @@ async function applyProfileForGuild(guild) {
     }
   }
 
-  // Set per-guild avatar (if supported for your bot setup)
-  if (typeof profile.avatar === "string") {
-    try {
-      await me.setAvatar(profile.avatar);
-      logger.info(`[Profile] ${guild.name}: avatar updated`);
-    } catch (error) {
-      logger.error(`[Profile] ${guild.name}: failed to set avatar`, { error: error.message });
-    }
+  // Per-guild avatar is not supported via GuildMember in this runtime; log a warning and skip.
+  if (profile.avatar) {
+    logger.warn(`[Profile] ${guild.name}: avatar configured but skipped (per-guild avatar update is not supported)`);
   }
 }
 
