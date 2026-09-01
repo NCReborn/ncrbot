@@ -89,6 +89,54 @@ function getSortedTiersDescending(tiers) {
   });
 }
 
+function fetchWithTimeout(promiseFactory, timeoutMs) {
+  let timeoutId;
+  let timedOut = false;
+
+  const operationPromise = Promise.resolve()
+    .then(() => promiseFactory())
+    .catch((err) => {
+      if (timedOut) return null;
+      throw err;
+    });
+
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      resolve(null);
+    }, timeoutMs);
+  });
+
+  return Promise.race([operationPromise, timeoutPromise])
+    .finally(() => {
+      if (timeoutId) clearTimeout(timeoutId);
+    });
+}
+
+async function fetchGuildMemberSafe(guild, userId, {
+  timeoutMs = 3000,
+  fallback = null,
+  logLabel = 'guild.members.fetch',
+} = {}) {
+  try {
+    const member = await fetchWithTimeout(() => guild.members.fetch(userId), timeoutMs);
+
+    if (!member) {
+      logger.warn(
+        `[STREET_CRED] ${logLabel} timed out/failed for user ${userId} in guild ${guild?.id} (timeout ${timeoutMs}ms)`
+      );
+      return fallback;
+    }
+
+    return member;
+  } catch (err) {
+    logger.warn(
+      `[STREET_CRED] ${logLabel} error for user ${userId} in guild ${guild?.id}: ${err.message}`
+    );
+    return fallback;
+  }
+}
+
 async function getGuildConfig(guildId, opts = {}) {
   const key = String(guildId);
   if (!opts.noCache) {
@@ -295,13 +343,6 @@ function resolveFormula(cfgFormula) {
   };
 }
 
-// ─── Pure calculation helpers ─────────────────────────────────────────────────
-
-/**
- * Returns how many complete months have elapsed since joinedAt.
- * @param {Date} joinedAt
- * @returns {number}
- */
 function tenureMonths(joinedAt) {
   const now = new Date();
   const years = now.getFullYear() - joinedAt.getFullYear();
@@ -309,24 +350,11 @@ function tenureMonths(joinedAt) {
   return Math.max(0, years * 12 + months);
 }
 
-/**
- * Tenure multiplier: baseMultiplier + (tenureMonths / tenureDivisor)
- * @param {number} months
- * @param {{tenureDivisor:number,baseMultiplier:number}} [cfgFormula]
- * @returns {number}
- */
 function tenureMultiplier(months, cfgFormula) {
   const formula = resolveFormula(cfgFormula);
   return formula.baseMultiplier + (months / formula.tenureDivisor);
 }
 
-/**
- * Effective score = messageCount * tenureMultiplier
- * @param {number} messageCount
- * @param {number} months
- * @param {{tenureDivisor:number,baseMultiplier:number}} [cfgFormula]
- * @returns {number}
- */
 function effectiveScore(messageCount, months, cfgFormula) {
   return messageCount * tenureMultiplier(months, cfgFormula);
 }
@@ -337,13 +365,6 @@ function normalizeTiersInput(tiersInput) {
   return DEFAULT_TIERS;
 }
 
-/**
- * Map an effective score to the highest matching tier.
- * Returns 0 for members below the minimum threshold.
- * @param {number} score
- * @param {Array} tiersInput
- * @returns {number}
- */
 function getTier(score, tiersInput) {
   const tiersDesc = getSortedTiersDescending(normalizeTiersInput(tiersInput));
   for (const tier of tiersDesc) {
@@ -362,18 +383,11 @@ function nextTier(currentTier, tiersInput) {
   return tiers[idx + 1] || null;
 }
 
-/**
- * Returns the effective score threshold for the next tier above currentTier.
- * Returns null if already at max tier.
- */
 function nextTierThreshold(currentTier, tiersInput) {
   const next = nextTier(currentTier, tiersInput);
   return next ? Number(next.threshold) : null;
 }
 
-/**
- * Returns the effective score threshold for the current tier.
- */
 function currentTierThreshold(currentTier, tiersInput) {
   if (currentTier < 1) return 0;
   const tiers = normalizeTiersInput(tiersInput);
@@ -388,11 +402,6 @@ function getTierLabel(tierKey, cfg) {
   return `Level ${tierKey}`;
 }
 
-// ─── Role management ───────────────────────────────────────────────────────
-
-/**
- * Returns all tier role IDs from config as a Set.
- */
 function allStreetCredRoleIds(cfg) {
   const tiers = normalizeTiersInput(cfg);
   const roleIds = [
@@ -402,13 +411,6 @@ function allStreetCredRoleIds(cfg) {
   return new Set(roleIds);
 }
 
-/**
- * Remove every StreetCred role from a guild member, then assign the one
- * correct role (if tier >= 1).
- * @param {GuildMember} member
- * @param {number} tier  — 0 means "no role" (lurker/unranked)
- * @param {Object} cfg
- */
 async function applyTierRole(member, tier, cfg) {
   try {
     const guildCfg = cfg || await getGuildConfig(member.guild.id);
@@ -430,11 +432,6 @@ async function applyTierRole(member, tier, cfg) {
   }
 }
 
-/**
- * Remove all StreetCred roles from a member (used for dormancy / mass strip).
- * @param {GuildMember} member
- * @param {Object} cfg
- */
 async function removeAllStreetCredRoles(member, cfg) {
   try {
     const guildCfg = cfg || await getGuildConfig(member.guild.id);
@@ -516,12 +513,6 @@ async function announceTierUp(guild, member, result, cfg) {
   });
 }
 
-// ─── Database helpers ───────────────────────────────────────────────────────
-
-/**
- * Fetch (or create) a member's street_cred row.
- * @returns {Object}
- */
 async function getOrCreateRecord(userId, guildId, joinedAt) {
   const pool = await getPool();
   const [rows] = await pool.execute(
@@ -541,11 +532,6 @@ async function getOrCreateRecord(userId, guildId, joinedAt) {
   return newRows[0];
 }
 
-/**
- * Recalculate and persist effective_score + tier for a record using current
- * joined_at. Optionally bumps message count.
- * @returns {{tier: number, score: number, messages: number, changed: boolean}}
- */
 async function recalculate(userId, guildId, opts = {}, cfg) {
   const { incrementMessages = 0, lastMessageAt, joinedAt } = opts;
   const pool = await getPool();
@@ -586,13 +572,6 @@ async function recalculate(userId, guildId, opts = {}, cfg) {
   return { tier: newTier, score, messages: newMessages, changed, prevTier: rec.tier };
 }
 
-// ─── Forward-tracking (called from messageCreate) ─────────────────────────────
-
-/**
- * Lightweight, fire-and-forget StreetCred update triggered by every
- * non-bot guild message.
- * @param {Message} message  — discord.js Message object
- */
 async function trackMessage(message) {
   try {
     const { author, guild, member } = message;
@@ -610,16 +589,11 @@ async function trackMessage(message) {
     }, cfg);
 
     if (result.changed || result.prevTier === 0) {
-      let freshMember = member;
-      try {
-        const fetchPromise = guild.members.fetch(userId);
-        freshMember = await Promise.race([
-          fetchPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 5000)),
-        ]).catch(() => member);
-      } catch (err) {
-        logger.warn(`[STREET_CRED] Member fetch timeout for ${userId}: ${err.message}`);
-      }
+      const freshMember = await fetchGuildMemberSafe(guild, userId, {
+        timeoutMs: 3000,
+        fallback: member,
+        logLabel: 'trackMessage.roleSyncFetch',
+      });
 
       await applyTierRole(freshMember, result.tier, cfg).catch(() => {});
 
@@ -643,7 +617,11 @@ async function trackMessage(message) {
         'UPDATE street_cred SET status = ? WHERE user_id = ? AND guild_id = ?',
         ['ACTIVE', userId, guildId]
       );
-      const freshMember = await guild.members.fetch(userId).catch(() => member);
+      const freshMember = await fetchGuildMemberSafe(guild, userId, {
+        timeoutMs: 3000,
+        fallback: member,
+        logLabel: 'trackMessage.reactivateFetch',
+      });
       await applyTierRole(freshMember, result.tier, cfg);
       logger.info(`[STREET_CRED] ${author.tag} reactivated from DORMANT`);
     }
@@ -655,13 +633,6 @@ async function trackMessage(message) {
   }
 }
 
-// ─── Dormancy check (called from daily cron) ──────────────────────────────────
-
-/**
- * Set ACTIVE members whose last_message_at is older than dormancyDays to
- * DORMANT and remove their StreetCred roles.
- * @param {Guild} guild
- */
 async function runDormancyCheck(guild) {
   try {
     const cfg = await getGuildConfig(guild.id);
@@ -682,7 +653,11 @@ async function runDormancyCheck(guild) {
     let dormantCount = 0;
     for (const row of rows) {
       try {
-        const member = await guild.members.fetch(row.user_id).catch(() => null);
+        const member = await fetchGuildMemberSafe(guild, row.user_id, {
+          timeoutMs: 3000,
+          fallback: null,
+          logLabel: 'runDormancyCheck.memberFetch',
+        });
         if (member) await removeAllStreetCredRoles(member, cfg);
 
         await pool.execute(
@@ -733,11 +708,6 @@ async function runDormancyCheck(guild) {
   }
 }
 
-// ─── Admin: retroactive scan ──────────────────────────────────────────────────
-
-/**
- * Phase 1: Strip all StreetCred roles from all guild members.
- */
 async function stripAllRoles(guild, onProgress) {
   const cfg = await getGuildConfig(guild.id);
   const scRoleIds = allStreetCredRoleIds(cfg.tiers);
@@ -754,10 +724,6 @@ async function stripAllRoles(guild, onProgress) {
   return { stripped, total };
 }
 
-/**
- * Phase 2–4: Scan all readable text channels, count messages per user, then
- * recalculate tiers and apply roles. Crash-safe via street_cred_scan table.
- */
 async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
   const cfg = await getGuildConfig(guild.id);
   const pool = await getPool();
@@ -837,12 +803,11 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
 
   for (const [userId, data] of counts) {
     try {
-      let member = null;
-      try {
-        member = await guild.members.fetch(userId);
-      } catch (_) {
-        // user left
-      }
+      const member = await fetchGuildMemberSafe(guild, userId, {
+        timeoutMs: 3000,
+        fallback: null,
+        logLabel: 'runRetroactiveScan.seedFetch',
+      });
 
       const joinedAt = member ? member.joinedAt : null;
       await pool.execute(
@@ -894,7 +859,11 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
   const assignTotal = activeCandidates.length;
   for (const rec of activeCandidates) {
     try {
-      const member = await guild.members.fetch(rec.user_id).catch(() => null);
+      const member = await fetchGuildMemberSafe(guild, rec.user_id, {
+        timeoutMs: 3000,
+        fallback: null,
+        logLabel: 'runRetroactiveScan.assignFetch',
+      });
       if (!member) continue;
 
       const isActive = rec.last_message_at && new Date(rec.last_message_at) >= cutoff;
@@ -920,11 +889,6 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
   return { channelsDone, totalMessages, totalUsers: counts.size, assigned };
 }
 
-// ─── Admin: manual override ───────────────────────────────────────────────────
-
-/**
- * Override a member's message count and recalculate.
- */
 async function adminSync(userId, guildId, messageCount, joinedAt) {
   const pool = await getPool();
   const cfg = await getGuildConfig(guildId);
@@ -946,9 +910,6 @@ async function adminSync(userId, guildId, messageCount, joinedAt) {
   return { tier, score, messages: messageCount };
 }
 
-/**
- * Recalculate all tiers for a guild from current DB data and apply roles.
- */
 async function recalculateAll(guildId, guild) {
   const pool = await getPool();
   const cfg = await getGuildConfig(guildId);
@@ -971,7 +932,11 @@ async function recalculateAll(guildId, guild) {
 
       if (guild) {
         try {
-          const member = await guild.members.fetch(row.user_id).catch(() => null);
+          const member = await fetchGuildMemberSafe(guild, row.user_id, {
+            timeoutMs: 3000,
+            fallback: null,
+            logLabel: 'recalculateAll.memberFetch',
+          });
           if (member) {
             await applyTierRole(member, tier, cfg);
           }
@@ -988,11 +953,6 @@ async function recalculateAll(guildId, guild) {
   return updated;
 }
 
-// ─── Profile / leaderboard queries ───────────────────────────────────────────
-
-/**
- * Fetch a single member's StreetCred record.
- */
 async function getProfile(userId, guildId) {
   const pool = await getPool();
   const [rows] = await pool.execute(
@@ -1002,10 +962,6 @@ async function getProfile(userId, guildId) {
   return rows[0] || null;
 }
 
-/**
- * Fetch top members ordered by effective_score.
- * @returns {{ rows: Array, totalCount: number }}
- */
 async function getLeaderboard(guildId, page = 1, pageSize = 10, activeOnly = true) {
   const pool = await getPool();
   const offset = (page - 1) * pageSize;
@@ -1033,9 +989,6 @@ async function getLeaderboard(guildId, page = 1, pageSize = 10, activeOnly = tru
   return { rows, totalCount };
 }
 
-/**
- * Returns all ACTIVE members for a guild, ordered by effective_score DESC.
- */
 async function getAllActive(guildId) {
   const pool = await getPool();
   const [rows] = await pool.execute(
@@ -1048,9 +1001,6 @@ async function getAllActive(guildId) {
   return rows;
 }
 
-/**
- * Returns a member's rank (1-indexed) in the leaderboard.
- */
 async function getUserRank(userId, guildId, activeOnly = true) {
   const pool = await getPool();
   const whereClause = activeOnly ? "guild_id = ? AND status = 'ACTIVE'" : 'guild_id = ?';
@@ -1064,9 +1014,6 @@ async function getUserRank(userId, guildId, activeOnly = true) {
   return rows[0]?.rank ?? null;
 }
 
-/**
- * Returns admin status stats for a guild.
- */
 async function getStatusStats(guildId) {
   const pool = await getPool();
   const [rows] = await pool.execute(
@@ -1092,14 +1039,12 @@ async function getStatusStats(guildId) {
 }
 
 module.exports = {
-  // Config
   getGuildConfig,
   setGuildConfigFields,
   setGuildTier,
   removeGuildTier,
   listGuildTiers,
   resetGuildConfig,
-  // Calculations
   tenureMonths,
   tenureMultiplier,
   effectiveScore,
@@ -1108,23 +1053,17 @@ module.exports = {
   nextTierThreshold,
   currentTierThreshold,
   getTierLabel,
-  // Role management
   applyTierRole,
   removeAllStreetCredRoles,
   allStreetCredRoleIds,
-  // DB helpers
   getOrCreateRecord,
   recalculate,
-  // Forward tracking
   trackMessage,
-  // Dormancy
   runDormancyCheck,
-  // Admin
   stripAllRoles,
   runRetroactiveScan,
   adminSync,
   recalculateAll,
-  // Queries
   getProfile,
   getLeaderboard,
   getAllActive,
