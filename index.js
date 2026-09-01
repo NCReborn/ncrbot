@@ -123,7 +123,7 @@ client.once('ready', () => {
 });
 
 client.on('error', (error) => {
-  logger.error('[DISCORD] Client error:', error);
+  logger.error(`[DISCORD] Client error: ${error && error.stack ? error.stack : error}`);
 });
 
 client.on('warn', (warning) => {

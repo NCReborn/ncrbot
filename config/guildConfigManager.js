@@ -88,9 +88,9 @@ function getGroup(guildId, groupName) {
 
 function getGroupForCollection(guildId, slug) {
   const config = loadGuildConfig(guildId);
-  const collection = config.collections.find(c => c.slug === slug) || null;
+  const collection = (config.collections || []).find(c => c.slug === slug) || null;
   if (!collection) return null;
-  return config.groups.find(g => g.name === collection.group) || null;
+  return (config.groups || []).find(g => g.name === collection.group) || null;
 }
 
 module.exports = {
