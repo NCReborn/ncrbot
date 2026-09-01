@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags } = require('discord.js');
-const { loadResponses, upsertResponse, deleteResponse } = require('../utils/autoResponder');
-const { PermissionChecker } = require('../utils/permissions');
-const logger = require('../utils/logger');
+const { loadResponses, upsertResponse, deleteResponse } = require('../../utils/autoResponder');
+const { PermissionChecker } = require('../../utils/permissions');
+const logger = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
