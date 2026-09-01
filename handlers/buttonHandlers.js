@@ -1,7 +1,7 @@
 const logger = require('../utils/logger');
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const SpamActionHandler = require('../services/spam/SpamActionHandler');
-const { handleLeaderboardButton } = require('../commands/streetcred/streetcred.js');
+const { handleLeaderboardButton } = require('../commands/utility/streetcred.js');
 
 class ButtonHandlers {
   async handle(interaction, client) {
