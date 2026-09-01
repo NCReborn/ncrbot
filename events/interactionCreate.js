@@ -6,52 +6,62 @@ const modalHandlers = require('../handlers/modalHandlers');
 const buttonHandlers = require('../handlers/buttonHandlers');
 const commandHandlers = require('../handlers/commandHandlers');
 const { loadResponses, upsertResponse } = require('../utils/autoResponder');
+const { trackHandlerExecution } = require('../utils/runtimeMonitor');
 
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction, client) {
-    try {
-      // Handle log scan ticket interactions
-      await handleLogScanTicketInteraction(interaction);
+    return trackHandlerExecution('interactionCreate', {
+      guildId: interaction.guildId || null,
+      channelId: interaction.channelId || null,
+      userId: interaction.user?.id || null,
+      commandName: interaction.commandName || null,
+      customId: interaction.customId || null,
+      interactionType: interaction.type,
+    }, async () => {
+      try {
+        // Handle log scan ticket interactions
+        await handleLogScanTicketInteraction(interaction);
 
-      // Route to appropriate handler
-      if (interaction.isModalSubmit()) {
-        await modalHandlers.handle(interaction, client);
+        // Route to appropriate handler
+        if (interaction.isModalSubmit()) {
+          await modalHandlers.handle(interaction, client);
 
-      } else if (interaction.isButton()) {
-        await buttonHandlers.handle(interaction, client);
+        } else if (interaction.isButton()) {
+          await buttonHandlers.handle(interaction, client);
 
-      } else if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('autoresponder_channels:')) {
-        await handleAutoResponderChannelSelect(interaction);
+        } else if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('autoresponder_channels:')) {
+          await handleAutoResponderChannelSelect(interaction);
 
-      } else if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
-        const command = client.commands.get(interaction.commandName);
-        if (!command?.autocomplete) return;
+        } else if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
+          const command = client.commands.get(interaction.commandName);
+          if (!command?.autocomplete) return;
 
-        try {
-          await command.autocomplete(interaction);
-        } catch (error) {
-          logger.error(`[AUTOCOMPLETE] /${interaction.commandName} failed:`, error);
-          try { await interaction.respond([]); } catch {}
+          try {
+            await command.autocomplete(interaction);
+          } catch (error) {
+            logger.error(`[AUTOCOMPLETE] /${interaction.commandName} failed:`, error);
+            try { await interaction.respond([]); } catch {}
+          }
+
+        } else if (interaction.type === InteractionType.ApplicationCommand) {
+          await commandHandlers.handle(interaction, client);
         }
+      } catch (error) {
+        logger.error('[INTERACTION] Unhandled error:', error);
 
-      } else if (interaction.type === InteractionType.ApplicationCommand) {
-        await commandHandlers.handle(interaction, client);
+        const errorMessage = {
+          content: 'An unexpected error occurred.',
+          ephemeral: true
+        };
+
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(errorMessage).catch(() => {});
+        } else if (interaction.isRepliable()) {
+          await interaction.reply(errorMessage).catch(() => {});
+        }
       }
-    } catch (error) {
-      logger.error('[INTERACTION] Unhandled error:', error);
-
-      const errorMessage = {
-        content: 'An unexpected error occurred.',
-        ephemeral: true
-      };
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(errorMessage).catch(() => {});
-      } else if (interaction.isRepliable()) {
-        await interaction.reply(errorMessage).catch(() => {});
-      }
-    }
+    });
   }
 };
 

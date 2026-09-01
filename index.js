@@ -42,8 +42,6 @@ const client = new Client({
   ],
 });
 
-startRuntimeMonitor(client, logger);
-
 const imageOnlyHandler = require('./utils/imageOnlyHandler');
 imageOnlyHandler(client);
 require('./utils/welcomeHandler')(client);
@@ -115,6 +113,8 @@ client.once('ready', () => {
   logger.info(`Ready! Logged in as ${client.user.tag}`);
   logMissingRequiredGuildChannelMappings(client);
 });
+
+startRuntimeMonitor(client, logger);
 
 client.login(process.env.DISCORD_TOKEN).catch((error) => {
   logger.error('[DISCORD] Failed to login', { error });
