@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require("discord.js");
-const snapmaster = require("../utils/snapmaster");
-const { PermissionChecker } = require("../utils/permissions");
-const logger = require("../utils/logger");
+const snapmaster = require("../../utils/snapmaster");
+const { PermissionChecker } = require("../../utils/permissions");
+const logger = require("../../utils/logger");
 
 const MIN_SUBMISSIONS = 5;
 // Set SNAPMASTER_FORUM_CHANNEL_ID in your environment, or replace this fallback with your actual forum channel ID
