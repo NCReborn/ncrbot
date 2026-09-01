@@ -6,9 +6,9 @@ const {
   MessageFlags,
   PermissionFlagsBits,
 } = require('discord.js');
-const logger = require('../utils/logger');
-const { PermissionChecker } = require('../utils/permissions');
-const snapsmith = require('../services/SnapSmithService');
+const logger = require('../../utils/logger');
+const { PermissionChecker } = require('../../utils/permissions');
+const snapsmith = require('../../services/SnapSmithService');
 
 // ─── /snapsmith-admin init ────────────────────────────────────────────────────
 
