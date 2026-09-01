@@ -1,8 +1,39 @@
+/********************************************************************************************
+ * NCRBOT RUNTIME MONITOR — FULLY PATCHED VERSION
+ * Adds:
+ *  - Promise stack traces
+ *  - Timer stack traces
+ *  - Persistent hang reports
+ *  - Promise lineage tracing
+ *  - Manual dumpHangState() command
+ ********************************************************************************************/
+
 const asyncHooks = require('async_hooks');
 const fs = require('fs');
 const os = require('os');
+const path = require('path');
 const { monitorEventLoopDelay, performance } = require('perf_hooks');
 
+/* ------------------------------------------------------------------------------------------
+ * 🔥 Persistent hang report writer
+ * ---------------------------------------------------------------------------------------- */
+function writeHangReport(data) {
+  try {
+    const dir = path.join(process.cwd(), 'hang_reports');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+
+    const filename = `promise-hang-${new Date().toISOString().replace(/[:]/g, '-')}.json`;
+    const fullPath = path.join(dir, filename);
+
+    fs.writeFileSync(fullPath, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('[RUNTIME_MONITOR] Failed to write hang report:', err);
+  }
+}
+
+/* ------------------------------------------------------------------------------------------
+ * Utility helpers
+ * ---------------------------------------------------------------------------------------- */
 const closeCodeDescriptions = {
   4000: 'Unknown error',
   4001: 'Unknown opcode',
@@ -43,9 +74,7 @@ function msToSeconds(ms) {
 }
 
 function nanosecondsToMs(value) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
+  if (!Number.isFinite(value)) return 0;
   return Number((value / 1e6).toFixed(2));
 }
 
@@ -73,7 +102,9 @@ function getFdCount() {
 
 function getActiveHandleCount() {
   try {
-    return typeof process._getActiveHandles === 'function' ? process._getActiveHandles().length : null;
+    return typeof process._getActiveHandles === 'function'
+      ? process._getActiveHandles().length
+      : null;
   } catch {
     return null;
   }
@@ -81,12 +112,17 @@ function getActiveHandleCount() {
 
 function getActiveRequestCount() {
   try {
-    return typeof process._getActiveRequests === 'function' ? process._getActiveRequests().length : null;
+    return typeof process._getActiveRequests === 'function'
+      ? process._getActiveRequests().length
+      : null;
   } catch {
     return null;
   }
 }
 
+/* ------------------------------------------------------------------------------------------
+ * 🔥 Timer tracking with stack traces
+ * ---------------------------------------------------------------------------------------- */
 function installTimerTracking() {
   if (global.__ncrbotTimerTrackingState) {
     return global.__ncrbotTimerTrackingState;
@@ -104,6 +140,8 @@ function installTimerTracking() {
 
   global.setTimeout = (callback, delay, ...args) => {
     const createdAt = Date.now();
+    const stack = new Error().stack.split('\n').slice(2).join('\n'); // 🔥 ADDED
+
     let handle;
     const wrappedCallback = (...callbackArgs) => {
       state.timeouts.delete(handle);
@@ -114,6 +152,7 @@ function installTimerTracking() {
     state.timeouts.set(handle, {
       createdAt,
       delay: Number(delay) || 0,
+      stack, // 🔥 ADDED
     });
     return handle;
   };
@@ -124,10 +163,14 @@ function installTimerTracking() {
   };
 
   global.setInterval = (callback, delay, ...args) => {
+    const createdAt = Date.now();
+    const stack = new Error().stack.split('\n').slice(2).join('\n'); // 🔥 ADDED
+
     const handle = nativeSetInterval(callback, delay, ...args);
     state.intervals.set(handle, {
-      createdAt: Date.now(),
+      createdAt,
       delay: Number(delay) || 0,
+      stack, // 🔥 ADDED
     });
     return handle;
   };
@@ -140,24 +183,37 @@ function installTimerTracking() {
   global.__ncrbotTimerTrackingState = state;
   return state;
 }
-
+/* ------------------------------------------------------------------------------------------
+ * 🔥 Promise tracker with stack traces
+ * ---------------------------------------------------------------------------------------- */
 function installPromiseTracker() {
   if (process.__ncrbotPromiseTracker) {
     return process.__ncrbotPromiseTracker;
   }
 
   const promises = new Map();
+
   const hook = asyncHooks.createHook({
     init(asyncId, type, triggerAsyncId) {
       if (type !== 'PROMISE') return;
+
+      // 🔥 Capture stack trace at promise creation
+      const stack = new Error().stack
+        .split('\n')
+        .slice(2)
+        .join('\n');
+
       promises.set(asyncId, {
         createdAt: Date.now(),
         triggerAsyncId,
+        stack,
       });
     },
+
     promiseResolve(asyncId) {
       promises.delete(asyncId);
     },
+
     destroy(asyncId) {
       promises.delete(asyncId);
     },
@@ -169,6 +225,33 @@ function installPromiseTracker() {
   process.__ncrbotPromiseTracker = tracker;
   return tracker;
 }
+
+/* ------------------------------------------------------------------------------------------
+ * 🔥 Promise lineage tracing
+ * ---------------------------------------------------------------------------------------- */
+function resolvePromiseLineage(tracker, asyncId, depth = 10) {
+  const chain = [];
+  let current = asyncId;
+
+  for (let i = 0; i < depth; i++) {
+    const entry = tracker.promises.get(current);
+    if (!entry) break;
+
+    chain.push({
+      asyncId: current,
+      triggerAsyncId: entry.triggerAsyncId,
+      stack: entry.stack,
+      ageSeconds: msToSeconds(Date.now() - entry.createdAt),
+    });
+
+    current = entry.triggerAsyncId;
+  }
+
+  return chain;
+}
+/* ------------------------------------------------------------------------------------------
+ * Diagnostics helpers
+ * ---------------------------------------------------------------------------------------- */
 
 function buildContext(client, state, sample) {
   const now = Date.now();
@@ -247,13 +330,10 @@ function summarizeHeapTrend(heapSamples, growthWarnMb) {
   const deltaMb = Number(((last.heapUsed - first.heapUsed) / 1024 / 1024).toFixed(2));
   const elapsedMinutes = Math.max((last.at - first.at) / 60000, 1 / 60);
   const rateMbPerMinute = Number((deltaMb / elapsedMinutes).toFixed(2));
-  let direction = 'stable';
 
-  if (deltaMb > 5) {
-    direction = 'growing';
-  } else if (deltaMb < -5) {
-    direction = 'shrinking';
-  }
+  let direction = 'stable';
+  if (deltaMb > 5) direction = 'growing';
+  else if (deltaMb < -5) direction = 'shrinking';
 
   return {
     direction,
@@ -274,6 +354,7 @@ function captureListenerSummary(client) {
   const sortedCounts = Object.fromEntries(
     Object.entries(counts).sort(([left], [right]) => left.localeCompare(right))
   );
+
   const totalListeners = Object.values(sortedCounts).reduce((sum, count) => sum + count, 0);
 
   return {
@@ -303,13 +384,15 @@ function summarizeListenerGrowth(baseline, current) {
 
 function summarizeTrackedPromises(tracker) {
   const now = Date.now();
+
   const entries = [...tracker.promises.entries()]
     .map(([asyncId, details]) => ({
       asyncId,
       ageSeconds: msToSeconds(now - details.createdAt),
       triggerAsyncId: details.triggerAsyncId,
+      stack: details.stack,
     }))
-    .sort((left, right) => right.ageSeconds - left.ageSeconds);
+    .sort((a, b) => b.ageSeconds - a.ageSeconds);
 
   return {
     count: entries.length,
@@ -320,13 +403,15 @@ function summarizeTrackedPromises(tracker) {
 
 function summarizeTrackedTimers(timerState) {
   const now = Date.now();
+
   const summarizeMap = (map) => {
     const entries = [...map.values()]
       .map((details) => ({
         ageSeconds: msToSeconds(now - details.createdAt),
         delayMs: details.delay,
+        stack: details.stack,
       }))
-      .sort((left, right) => right.ageSeconds - left.ageSeconds);
+      .sort((a, b) => b.ageSeconds - a.ageSeconds);
 
     return {
       count: entries.length,
@@ -346,9 +431,10 @@ function summarizeHandlerMetrics(state) {
 
   for (const [name, metrics] of Object.entries(state.handlerMetrics)) {
     const durations = metrics.recentDurations;
-    const averageMs = durations.length > 0
-      ? Number((durations.reduce((sum, duration) => sum + duration, 0) / durations.length).toFixed(2))
-      : 0;
+    const averageMs =
+      durations.length > 0
+        ? Number((durations.reduce((sum, d) => sum + d, 0) / durations.length).toFixed(2))
+        : 0;
 
     summary[name] = {
       totalCount: metrics.totalCount,
@@ -356,7 +442,7 @@ function summarizeHandlerMetrics(state) {
       recentMaxMs: durations.length > 0 ? Number(Math.max(...durations).toFixed(2)) : 0,
       lastDurationMs: metrics.lastDurationMs,
       slowCount: metrics.slowCount,
-      activeCount: [...state.activeHandlers.values()].filter((entry) => entry.name === name).length,
+      activeCount: [...state.activeHandlers.values()].filter((h) => h.name === name).length,
     };
   }
 
@@ -365,13 +451,14 @@ function summarizeHandlerMetrics(state) {
 
 function summarizeActiveHandlers(state) {
   const now = Date.now();
+
   const handlers = [...state.activeHandlers.values()]
     .map((entry) => ({
       name: entry.name,
       ageSeconds: msToSeconds(now - entry.startedAt),
       details: entry.details,
     }))
-    .sort((left, right) => right.ageSeconds - left.ageSeconds);
+    .sort((a, b) => b.ageSeconds - a.ageSeconds);
 
   return {
     count: handlers.length,
@@ -393,15 +480,16 @@ function recordHandlerMetric(state, name, durationMs, isSlow) {
   const metrics = state.handlerMetrics[name];
   metrics.totalCount += 1;
   metrics.lastDurationMs = durationMs;
-  if (isSlow) {
-    metrics.slowCount += 1;
-  }
+  if (isSlow) metrics.slowCount += 1;
+
   metrics.recentDurations.push(durationMs);
   if (metrics.recentDurations.length > 20) {
     metrics.recentDurations.shift();
   }
 }
-
+/* ------------------------------------------------------------------------------------------
+ * Process error handlers
+ * ---------------------------------------------------------------------------------------- */
 function installProcessErrorHandlers(logger) {
   if (process.__ncrbotProcessHandlersInstalled) return;
   process.__ncrbotProcessHandlersInstalled = true;
@@ -434,7 +522,9 @@ function installProcessErrorHandlers(logger) {
     logger.warn('[PROCESS] Process exiting', { code });
   });
 }
-
+/* ------------------------------------------------------------------------------------------
+ * Runtime monitor start
+ * ---------------------------------------------------------------------------------------- */
 function startRuntimeMonitor(client, logger) {
   if (client.__ncrbotRuntimeMonitorStarted) return;
   client.__ncrbotRuntimeMonitorStarted = true;
@@ -479,6 +569,9 @@ function startRuntimeMonitor(client, logger) {
     },
   };
 
+  /* ----------------------------------------------------------------------------------------
+   * Diagnostics snapshot logger
+   * -------------------------------------------------------------------------------------- */
   const logDiagnosticsSnapshot = (level = 'info', message = '[DIAGNOSTICS] Health snapshot') => {
     const sample = createProcessSample(previousSample);
     previousSample = sample;
@@ -499,6 +592,7 @@ function startRuntimeMonitor(client, logger) {
     const heapTrend = summarizeHeapTrend(state.heapSamples, heapGrowthWarnMb);
     const listenerSummary = captureListenerSummary(client);
     const listenerGrowth = summarizeListenerGrowth(state.baselineListeners, listenerSummary);
+
     const eventLoopLag = {
       meanMs: nanosecondsToMs(state.eventLoopDelay.mean),
       maxMs: nanosecondsToMs(state.eventLoopDelay.max),
@@ -507,12 +601,44 @@ function startRuntimeMonitor(client, logger) {
       p99Ms: nanosecondsToMs(state.eventLoopDelay.percentile(99)),
       driftMs: Number(driftMs.toFixed(2)),
     };
+
     const pendingPromises = summarizeTrackedPromises(promiseTracker);
     const timers = summarizeTrackedTimers(timerState);
     const activeHandlers = summarizeActiveHandlers(state);
-    const resourceUsage = typeof process.resourceUsage === 'function' ? process.resourceUsage() : null;
-    const isStale = client.isReady() && state.lastRawAt && now - state.lastRawAt > staleThresholdMs;
+    const resourceUsage = typeof process.resourceUsage === 'function'
+      ? process.resourceUsage()
+      : null;
 
+    const isStale =
+      client.isReady() &&
+      state.lastRawAt &&
+      now - state.lastRawAt > staleThresholdMs;
+
+    /* --------------------------------------------------------------------------------------
+     * 🔥 Persistent hang detection
+     * ------------------------------------------------------------------------------------ */
+    if (pendingPromises.oldestAgeSeconds * 1000 >= pendingPromiseWarnMs) {
+      const oldest = pendingPromises.oldest[0];
+      const lineage = resolvePromiseLineage(promiseTracker, oldest.asyncId);
+
+      const hangReport = {
+        timestamp: new Date().toISOString(),
+        oldestPromise: oldest,
+        lineage,
+        timers,
+        eventLoopLag,
+        heapTrend,
+        resourceUsage,
+        listeners: listenerSummary,
+      };
+
+      logger.warn('[DIAGNOSTICS] Old pending promises detected', hangReport);
+      writeHangReport(hangReport);
+    }
+
+    /* --------------------------------------------------------------------------------------
+     * Emit full diagnostics snapshot
+     * ------------------------------------------------------------------------------------ */
     logger[level](message, {
       ...baseContext,
       heapTrend,
@@ -527,20 +653,22 @@ function startRuntimeMonitor(client, logger) {
       activeHandleCount: getActiveHandleCount(),
       activeRequestCount: getActiveRequestCount(),
       system: {
-        loadAverage: os.loadavg().map((value) => Number(value.toFixed(2))),
+        loadAverage: os.loadavg().map((v) => Number(v.toFixed(2))),
         freeMemoryMb: bytesToMb(os.freemem()),
         totalMemoryMb: bytesToMb(os.totalmem()),
         cpuCount: os.cpus().length,
       },
-      resourceUsage: resourceUsage ? {
-        maxRssKb: resourceUsage.maxRSS,
-        userCpuTimeMicros: resourceUsage.userCPUTime,
-        systemCpuTimeMicros: resourceUsage.systemCPUTime,
-        fsRead: resourceUsage.fsRead,
-        fsWrite: resourceUsage.fsWrite,
-        involuntaryContextSwitches: resourceUsage.involuntaryContextSwitches,
-        voluntaryContextSwitches: resourceUsage.voluntaryContextSwitches,
-      } : null,
+      resourceUsage: resourceUsage
+        ? {
+            maxRssKb: resourceUsage.maxRSS,
+            userCpuTimeMicros: resourceUsage.userCPUTime,
+            systemCpuTimeMicros: resourceUsage.systemCPUTime,
+            fsRead: resourceUsage.fsRead,
+            fsWrite: resourceUsage.fsWrite,
+            involuntaryContextSwitches: resourceUsage.involuntaryContextSwitches,
+            voluntaryContextSwitches: resourceUsage.voluntaryContextSwitches,
+          }
+        : null,
     });
 
     if (heapTrend.growingTooFast) {
@@ -553,10 +681,6 @@ function startRuntimeMonitor(client, logger) {
 
     if (Object.keys(listenerGrowth).length > 0) {
       logger.warn('[DIAGNOSTICS] Listener counts increased after startup baseline', listenerGrowth);
-    }
-
-    if (pendingPromises.oldestAgeSeconds * 1000 >= pendingPromiseWarnMs) {
-      logger.warn('[DIAGNOSTICS] Old pending promises detected', pendingPromises);
     }
 
     if (activeHandlers.oldest && activeHandlers.oldest.ageSeconds * 1000 >= longRunningHandlerWarnMs) {
@@ -574,13 +698,18 @@ function startRuntimeMonitor(client, logger) {
     state.eventLoopDelay.reset();
   };
 
+  /* ----------------------------------------------------------------------------------------
+   * Startup timeout warning
+   * -------------------------------------------------------------------------------------- */
   const startupTimer = setTimeout(() => {
     if (!client.isReady()) {
       logDiagnosticsSnapshot('warn', '[DIAGNOSTICS] Client still not ready after startup timeout');
     }
   }, startupTimeoutMs);
   startupTimer.unref();
-
+  /* ----------------------------------------------------------------------------------------
+   * Raw Discord event tracking
+   * -------------------------------------------------------------------------------------- */
   client.on('raw', (packet) => {
     state.lastRawAt = Date.now();
     state.lastRawEvent = packet.t || 'UNKNOWN';
@@ -620,7 +749,9 @@ function startRuntimeMonitor(client, logger) {
     state.reconnectCount += 1;
     logger.warn(`[DISCORD] Shard ${shardId} reconnecting`, {
       reconnectCount: state.reconnectCount,
-      lastDisconnectAgeSeconds: state.lastDisconnectAt ? msToSeconds(Date.now() - state.lastDisconnectAt) : null,
+      lastDisconnectAgeSeconds: state.lastDisconnectAt
+        ? msToSeconds(Date.now() - state.lastDisconnectAt)
+        : null,
       wsStatus: getWsStatusName(client),
     });
   });
@@ -629,7 +760,9 @@ function startRuntimeMonitor(client, logger) {
     logger.info(`[DISCORD] Shard ${shardId} resumed`, {
       replayedEvents,
       reconnectCount: state.reconnectCount,
-      downtimeSeconds: state.lastDisconnectAt ? msToSeconds(Date.now() - state.lastDisconnectAt) : null,
+      downtimeSeconds: state.lastDisconnectAt
+        ? msToSeconds(Date.now() - state.lastDisconnectAt)
+        : null,
       wsStatus: getWsStatusName(client),
       pingMs: client.ws.ping,
     });
@@ -665,16 +798,27 @@ function startRuntimeMonitor(client, logger) {
     });
   }
 
+  /* ----------------------------------------------------------------------------------------
+   * Listener baseline
+   * -------------------------------------------------------------------------------------- */
   state.baselineListeners = captureListenerSummary(client);
 
+  /* ----------------------------------------------------------------------------------------
+   * Interval diagnostics
+   * -------------------------------------------------------------------------------------- */
   const interval = setInterval(() => {
     logDiagnosticsSnapshot();
   }, intervalMs);
   interval.unref();
 
+  /* ----------------------------------------------------------------------------------------
+   * Initial snapshot
+   * -------------------------------------------------------------------------------------- */
   logDiagnosticsSnapshot('info', '[DIAGNOSTICS] Startup baseline established');
 }
-
+/* ------------------------------------------------------------------------------------------
+ * Handler execution tracker
+ * ---------------------------------------------------------------------------------------- */
 async function trackHandlerExecution(name, details, handler) {
   if (typeof handler !== 'function') {
     throw new TypeError('trackHandlerExecution requires a handler function');
@@ -687,9 +831,15 @@ async function trackHandlerExecution(name, details, handler) {
   const { logger, state, config } = activeDiagnosticsRuntime;
   const startTime = Date.now();
   const perfStart = performance.now();
-  const token = Symbol(name);
-  state.activeHandlers.set(token, { name, details, startedAt: startTime });
 
+  const token = Symbol(name);
+  state.activeHandlers.set(token, {
+    name,
+    details,
+    startedAt: startTime,
+  });
+
+  // 🔥 Warn if handler runs too long
   const pendingTimer = setTimeout(() => {
     logger.warn(`[DIAGNOSTICS] ${name} handler still running`, {
       durationMs: Number((performance.now() - perfStart).toFixed(2)),
@@ -704,9 +854,11 @@ async function trackHandlerExecution(name, details, handler) {
 
     const durationMs = Number((performance.now() - perfStart).toFixed(2));
     const isSlow = durationMs >= config.handlerWarnMs;
+
     recordHandlerMetric(state, name, durationMs, isSlow);
 
     const level = error ? 'error' : isSlow ? 'warn' : 'info';
+
     logger[level](`[DIAGNOSTICS] ${name} handler ${status}`, {
       durationMs,
       activeHandlerCount: state.activeHandlers.size,
@@ -724,9 +876,40 @@ async function trackHandlerExecution(name, details, handler) {
     throw error;
   }
 }
+/* ------------------------------------------------------------------------------------------
+ * 🔥 Manual hang-state dump
+ * ---------------------------------------------------------------------------------------- */
+function dumpHangState() {
+  if (!activeDiagnosticsRuntime) return null;
 
+  const { state } = activeDiagnosticsRuntime;
+  const promiseTracker = process.__ncrbotPromiseTracker;
+  const timerState = global.__ncrbotTimerTrackingState;
+
+  const pending = summarizeTrackedPromises(promiseTracker);
+
+  const lineage = pending.oldest[0]
+    ? resolvePromiseLineage(promiseTracker, pending.oldest[0].asyncId)
+    : [];
+
+  const report = {
+    timestamp: new Date().toISOString(),
+    pendingPromises: pending,
+    lineage,
+    activeHandlers: summarizeActiveHandlers(state),
+    timers: summarizeTrackedTimers(timerState),
+  };
+
+  writeHangReport(report);
+  return report;
+}
+
+/* ------------------------------------------------------------------------------------------
+ * Module exports
+ * ---------------------------------------------------------------------------------------- */
 module.exports = {
   installProcessErrorHandlers,
   startRuntimeMonitor,
   trackHandlerExecution,
+  dumpHangState,
 };
