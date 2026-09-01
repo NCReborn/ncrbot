@@ -6,8 +6,8 @@ const {
   MessageFlags,
   PermissionFlagsBits,
 } = require('discord.js');
-const { PermissionChecker } = require('../utils/permissions');
-const analytics = require('../services/AnalyticsService');
+const { PermissionChecker } = require('../../utils/permissions');
+const analytics = require('../../services/AnalyticsService');
 
 // Month name lookup
 const MONTH_NAMES = [
