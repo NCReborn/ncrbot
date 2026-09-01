@@ -3,15 +3,297 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../utils/logger');
 const { getPool } = require('../utils/database');
-const streetCredConfig = require('../config/streetCredConfig.json');
+const streetCredDefaults = require('../config/streetCredConfig.json');
 const { CHANNELS, HELPER_ROLES } = require('../config/constants');
+const { getGuildChannelId } = require('../utils/guildConfig');
 
-const TIERS = [100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 1];
-const THRESHOLDS = streetCredConfig.thresholds;
-const ROLE_MAP = streetCredConfig.roles; // tier -> roleId
-const DORMANCY_DAYS = streetCredConfig.dormancyDays;
-const TENURE_DIVISOR = streetCredConfig.formula.tenureDivisor;
-const BASE_MULTIPLIER = streetCredConfig.formula.baseMultiplier;
+const CONFIG_CACHE_TTL_MS = 60 * 1000;
+const guildConfigCache = new Map();
+
+function sortTiers(a, b) {
+  if (a.threshold !== b.threshold) return a.threshold - b.threshold;
+  return a.tierKey - b.tierKey;
+}
+
+function normalizeTier(tier) {
+  if (!tier) return null;
+
+  const tierKey = Number(tier.tierKey ?? tier.tier_key);
+  const threshold = Number(tier.threshold);
+  if (!Number.isFinite(tierKey) || !Number.isFinite(threshold)) return null;
+
+  const tierNameRaw = tier.tierName ?? tier.tier_name;
+  const tierName = typeof tierNameRaw === 'string' && tierNameRaw.trim()
+    ? tierNameRaw.trim()
+    : `Level ${tierKey}`;
+
+  const roleIdRaw = tier.roleId ?? tier.role_id;
+  const roleId = roleIdRaw ? String(roleIdRaw) : null;
+
+  return { tierKey, tierName, threshold, roleId };
+}
+
+function buildDefaultTiers() {
+  const thresholds = streetCredDefaults.thresholds || {};
+  const roles = streetCredDefaults.roles || {};
+
+  const tiers = Object.keys(thresholds)
+    .map((key) => {
+      const tierKey = Number(key);
+      const threshold = Number(thresholds[key]);
+      if (!Number.isFinite(tierKey) || !Number.isFinite(threshold)) return null;
+      return {
+        tierKey,
+        tierName: `SC-${tierKey}`,
+        threshold,
+        roleId: roles[key] || null,
+      };
+    })
+    .filter(Boolean)
+    .sort(sortTiers);
+
+  return tiers;
+}
+
+const DEFAULT_TIERS = buildDefaultTiers();
+const DEFAULT_CONFIG = {
+  systemName: 'Street Creed',
+  dormancyDays: Number(streetCredDefaults.dormancyDays) || 120,
+  formula: {
+    tenureDivisor: Number(streetCredDefaults.formula?.tenureDivisor) || 10,
+    baseMultiplier: Number(streetCredDefaults.formula?.baseMultiplier) || 1.75,
+  },
+  levelupChannelId: null,
+};
+
+function buildTierMaps(tiers) {
+  const byKey = new Map();
+  const roleMap = {};
+
+  for (const tier of tiers) {
+    byKey.set(tier.tierKey, tier);
+    if (tier.roleId) roleMap[String(tier.tierKey)] = tier.roleId;
+  }
+
+  return { byKey, roleMap };
+}
+
+function invalidateGuildConfigCache(guildId) {
+  guildConfigCache.delete(String(guildId));
+}
+
+function getSortedTiersDescending(tiers) {
+  return [...tiers].sort((a, b) => {
+    if (a.threshold !== b.threshold) return b.threshold - a.threshold;
+    return b.tierKey - a.tierKey;
+  });
+}
+
+async function getGuildConfig(guildId, opts = {}) {
+  const key = String(guildId);
+  if (!opts.noCache) {
+    const cached = guildConfigCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+  }
+
+  const pool = await getPool();
+  const [[configRow]] = await pool.execute(
+    `SELECT guild_id, system_name, dormancy_days, tenure_divisor, base_multiplier, levelup_channel_id
+       FROM street_cred_config
+      WHERE guild_id = ?`,
+    [key]
+  );
+
+  const [tierRows] = await pool.execute(
+    `SELECT guild_id, tier_key, tier_name, threshold, role_id
+       FROM street_cred_tiers
+      WHERE guild_id = ?`,
+    [key]
+  );
+
+  const hasConfigOverride = Boolean(configRow);
+  const hasTierOverride = tierRows.length > 0;
+
+  const systemName = configRow?.system_name || DEFAULT_CONFIG.systemName;
+  const dormancyDays = Number(configRow?.dormancy_days ?? DEFAULT_CONFIG.dormancyDays);
+  const formula = {
+    tenureDivisor: Number(configRow?.tenure_divisor ?? DEFAULT_CONFIG.formula.tenureDivisor),
+    baseMultiplier: Number(configRow?.base_multiplier ?? DEFAULT_CONFIG.formula.baseMultiplier),
+  };
+  const levelupChannelId = configRow?.levelup_channel_id ? String(configRow.levelup_channel_id) : null;
+
+  const tiers = (hasTierOverride
+    ? tierRows.map(normalizeTier).filter(Boolean)
+    : DEFAULT_TIERS.map((tier) => ({ ...tier })))
+    .sort(sortTiers);
+
+  const { byKey, roleMap } = buildTierMaps(tiers);
+
+  const value = {
+    guildId: key,
+    source: hasConfigOverride || hasTierOverride ? 'guild_override' : 'defaults',
+    systemName,
+    dormancyDays,
+    formula,
+    levelupChannelId,
+    tiers,
+    tiersDescending: getSortedTiersDescending(tiers),
+    tierByKey: byKey,
+    roleMap,
+  };
+
+  guildConfigCache.set(key, {
+    value,
+    expiresAt: Date.now() + CONFIG_CACHE_TTL_MS,
+  });
+
+  return value;
+}
+
+async function ensureGuildConfigRow(guildId) {
+  const pool = await getPool();
+  await pool.execute(
+    `INSERT IGNORE INTO street_cred_config
+      (guild_id, system_name, dormancy_days, tenure_divisor, base_multiplier, levelup_channel_id)
+     VALUES (?, ?, ?, ?, ?, ?)` ,
+    [
+      String(guildId),
+      DEFAULT_CONFIG.systemName,
+      DEFAULT_CONFIG.dormancyDays,
+      DEFAULT_CONFIG.formula.tenureDivisor,
+      DEFAULT_CONFIG.formula.baseMultiplier,
+      null,
+    ]
+  );
+}
+
+async function setGuildConfigFields(guildId, partialFields = {}) {
+  const updates = [];
+  const params = [];
+
+  if (Object.prototype.hasOwnProperty.call(partialFields, 'systemName')) {
+    const value = String(partialFields.systemName).trim();
+    if (!value || value.length > 100) {
+      throw new Error('systemName must be between 1 and 100 characters');
+    }
+    updates.push('system_name = ?');
+    params.push(value);
+  }
+  if (Object.prototype.hasOwnProperty.call(partialFields, 'dormancyDays')) {
+    const value = Number(partialFields.dormancyDays);
+    if (!Number.isInteger(value) || value < 1) {
+      throw new Error('dormancyDays must be an integer >= 1');
+    }
+    updates.push('dormancy_days = ?');
+    params.push(value);
+  }
+  if (Object.prototype.hasOwnProperty.call(partialFields, 'tenureDivisor')) {
+    const value = Number(partialFields.tenureDivisor);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error('tenureDivisor must be > 0');
+    }
+    updates.push('tenure_divisor = ?');
+    params.push(value);
+  }
+  if (Object.prototype.hasOwnProperty.call(partialFields, 'baseMultiplier')) {
+    const value = Number(partialFields.baseMultiplier);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error('baseMultiplier must be > 0');
+    }
+    updates.push('base_multiplier = ?');
+    params.push(value);
+  }
+  if (Object.prototype.hasOwnProperty.call(partialFields, 'levelupChannelId')) {
+    updates.push('levelup_channel_id = ?');
+    params.push(partialFields.levelupChannelId ? String(partialFields.levelupChannelId) : null);
+  }
+
+  if (updates.length > 0) {
+    await ensureGuildConfigRow(guildId);
+    const pool = await getPool();
+    params.push(String(guildId));
+    await pool.execute(
+      `UPDATE street_cred_config SET ${updates.join(', ')} WHERE guild_id = ?`,
+      params
+    );
+    invalidateGuildConfigCache(guildId);
+  }
+
+  return getGuildConfig(guildId, { noCache: true });
+}
+
+async function setGuildTier(guildId, { tierKey, tierName, threshold, roleId = null }) {
+  const normalizedKey = Number(tierKey);
+  const normalizedThreshold = Number(threshold);
+  const normalizedName = String(tierName || '').trim();
+
+  if (!Number.isInteger(normalizedKey) || normalizedKey < 1) {
+    throw new Error('tier_key must be an integer >= 1');
+  }
+  if (!Number.isFinite(normalizedThreshold) || normalizedThreshold < 0) {
+    throw new Error('threshold must be a number >= 0');
+  }
+  if (!normalizedName || normalizedName.length > 100) {
+    throw new Error('tier_name must be between 1 and 100 characters');
+  }
+
+  await ensureGuildConfigRow(guildId);
+  const pool = await getPool();
+  await pool.execute(
+    `INSERT INTO street_cred_tiers (guild_id, tier_key, tier_name, threshold, role_id)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       tier_name = VALUES(tier_name),
+       threshold = VALUES(threshold),
+       role_id = VALUES(role_id)`,
+    [
+      String(guildId),
+      normalizedKey,
+      normalizedName,
+      normalizedThreshold,
+      roleId ? String(roleId) : null,
+    ]
+  );
+
+  invalidateGuildConfigCache(guildId);
+  return getGuildConfig(guildId, { noCache: true });
+}
+
+async function removeGuildTier(guildId, tierKey) {
+  const normalizedKey = Number(tierKey);
+  if (!Number.isInteger(normalizedKey) || normalizedKey < 1) {
+    throw new Error('tier_key must be an integer >= 1');
+  }
+
+  const pool = await getPool();
+  await pool.execute(
+    'DELETE FROM street_cred_tiers WHERE guild_id = ? AND tier_key = ?',
+    [String(guildId), normalizedKey]
+  );
+
+  invalidateGuildConfigCache(guildId);
+  return getGuildConfig(guildId, { noCache: true });
+}
+
+async function listGuildTiers(guildId) {
+  const cfg = await getGuildConfig(guildId);
+  return cfg.tiers;
+}
+
+async function resetGuildConfig(guildId) {
+  const pool = await getPool();
+  await pool.execute('DELETE FROM street_cred_tiers WHERE guild_id = ?', [String(guildId)]);
+  await pool.execute('DELETE FROM street_cred_config WHERE guild_id = ?', [String(guildId)]);
+  invalidateGuildConfigCache(guildId);
+  return getGuildConfig(guildId, { noCache: true });
+}
+
+function resolveFormula(cfgFormula) {
+  return {
+    tenureDivisor: Number(cfgFormula?.tenureDivisor ?? DEFAULT_CONFIG.formula.tenureDivisor),
+    baseMultiplier: Number(cfgFormula?.baseMultiplier ?? DEFAULT_CONFIG.formula.baseMultiplier),
+  };
+}
 
 // ─── Pure calculation helpers ─────────────────────────────────────────────────
 
@@ -22,73 +304,125 @@ const BASE_MULTIPLIER = streetCredConfig.formula.baseMultiplier;
  */
 function tenureMonths(joinedAt) {
   const now = new Date();
-  const years  = now.getFullYear()  - joinedAt.getFullYear();
-  const months = now.getMonth()     - joinedAt.getMonth();
+  const years = now.getFullYear() - joinedAt.getFullYear();
+  const months = now.getMonth() - joinedAt.getMonth();
   return Math.max(0, years * 12 + months);
 }
 
 /**
- * Tenure multiplier: 1.0 + (tenureMonths / tenureDivisor)
+ * Tenure multiplier: baseMultiplier + (tenureMonths / tenureDivisor)
  * @param {number} months
+ * @param {{tenureDivisor:number,baseMultiplier:number}} [cfgFormula]
  * @returns {number}
  */
-function tenureMultiplier(months) {
-  return BASE_MULTIPLIER + (months / TENURE_DIVISOR);
+function tenureMultiplier(months, cfgFormula) {
+  const formula = resolveFormula(cfgFormula);
+  return formula.baseMultiplier + (months / formula.tenureDivisor);
 }
 
 /**
  * Effective score = messageCount * tenureMultiplier
  * @param {number} messageCount
  * @param {number} months
+ * @param {{tenureDivisor:number,baseMultiplier:number}} [cfgFormula]
  * @returns {number}
  */
-function effectiveScore(messageCount, months) {
-  return messageCount * tenureMultiplier(months);
+function effectiveScore(messageCount, months, cfgFormula) {
+  return messageCount * tenureMultiplier(months, cfgFormula);
+}
+
+function normalizeTiersInput(tiersInput) {
+  if (Array.isArray(tiersInput)) return tiersInput;
+  if (tiersInput?.tiers && Array.isArray(tiersInput.tiers)) return tiersInput.tiers;
+  return DEFAULT_TIERS;
 }
 
 /**
- * Map an effective score to the highest matching Street Creed tier.
- * Returns 0 for lurkers with no messages (below SC-1 threshold).
+ * Map an effective score to the highest matching tier.
+ * Returns 0 for members below the minimum threshold.
  * @param {number} score
+ * @param {Array} tiersInput
  * @returns {number}
  */
-function getTier(score) {
-  for (const tier of TIERS) {
-    if (score >= Number(THRESHOLDS[tier])) return tier;
+function getTier(score, tiersInput) {
+  const tiersDesc = getSortedTiersDescending(normalizeTiersInput(tiersInput));
+  for (const tier of tiersDesc) {
+    if (score >= Number(tier.threshold)) return tier.tierKey;
   }
   return 0;
+}
+
+function nextTier(currentTier, tiersInput) {
+  const tiers = [...normalizeTiersInput(tiersInput)].sort(sortTiers);
+  if (tiers.length === 0) return null;
+  if (currentTier <= 0) return tiers[0];
+
+  const idx = tiers.findIndex((t) => t.tierKey === currentTier);
+  if (idx === -1) return tiers[0];
+  return tiers[idx + 1] || null;
+}
+
+/**
+ * Returns the effective score threshold for the next tier above currentTier.
+ * Returns null if already at max tier.
+ */
+function nextTierThreshold(currentTier, tiersInput) {
+  const next = nextTier(currentTier, tiersInput);
+  return next ? Number(next.threshold) : null;
+}
+
+/**
+ * Returns the effective score threshold for the current tier.
+ */
+function currentTierThreshold(currentTier, tiersInput) {
+  if (currentTier < 1) return 0;
+  const tiers = normalizeTiersInput(tiersInput);
+  const current = tiers.find((t) => t.tierKey === currentTier);
+  return current ? Number(current.threshold) : 0;
+}
+
+function getTierLabel(tierKey, cfg) {
+  if (tierKey < 1) return 'Unranked';
+  const tier = cfg?.tierByKey?.get(tierKey);
+  if (tier?.tierName) return tier.tierName;
+  return `Level ${tierKey}`;
 }
 
 // ─── Role management ───────────────────────────────────────────────────────
 
 /**
- * Returns all Street Creed role IDs from config as a Set.
+ * Returns all tier role IDs from config as a Set.
  */
-function allStreetCredRoleIds() {
-  return new Set(Object.values(ROLE_MAP));
+function allStreetCredRoleIds(cfg) {
+  const tiers = normalizeTiersInput(cfg);
+  const roleIds = [
+    ...tiers.map((tier) => tier.roleId),
+    ...DEFAULT_TIERS.map((tier) => tier.roleId),
+  ].filter(Boolean);
+  return new Set(roleIds);
 }
 
 /**
- * Remove every Street Creed role from a guild member, then assign the one
- * correct role (if tier >= 1). Handles the duplicate-cleanup requirement.
+ * Remove every StreetCred role from a guild member, then assign the one
+ * correct role (if tier >= 1).
  * @param {GuildMember} member
  * @param {number} tier  — 0 means "no role" (lurker/unranked)
+ * @param {Object} cfg
  */
-async function applyTierRole(member, tier) {
+async function applyTierRole(member, tier, cfg) {
   try {
-    const scRoleIds = allStreetCredRoleIds();
+    const guildCfg = cfg || await getGuildConfig(member.guild.id);
+    const scRoleIds = allStreetCredRoleIds(guildCfg.tiers);
 
-    // Strip all Street Creed roles the member currently holds
-    const toRemove = member.roles.cache.filter(r => scRoleIds.has(r.id));
+    const toRemove = member.roles.cache.filter((r) => scRoleIds.has(r.id));
     if (toRemove.size > 0) {
-      await member.roles.remove([...toRemove.keys()], 'Street Creed tier update');
+      await member.roles.remove([...toRemove.keys()], `${guildCfg.systemName} tier update`);
     }
 
-    // Assign the correct tier role (none for tier 0 — lurker/unranked)
     if (tier >= 1) {
-      const roleId = ROLE_MAP[String(tier)];
+      const roleId = guildCfg.tierByKey.get(tier)?.roleId;
       if (roleId && !roleId.startsWith('PLACEHOLDER')) {
-        await member.roles.add(roleId, `Street Creed tier ${tier}`);
+        await member.roles.add(roleId, `${guildCfg.systemName} tier ${tier}`);
       }
     }
   } catch (err) {
@@ -97,19 +431,89 @@ async function applyTierRole(member, tier) {
 }
 
 /**
- * Remove all Street Creed roles from a member (used for dormancy / mass strip).
+ * Remove all StreetCred roles from a member (used for dormancy / mass strip).
  * @param {GuildMember} member
+ * @param {Object} cfg
  */
-async function removeAllStreetCredRoles(member) {
+async function removeAllStreetCredRoles(member, cfg) {
   try {
-    const scRoleIds = allStreetCredRoleIds();
-    const toRemove = member.roles.cache.filter(r => scRoleIds.has(r.id));
+    const guildCfg = cfg || await getGuildConfig(member.guild.id);
+    const scRoleIds = allStreetCredRoleIds(guildCfg.tiers);
+    const toRemove = member.roles.cache.filter((r) => scRoleIds.has(r.id));
     if (toRemove.size > 0) {
-      await member.roles.remove([...toRemove.keys()], 'Street Creed role strip');
+      await member.roles.remove([...toRemove.keys()], `${guildCfg.systemName} role strip`);
     }
   } catch (err) {
     logger.error(`[STREET_CRED] removeAllStreetCredRoles failed for ${member.id}: ${err.message}`);
   }
+}
+
+function buildTierUpEmbed(member, result, cfg) {
+  const { tier, prevTier, score, messages } = result;
+  const months = tenureMonths(member.joinedAt || new Date());
+  const multiplier = tenureMultiplier(months, cfg.formula);
+
+  const nextTierDef = nextTier(tier, cfg.tiers);
+  const nextGoal = nextTierDef
+    ? `${getTierLabel(nextTierDef.tierKey, cfg)} at ${Math.round(nextTierDef.threshold).toLocaleString()}`
+    : 'Max Tier! 🏆';
+
+  const formattedScore = Math.round(score).toLocaleString();
+  const formattedMessages = messages.toLocaleString();
+
+  let embedColor = 0x2ecc71;
+  const roleId = cfg.tierByKey.get(tier)?.roleId;
+  if (roleId) {
+    const role = member.guild.roles.cache.get(roleId);
+    if (role?.color) embedColor = role.color;
+  }
+
+  if (prevTier === 0) {
+    return new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle(`🏙️ Welcome to ${cfg.systemName}!`)
+      .setThumbnail(member.displayAvatarURL({ size: 128 }))
+      .setDescription(`**${member.displayName}** just earned their first ${cfg.systemName} rank!`)
+      .addFields(
+        { name: 'Rank', value: `${getTierLabel(tier, cfg)} (Tier ${tier})`, inline: true },
+        { name: 'Score', value: formattedScore, inline: true },
+        { name: 'Messages', value: formattedMessages, inline: true },
+        { name: 'Next Goal', value: nextGoal, inline: true },
+      )
+      .setFooter({ text: 'Keep chatting to climb the ranks!' });
+  }
+
+  return new EmbedBuilder()
+    .setColor(embedColor)
+    .setTitle(`⬆️ ${cfg.systemName} Level Up!`)
+    .setThumbnail(member.displayAvatarURL({ size: 128 }))
+    .setDescription(`**${member.displayName}** levelled up!`)
+    .addFields(
+      { name: 'Previous Rank', value: `${getTierLabel(prevTier, cfg)} (Tier ${prevTier})`, inline: true },
+      { name: 'New Rank', value: `${getTierLabel(tier, cfg)} (Tier ${tier})`, inline: true },
+      { name: 'Score', value: formattedScore, inline: true },
+      { name: 'Multiplier', value: `${multiplier.toFixed(2)}×`, inline: true },
+      { name: 'Next Goal', value: nextGoal, inline: true },
+    )
+    .setFooter({ text: '🔥 Keep it up, Choom!' });
+}
+
+async function announceTierUp(guild, member, result, cfg) {
+  const configuredChannelId = cfg.levelupChannelId || getGuildChannelId(guild.id, 'botSpam');
+  if (!configuredChannelId) return;
+
+  const channel = guild.channels.cache.get(configuredChannelId)
+    || await guild.client.channels.fetch(configuredChannelId).catch(() => null);
+
+  if (!channel || typeof channel.send !== 'function') {
+    logger.warn(`[STREET_CRED] Level-up channel ${configuredChannelId} not sendable for guild ${guild.id}`);
+    return;
+  }
+
+  const embed = buildTierUpEmbed(member, result, cfg);
+  await channel.send({ embeds: [embed] }).catch((err) => {
+    logger.warn(`[STREET_CRED] Failed sending level-up announcement in guild ${guild.id}: ${err.message}`);
+  });
 }
 
 // ─── Database helpers ───────────────────────────────────────────────────────
@@ -127,7 +531,7 @@ async function getOrCreateRecord(userId, guildId, joinedAt) {
   if (rows.length > 0) return rows[0];
 
   await pool.execute(
-    `INSERT IGNORE INTO street_cred (user_id, guild_id, joined_at) VALUES (?, ?, ?)`,
+    'INSERT IGNORE INTO street_cred (user_id, guild_id, joined_at) VALUES (?, ?, ?)',
     [userId, guildId, joinedAt ? new Date(joinedAt) : null]
   );
   const [newRows] = await pool.execute(
@@ -140,29 +544,22 @@ async function getOrCreateRecord(userId, guildId, joinedAt) {
 /**
  * Recalculate and persist effective_score + tier for a record using current
  * joined_at. Optionally bumps message count.
- * @param {string} userId
- * @param {string} guildId
- * @param {Object} opts
- * @param {number}  [opts.incrementMessages=0]
- * @param {Date}    [opts.lastMessageAt]
- * @param {Date}    [opts.joinedAt]        — only used for INSERT
  * @returns {{tier: number, score: number, messages: number, changed: boolean}}
  */
-async function recalculate(userId, guildId, opts = {}) {
+async function recalculate(userId, guildId, opts = {}, cfg) {
   const { incrementMessages = 0, lastMessageAt, joinedAt } = opts;
   const pool = await getPool();
+  const guildCfg = cfg || await getGuildConfig(guildId);
 
-  // Fetch current record
   const rec = await getOrCreateRecord(userId, guildId, joinedAt);
 
   const newMessages = rec.messages + incrementMessages;
   const recJoinedAt = rec.joined_at ? new Date(rec.joined_at) : (joinedAt ? new Date(joinedAt) : new Date());
-  const months   = tenureMonths(recJoinedAt);
-  const score    = effectiveScore(newMessages, months);
-  const newTier  = getTier(score);
-  const changed  = newTier !== rec.tier;
+  const months = tenureMonths(recJoinedAt);
+  const score = effectiveScore(newMessages, months, guildCfg.formula);
+  const newTier = getTier(score, guildCfg.tiersDescending);
+  const changed = newTier !== rec.tier;
 
-  const now = new Date();
   const newStatus = lastMessageAt ? 'ACTIVE' : rec.status;
 
   await pool.execute(
@@ -192,7 +589,7 @@ async function recalculate(userId, guildId, opts = {}) {
 // ─── Forward-tracking (called from messageCreate) ─────────────────────────────
 
 /**
- * Lightweight, fire-and-forget Street Creed update triggered by every
+ * Lightweight, fire-and-forget StreetCred update triggered by every
  * non-bot guild message.
  * @param {Message} message  — discord.js Message object
  */
@@ -201,41 +598,41 @@ async function trackMessage(message) {
     const { author, guild, member } = message;
     if (!guild || !member) return null;
 
-    const userId  = author.id;
+    const userId = author.id;
     const guildId = guild.id;
     const joinedAt = member.joinedAt;
+    const cfg = await getGuildConfig(guildId);
 
     const result = await recalculate(userId, guildId, {
       incrementMessages: 1,
       lastMessageAt: new Date(),
       joinedAt,
-    });
+    }, cfg);
 
-if (result.changed || result.prevTier === 0) {
-  // Re-fetch the member in case the cache is stale (with timeout)
-  let freshMember = member;
-  try {
-    const fetchPromise = guild.members.fetch(userId);
-    freshMember = await Promise.race([
-      fetchPromise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 5000))
-    ]).catch(() => member);
-  } catch (err) {
-    logger.warn(`[STREET_CRED] Member fetch timeout for ${userId}: ${err.message}`);
-  }
-  
-  // Silently skip role application if it fails (don't crash)
-  await applyTierRole(freshMember, result.tier).catch(() => {});
+    if (result.changed || result.prevTier === 0) {
+      let freshMember = member;
+      try {
+        const fetchPromise = guild.members.fetch(userId);
+        freshMember = await Promise.race([
+          fetchPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 5000)),
+        ]).catch(() => member);
+      } catch (err) {
+        logger.warn(`[STREET_CRED] Member fetch timeout for ${userId}: ${err.message}`);
+      }
 
-  if (result.changed && result.tier > result.prevTier && result.prevTier !== 0) {
-    logger.info(
-      `[STREET_CRED] ${author.tag} levelled up: SC-${result.prevTier} → SC-${result.tier} ` +
-      `(score: ${result.score.toFixed(0)}, messages: ${result.messages})`
-    );
-  }
-}
+      await applyTierRole(freshMember, result.tier, cfg).catch(() => {});
 
-    // If member was DORMANT, reactivate
+      if (result.changed && result.tier > result.prevTier) {
+        logger.info(
+          `[STREET_CRED] ${author.tag} levelled up: ${getTierLabel(result.prevTier, cfg)} → ${getTierLabel(result.tier, cfg)} ` +
+          `(score: ${result.score.toFixed(0)}, messages: ${result.messages})`
+        );
+
+        await announceTierUp(guild, freshMember, result, cfg);
+      }
+    }
+
     const pool = await getPool();
     const [rows] = await pool.execute(
       'SELECT status FROM street_cred WHERE user_id = ? AND guild_id = ?',
@@ -247,7 +644,7 @@ if (result.changed || result.prevTier === 0) {
         ['ACTIVE', userId, guildId]
       );
       const freshMember = await guild.members.fetch(userId).catch(() => member);
-      await applyTierRole(freshMember, result.tier);
+      await applyTierRole(freshMember, result.tier, cfg);
       logger.info(`[STREET_CRED] ${author.tag} reactivated from DORMANT`);
     }
 
@@ -262,13 +659,14 @@ if (result.changed || result.prevTier === 0) {
 
 /**
  * Set ACTIVE members whose last_message_at is older than dormancyDays to
- * DORMANT and remove their Street Creed roles.
+ * DORMANT and remove their StreetCred roles.
  * @param {Guild} guild
  */
 async function runDormancyCheck(guild) {
   try {
+    const cfg = await getGuildConfig(guild.id);
     const pool = await getPool();
-    const cutoff = new Date(Date.now() - DORMANCY_DAYS * 24 * 60 * 60 * 1000);
+    const cutoff = new Date(Date.now() - cfg.dormancyDays * 24 * 60 * 60 * 1000);
 
     const [rows] = await pool.execute(
       `SELECT user_id FROM street_cred
@@ -285,15 +683,14 @@ async function runDormancyCheck(guild) {
     for (const row of rows) {
       try {
         const member = await guild.members.fetch(row.user_id).catch(() => null);
-        if (member) await removeAllStreetCredRoles(member);
+        if (member) await removeAllStreetCredRoles(member, cfg);
 
         await pool.execute(
-          `UPDATE street_cred SET status = 'DORMANT' WHERE user_id = ? AND guild_id = ?`,
+          'UPDATE street_cred SET status = \'DORMANT\' WHERE user_id = ? AND guild_id = ?',
           [row.user_id, guild.id]
         );
         dormantCount++;
 
-        // Check if the dormant member holds any helper roles and alert #admin-chat
         if (member) {
           const matchedRoles = Object.entries(HELPER_ROLES)
             .filter(([, roleId]) => member.roles.cache.has(roleId))
@@ -302,7 +699,7 @@ async function runDormancyCheck(guild) {
           if (matchedRoles.length > 0) {
             try {
               const adminChannel = guild.channels.cache.get(CHANNELS.ADMIN_CHAT)
-                ?? await guild.client.channels.fetch(CHANNELS.ADMIN_CHAT).catch(() => null);
+                || await guild.client.channels.fetch(CHANNELS.ADMIN_CHAT).catch(() => null);
 
               if (adminChannel) {
                 const embed = new EmbedBuilder()
@@ -310,9 +707,9 @@ async function runDormancyCheck(guild) {
                   .setTitle('⚠️ Dormant Helper Alert')
                   .setDescription(
                     `<@${row.user_id}> has been marked as **DORMANT** and holds the following helper role(s): **${matchedRoles.join(', ')}**.\n\n` +
-                    `They have not sent a message in over ${DORMANCY_DAYS} days. Consider reviewing their helper role assignment.`
+                    `They have not sent a message in over ${cfg.dormancyDays} days. Consider reviewing their helper role assignment.`
                   )
-                  .setFooter({ text: 'Street Cred Dormancy System' })
+                  .setFooter({ text: `${cfg.systemName} Dormancy System` })
                   .setTimestamp();
 
                 await adminChannel.send({ embeds: [embed] });
@@ -339,19 +736,18 @@ async function runDormancyCheck(guild) {
 // ─── Admin: retroactive scan ──────────────────────────────────────────────────
 
 /**
- * Phase 1: Strip all Street Creed roles from all guild members.
- * @param {Guild} guild
- * @param {Function} onProgress  — called with (stripped, total)
+ * Phase 1: Strip all StreetCred roles from all guild members.
  */
 async function stripAllRoles(guild, onProgress) {
-  const scRoleIds = allStreetCredRoleIds();
+  const cfg = await getGuildConfig(guild.id);
+  const scRoleIds = allStreetCredRoleIds(cfg.tiers);
   const members = await guild.members.fetch();
-  const withRoles = members.filter(m => m.roles.cache.some(r => scRoleIds.has(r.id)));
+  const withRoles = members.filter((m) => m.roles.cache.some((r) => scRoleIds.has(r.id)));
   const total = withRoles.size;
   let stripped = 0;
 
   for (const [, member] of withRoles) {
-    await removeAllStreetCredRoles(member);
+    await removeAllStreetCredRoles(member, cfg);
     stripped++;
     if (onProgress) onProgress(stripped, total);
   }
@@ -361,35 +757,27 @@ async function stripAllRoles(guild, onProgress) {
 /**
  * Phase 2–4: Scan all readable text channels, count messages per user, then
  * recalculate tiers and apply roles. Crash-safe via street_cred_scan table.
- * @param {Guild}    guild
- * @param {Function} onChannelProgress  — called with (channelsDone, channelTotal, messagesRead)
- * @param {Function} onAssignProgress   — called with (assigned, total)
  */
 async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
+  const cfg = await getGuildConfig(guild.id);
   const pool = await getPool();
 
-  // Gather text channels
-  const channels = guild.channels.cache.filter(c =>
-    c.isTextBased() && !c.isThread() && c.viewable
-  );
+  const channels = guild.channels.cache.filter((c) => c.isTextBased() && !c.isThread() && c.viewable);
   const channelList = [...channels.values()];
   const total = channelList.length;
 
-  // Seed the scan table with any not-yet-seen channels
   for (const ch of channelList) {
     await pool.execute(
-      `INSERT IGNORE INTO street_cred_scan (guild_id, channel_id) VALUES (?, ?)`,
+      'INSERT IGNORE INTO street_cred_scan (guild_id, channel_id) VALUES (?, ?)',
       [guild.id, ch.id]
     );
   }
 
-  // Map userId -> { messages, lastMessageAt }
   const counts = new Map();
   let channelsDone = 0;
   let totalMessages = 0;
 
   for (const ch of channelList) {
-    // Skip already-completed channels
     const [scanRows] = await pool.execute(
       'SELECT completed FROM street_cred_scan WHERE guild_id = ? AND channel_id = ?',
       [guild.id, ch.id]
@@ -424,7 +812,6 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
 
         lastId = batch.last().id;
 
-        // Persist partial progress every 1,000 messages
         if (channelMessages % 1000 === 0) {
           await pool.execute(
             'UPDATE street_cred_scan SET messages_read = ? WHERE guild_id = ? AND channel_id = ?',
@@ -448,13 +835,14 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
     if (onChannelProgress) onChannelProgress(channelsDone, total, totalMessages);
   }
 
-  // Phase 3: Calculate and persist tiers
   for (const [userId, data] of counts) {
     try {
       let member = null;
       try {
         member = await guild.members.fetch(userId);
-      } catch (_) { /* user left */ }
+      } catch (_) {
+        // user left
+      }
 
       const joinedAt = member ? member.joinedAt : null;
       await pool.execute(
@@ -470,7 +858,7 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
           userId,
           guild.id,
           data.messages,
-          0, // will be recalculated below
+          0,
           0,
           data.lastMessageAt ? new Date(data.lastMessageAt) : null,
           joinedAt ? new Date(joinedAt) : null,
@@ -481,7 +869,6 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
     }
   }
 
-  // Recalculate effective scores & tiers from DB data
   const [allRecords] = await pool.execute(
     'SELECT user_id, messages, joined_at FROM street_cred WHERE guild_id = ?',
     [guild.id]
@@ -489,18 +876,17 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
   for (const rec of allRecords) {
     const ja = rec.joined_at ? new Date(rec.joined_at) : new Date();
     const months = tenureMonths(ja);
-    const score  = effectiveScore(rec.messages, months);
-    const tier   = getTier(score);
+    const score = effectiveScore(rec.messages, months, cfg.formula);
+    const tier = getTier(score, cfg.tiersDescending);
     await pool.execute(
       'UPDATE street_cred SET effective_score = ?, tier = ? WHERE user_id = ? AND guild_id = ?',
       [score, tier, rec.user_id, guild.id]
     );
   }
 
-  // Phase 4: Assign roles
-  const cutoff = new Date(Date.now() - DORMANCY_DAYS * 24 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - cfg.dormancyDays * 24 * 60 * 60 * 1000);
   const [activeCandidates] = await pool.execute(
-    `SELECT user_id, tier, last_message_at FROM street_cred WHERE guild_id = ? AND messages > 0`,
+    'SELECT user_id, tier, last_message_at FROM street_cred WHERE guild_id = ? AND messages > 0',
     [guild.id]
   );
 
@@ -513,14 +899,14 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
 
       const isActive = rec.last_message_at && new Date(rec.last_message_at) >= cutoff;
       if (isActive) {
-        await applyTierRole(member, rec.tier);
+        await applyTierRole(member, rec.tier, cfg);
         await pool.execute(
-          `UPDATE street_cred SET status = 'ACTIVE' WHERE user_id = ? AND guild_id = ?`,
+          'UPDATE street_cred SET status = \'ACTIVE\' WHERE user_id = ? AND guild_id = ?',
           [rec.user_id, guild.id]
         );
       } else {
         await pool.execute(
-          `UPDATE street_cred SET status = 'DORMANT' WHERE user_id = ? AND guild_id = ?`,
+          'UPDATE street_cred SET status = \'DORMANT\' WHERE user_id = ? AND guild_id = ?',
           [rec.user_id, guild.id]
         );
       }
@@ -538,17 +924,13 @@ async function runRetroactiveScan(guild, onChannelProgress, onAssignProgress) {
 
 /**
  * Override a member's message count and recalculate.
- * @param {string} userId
- * @param {string} guildId
- * @param {number} messageCount
- * @param {Date}   joinedAt
- * @returns {{tier, score, messages}}
  */
 async function adminSync(userId, guildId, messageCount, joinedAt) {
   const pool = await getPool();
+  const cfg = await getGuildConfig(guildId);
   const months = tenureMonths(joinedAt ? new Date(joinedAt) : new Date());
-  const score  = effectiveScore(messageCount, months);
-  const tier   = getTier(score);
+  const score = effectiveScore(messageCount, months, cfg.formula);
+  const tier = getTier(score, cfg.tiersDescending);
 
   await pool.execute(
     `INSERT INTO street_cred (user_id, guild_id, messages, effective_score, tier, joined_at)
@@ -566,12 +948,10 @@ async function adminSync(userId, guildId, messageCount, joinedAt) {
 
 /**
  * Recalculate all tiers for a guild from current DB data and apply roles.
- * @param {string} guildId
- * @param {Guild} [guild] - Optional guild object to apply roles. If provided, roles will be assigned.
- * @returns {number} count of records updated
  */
 async function recalculateAll(guildId, guild) {
   const pool = await getPool();
+  const cfg = await getGuildConfig(guildId);
   const [rows] = await pool.execute(
     'SELECT user_id, messages, joined_at FROM street_cred WHERE guild_id = ?',
     [guildId]
@@ -581,21 +961,19 @@ async function recalculateAll(guildId, guild) {
     try {
       const ja = row.joined_at ? new Date(row.joined_at) : new Date();
       const months = tenureMonths(ja);
-      const score  = effectiveScore(row.messages, months);
-      const tier   = getTier(score);
-      
-      // Update database
+      const score = effectiveScore(row.messages, months, cfg.formula);
+      const tier = getTier(score, cfg.tiersDescending);
+
       await pool.execute(
         'UPDATE street_cred SET effective_score = ?, tier = ? WHERE user_id = ? AND guild_id = ?',
         [score, tier, row.user_id, guildId]
       );
 
-      // Apply tier role if guild object is provided
       if (guild) {
         try {
           const member = await guild.members.fetch(row.user_id).catch(() => null);
           if (member) {
-            await applyTierRole(member, tier);
+            await applyTierRole(member, tier, cfg);
           }
         } catch (memberErr) {
           logger.warn(`[STREET_CRED] recalculateAll: failed to apply role for ${row.user_id}: ${memberErr.message}`);
@@ -613,7 +991,7 @@ async function recalculateAll(guildId, guild) {
 // ─── Profile / leaderboard queries ───────────────────────────────────────────
 
 /**
- * Fetch a single member's Street Creed record.
+ * Fetch a single member's StreetCred record.
  */
 async function getProfile(userId, guildId) {
   const pool = await getPool();
@@ -626,10 +1004,6 @@ async function getProfile(userId, guildId) {
 
 /**
  * Fetch top members ordered by effective_score.
- * @param {string}  guildId
- * @param {number}  page        — 1-indexed
- * @param {number}  pageSize
- * @param {boolean} activeOnly  — if true, only ACTIVE members
  * @returns {{ rows: Array, totalCount: number }}
  */
 async function getLeaderboard(guildId, page = 1, pageSize = 10, activeOnly = true) {
@@ -661,10 +1035,6 @@ async function getLeaderboard(guildId, page = 1, pageSize = 10, activeOnly = tru
 
 /**
  * Returns all ACTIVE members for a guild, ordered by effective_score DESC.
- * Used by the "Members only" leaderboard filter to allow in-memory filtering
- * and pagination after excluding staff by Discord role.
- * @param {string} guildId
- * @returns {Array}
  */
 async function getAllActive(guildId) {
   const pool = await getPool();
@@ -685,7 +1055,7 @@ async function getUserRank(userId, guildId, activeOnly = true) {
   const pool = await getPool();
   const whereClause = activeOnly ? "guild_id = ? AND status = 'ACTIVE'" : 'guild_id = ?';
   const [rows] = await pool.execute(
-      `SELECT COUNT(*) + 1 AS \`rank\` FROM street_cred
+    `SELECT COUNT(*) + 1 AS \`rank\` FROM street_cred
       WHERE ${whereClause} AND effective_score > (
         SELECT COALESCE(effective_score, 0) FROM street_cred WHERE user_id = ? AND guild_id = ?
       )`,
@@ -721,34 +1091,23 @@ async function getStatusStats(guildId) {
   return { members: rows[0], scan: scanRows[0] };
 }
 
-// ─── Utility ───────────────────────────────────────────────────────────────
-
-/**
- * Returns the effective score threshold for the next tier above currentTier.
- * Returns null if already at max tier.
- */
-function nextTierThreshold(currentTier) {
-  const idx = TIERS.indexOf(currentTier);
-  if (idx === 0) return null; // already at SC-100 (max tier)
-  if (idx === -1) return Number(THRESHOLDS[1]); // tier 0 (unranked) → show progress to SC-1
-  return Number(THRESHOLDS[TIERS[idx - 1]]);
-}
-
-/**
- * Returns the effective score threshold for the current tier.
- */
-function currentTierThreshold(tier) {
-  return tier >= 1 ? Number(THRESHOLDS[tier]) : 0;
-}
-
 module.exports = {
+  // Config
+  getGuildConfig,
+  setGuildConfigFields,
+  setGuildTier,
+  removeGuildTier,
+  listGuildTiers,
+  resetGuildConfig,
   // Calculations
   tenureMonths,
   tenureMultiplier,
   effectiveScore,
   getTier,
+  nextTier,
   nextTierThreshold,
   currentTierThreshold,
+  getTierLabel,
   // Role management
   applyTierRole,
   removeAllStreetCredRoles,
@@ -771,9 +1130,4 @@ module.exports = {
   getAllActive,
   getUserRank,
   getStatusStats,
-  // Config
-  TIERS,
-  THRESHOLDS,
-  ROLE_MAP,
-  DORMANCY_DAYS,
 };
