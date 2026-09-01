@@ -4,6 +4,35 @@ const logger = require('./logger');
 
 let listenerRegistered = false;
 
+// Helper function for safe member fetch with timeout
+async function fetchMemberSafe(guild, userId, timeoutMs = 2000) {
+  try {
+    let timeoutId;
+    let timedOut = false;
+
+    const fetchPromise = guild.members.fetch(userId).catch(() => null);
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        resolve(null);
+      }, timeoutMs);
+    });
+
+    const result = await Promise.race([fetchPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    
+    if (timedOut) {
+      logger.warn(`[IMAGE_ONLY] Member fetch timed out for user ${userId} in guild ${guild.id}`);
+      return null;
+    }
+
+    return result;
+  } catch (err) {
+    logger.warn(`[IMAGE_ONLY] Member fetch error for user ${userId}: ${err.message}`);
+    return null;
+  }
+}
+
 module.exports = (client) => {
   if (listenerRegistered) return;
   listenerRegistered = true;
@@ -15,8 +44,8 @@ module.exports = (client) => {
       const guildId = message.guild.id;
       const channelId = message.channel.id;
 
-      // Fetch the member object for permission checks
-      const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+      // Fetch the member object for permission checks with timeout
+      const member = await fetchMemberSafe(message.guild, message.author.id, 2000);
       if (!member) return;
 
       // Admins bypass check (Administrator permission)
