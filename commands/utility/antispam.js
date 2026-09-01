@@ -1,9 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const spamDetector = require('../services/spam/SpamDetector');
-const SpamActionHandler = require('../services/spam/SpamActionHandler');
-const logger = require('../utils/logger');
+const spamDetector = require('../../services/spam/SpamDetector');
+const SpamActionHandler = require('../../services/spam/SpamActionHandler');
+const logger = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
