@@ -8,6 +8,7 @@ const logger = require('./utils/logger');
 const { logMissingRequiredGuildChannelMappings } = require('./utils/guildConfig');
 const { installProcessErrorHandlers, startRuntimeMonitor } = require('./utils/runtimeMonitor');
 
+// Install global error handlers
 installProcessErrorHandlers(logger);
 
 // Graceful shutdown
@@ -31,6 +32,7 @@ if (process.env.AUTO_SYNC_COMMANDS === 'true') {
     });
 }
 
+// Create Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -42,8 +44,8 @@ const client = new Client({
   ],
 });
 
-const imageOnlyHandler = require('./utils/imageOnlyHandler');
-imageOnlyHandler(client);
+// Handlers
+require('./utils/imageOnlyHandler')(client);
 require('./utils/welcomeHandler')(client);
 
 // Load commands
@@ -58,6 +60,7 @@ let failedCount = 0;
 for (const file of commandFiles) {
   try {
     const command = require(`./commands/${file}`);
+
     if (Array.isArray(command)) {
       for (const subcommand of command) {
         if (subcommand.data && typeof subcommand.execute === 'function') {
@@ -94,7 +97,7 @@ if (runtimeRegistrationFailed) {
   process.exit(1);
 }
 
-// Load events from events/ directory
+// Load events
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
@@ -109,13 +112,15 @@ for (const file of eventFiles) {
 
 logger.info(`✨ Events loaded successfully`);
 
-client.once('ready', () => {
-  logger.info(`Ready! Logged in as ${client.user.tag}`);
+// Remove deprecated ready event — now handled in ready.js
+client.once('clientReady', () => {
   logMissingRequiredGuildChannelMappings(client);
 });
 
+// Start runtime monitor
 startRuntimeMonitor(client, logger);
 
+// Login
 client.login(process.env.DISCORD_TOKEN).catch((error) => {
   logger.error('[DISCORD] Failed to login', { error });
   process.exit(1);
