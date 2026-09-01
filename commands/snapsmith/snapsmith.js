@@ -5,10 +5,10 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require('discord.js');
-const logger = require('../utils/logger');
-const { PermissionChecker } = require('../utils/permissions');
-const snapsmith = require('../services/SnapSmithService');
-const CONSTANTS = require('../config/constants');
+const logger = require('../../utils/logger');
+const { PermissionChecker } = require('../../utils/permissions');
+const snapsmith = require('../../services/SnapSmithService');
+const CONSTANTS = require('../../config/constants');
 
 // ─── Helper: Check if user is Ripperdoc+ ──────────────────────────────────────
 
