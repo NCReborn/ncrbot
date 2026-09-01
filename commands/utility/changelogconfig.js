@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const guildConfigManager = require('../config/guildConfigManager');
-const GameVersionManager = require('../utils/GameVersionManager');
-const logger = require('../utils/logger');
+const guildConfigManager = require('../../config/guildConfigManager');
+const GameVersionManager = require('../../utils/GameVersionManager');
+const logger = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
