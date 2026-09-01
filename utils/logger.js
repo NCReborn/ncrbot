@@ -3,12 +3,26 @@ const { createLogger, format, transports } = require('winston');
 
 const SPLAT = Symbol.for('splat');
 
-function formatValue(value) {
+function normalizeValue(value) {
   if (value instanceof Error) {
     return value.stack || `${value.name}: ${value.message}`;
   }
 
-  return util.inspect(value, {
+  if (Array.isArray(value)) {
+    return value.map(normalizeValue);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, normalizeValue(nestedValue)])
+    );
+  }
+
+  return value;
+}
+
+function formatValue(value) {
+  return util.inspect(normalizeValue(value), {
     depth: 6,
     colors: false,
     compact: true,

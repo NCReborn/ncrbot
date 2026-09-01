@@ -72,15 +72,15 @@ function buildContext(client, state, sample) {
 }
 
 function createProcessSample(previousSample) {
-  const memory = process.memoryUsage();
   const cpu = process.cpuUsage();
   const now = Date.now();
+  const memory = process.memoryUsage();
 
   if (!previousSample) {
     return {
       at: now,
       memory,
-      cpu,
+      cpuUsageSnapshot: cpu,
       cpuUserMs: 0,
       cpuSystemMs: 0,
       cpuPercent: 0,
@@ -88,13 +88,14 @@ function createProcessSample(previousSample) {
   }
 
   const elapsedMicros = Math.max((now - previousSample.at) * 1000, 1);
-  const cpuDiff = process.cpuUsage(previousSample.cpu);
+  // This snapshot must always be captured via process.cpuUsage() with no baseline.
+  const cpuDiff = process.cpuUsage(previousSample.cpuUsageSnapshot);
   const totalCpuMicros = cpuDiff.user + cpuDiff.system;
 
   return {
     at: now,
     memory,
-    cpu,
+    cpuUsageSnapshot: cpu,
     cpuUserMs: Number((cpuDiff.user / 1000).toFixed(2)),
     cpuSystemMs: Number((cpuDiff.system / 1000).toFixed(2)),
     cpuPercent: Number(((totalCpuMicros / elapsedMicros) * 100).toFixed(2)),
@@ -125,10 +126,6 @@ function installProcessErrorHandlers(logger) {
     logger.warn('[PROCESS] Runtime warning', { warning });
   });
 
-  process.on('multipleResolves', (type, _promise, value) => {
-    logger.warn('[PROCESS] Promise resolved/rejected multiple times', { type, value });
-  });
-
   process.on('beforeExit', (code) => {
     logger.warn('[PROCESS] beforeExit fired', { code });
   });
@@ -156,7 +153,9 @@ function startRuntimeMonitor(client, logger) {
   const logHealth = (level = 'info', message = '[HEALTH] Runtime snapshot') => {
     const sample = createProcessSample(previousSample);
     previousSample = sample;
-    logger[level](message, buildContext(client, state, sample));
+    const context = buildContext(client, state, sample);
+    logger[level](message, context);
+    return context;
   };
 
   const startupTimer = setTimeout(() => {
@@ -247,11 +246,11 @@ function startRuntimeMonitor(client, logger) {
   }
 
   const interval = setInterval(() => {
-    logHealth();
-
-    if (client.isReady() && state.lastRawAt && Date.now() - state.lastRawAt > staleThresholdMs) {
-      logHealth('warn', '[HEALTH] No raw Discord events observed within stale threshold');
-    }
+    const isStale = client.isReady() && state.lastRawAt && Date.now() - state.lastRawAt > staleThresholdMs;
+    logHealth(
+      isStale ? 'warn' : 'info',
+      isStale ? '[HEALTH] No raw Discord events observed within stale threshold' : '[HEALTH] Runtime snapshot'
+    );
   }, intervalMs);
   interval.unref();
 }
