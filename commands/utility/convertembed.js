@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
-const { convertChangelogToNexusMarkdownFromEmbeds } = require('../utils/changelogConverter');
+const { convertChangelogToNexusMarkdownFromEmbeds } = require('../../utils/changelogConverter');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
