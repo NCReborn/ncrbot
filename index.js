@@ -122,4 +122,28 @@ client.once('ready', () => {
   logMissingRequiredGuildChannelMappings(client);
 });
 
+client.on('error', (error) => {
+  logger.error(`[DISCORD] Client error: ${error && error.stack ? error.stack : error}`);
+});
+
+client.on('warn', (warning) => {
+  logger.warn(`[DISCORD] ${warning}`);
+});
+
+client.on('shardDisconnect', (event, shardId) => {
+  logger.warn(`[DISCORD] Shard ${shardId} disconnected (code=${event.code}, reason=${event.reason || 'n/a'}, clean=${event.wasClean})`);
+});
+
+client.on('shardReconnecting', (shardId) => {
+  logger.info(`[DISCORD] Shard ${shardId} reconnecting...`);
+});
+
+client.on('shardResume', (shardId, replayedEvents) => {
+  logger.info(`[DISCORD] Shard ${shardId} resumed (replayed events: ${replayedEvents})`);
+});
+
+client.on('invalidated', () => {
+  logger.error('[DISCORD] Session invalidated. A full reconnect is required.');
+});
+
 client.login(process.env.DISCORD_TOKEN);
