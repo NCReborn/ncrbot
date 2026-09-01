@@ -66,6 +66,37 @@ async function ensureSchema(p) {
   `);
 
   // ───────────────────────────────────────────────────────────────
+  // STREET CRED CONFIG TABLES (PER-GUILD SETTINGS)
+  // ───────────────────────────────────────────────────────────────
+  await p.execute(`
+    CREATE TABLE IF NOT EXISTS street_cred_config (
+      guild_id           VARCHAR(20)  NOT NULL,
+      system_name        VARCHAR(100) NOT NULL DEFAULT 'Street Creed',
+      dormancy_days      INT          NOT NULL DEFAULT 120,
+      tenure_divisor     DOUBLE       NOT NULL DEFAULT 10,
+      base_multiplier    DOUBLE       NOT NULL DEFAULT 1.75,
+      levelup_channel_id VARCHAR(20)  NULL,
+      created_at         DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at         DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (guild_id)
+    )
+  `);
+
+  await p.execute(`
+    CREATE TABLE IF NOT EXISTS street_cred_tiers (
+      guild_id    VARCHAR(20)  NOT NULL,
+      tier_key    INT          NOT NULL,
+      tier_name   VARCHAR(100) NOT NULL,
+      threshold   DOUBLE       NOT NULL,
+      role_id     VARCHAR(20)  NULL,
+      created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at  DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (guild_id, tier_key),
+      INDEX idx_street_cred_tiers_guild_threshold (guild_id, threshold)
+    )
+  `);
+
+  // ───────────────────────────────────────────────────────────────
   // MESSAGE ANALYTICS TABLE
   // ───────────────────────────────────────────────────────────────
   await p.execute(`
