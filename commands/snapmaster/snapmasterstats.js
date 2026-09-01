@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const snapmaster = require("../utils/snapmaster");
-const { PermissionChecker } = require("../utils/permissions");
+const snapmaster = require("../../utils/snapmaster");
+const { PermissionChecker } = require("../../utils/permissions");
 
 module.exports = {
     data: new SlashCommandBuilder()
