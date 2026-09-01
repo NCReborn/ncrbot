@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
-const moderationService = require('../services/ModerationService');
-const logger = require('../utils/logger');
+const moderationService = require('../../services/ModerationService');
+const logger = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
