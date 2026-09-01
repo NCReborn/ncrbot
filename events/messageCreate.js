@@ -17,157 +17,99 @@ const warnedMissingShowcaseGuilds = new Set();
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
-    return trackHandlerExecution('messageCreate', {
-      guildId: message.guild?.id || null,
-      channelId: message.channelId || null,
-      authorId: message.author?.id || null,
-      messageId: message.id || null,
-      isBot: Boolean(message.author?.bot),
-    }, async () => {
-      await handleModRequestModeration(message);
+    return trackHandlerExecution(
+      'messageCreate',
+      {
+        guildId: message.guild?.id || null,
+        channelId: message.channelId || null,
+        authorId: message.author?.id || null,
+        messageId: message.id || null,
+        isBot: Boolean(message.author?.bot),
+      },
+      async () => {
+        await handleModRequestModeration(message);
 
-      const spamActionHandler = SpamActionHandler.getInstance(client);
+        const spamActionHandler = SpamActionHandler.getInstance(client);
 
-      // Log analysis for crash log channel
-      if (
-        message.channelId === CONSTANTS.CHANNELS.CRASH_LOG &&
-        !message.author.bot &&
-        message.attachments.size > 0
-      ) {
+        // ⭐ Autoresponder (mods only)
         try {
-          const embeds = [];
-          let hasErrors = false;
+          if (!message.author.bot && PermissionChecker.hasModRole(message.member)) {
+            const responses = loadResponses(message.guild?.id);
+            for (const entry of responses) {
+              const msgContent = message.content.toLowerCase();
+              const trigger = entry.trigger.toLowerCase();
 
-          for (const [, attachment] of message.attachments) {
-            const logContent = await fetchLogAttachment(attachment);
-            if (!logContent) continue;
+              const isMatch = entry.wildcard
+                ? msgContent.includes(trigger)
+                : msgContent === trigger;
 
-            const analysisResult = await analyzeLogForErrors(logContent);
-            const embed = buildErrorEmbed(attachment, analysisResult, logContent, message.url);
-            embeds.push(embed);
+              const allowedChannels = entry.allowedChannelIds;
+              const channelAllowed =
+                !allowedChannels ||
+                allowedChannels.length === 0 ||
+                allowedChannels.includes(message.channelId);
 
-            if (analysisResult.matchedRules.length > 0) hasErrors = true;
-          }
-
-          if (embeds.length) {
-            await message.channel.send({ embeds });
-
-            if (hasErrors) {
-              await message.react('❌');
-            } else {
-              await message.react('✅');
+              if (isMatch && channelAllowed) {
+                await message.channel.send({ content: entry.response });
+                break;
+              }
             }
           }
         } catch (err) {
-          logger.error(`[MESSAGE_CREATE] Uncaught error: ${err.stack || err}`);
+          logger.error(`[MESSAGE_CREATE][AUTORESPONDER] Uncaught error: ${err.stack || err}`);
         }
-      }
 
-      // Autoresponder (mods only)
-      try {
-        if (!message.author.bot && PermissionChecker.hasModRole(message.member)) {
-          const responses = loadResponses(message.guild?.id);
-          for (const entry of responses) {
-            const msgContent = message.content.toLowerCase();
-            const trigger = entry.trigger.toLowerCase();
+        // ⭐ Anti-spam detection
+        try {
+          if (message.author.bot || !message.guild) return;
 
-            const isMatch = entry.wildcard
-              ? msgContent.includes(trigger)
-              : msgContent === trigger;
+          const detectionResult = await spamDetector.detectSpam(message, message.member);
 
-            const allowedChannels = entry.allowedChannelIds;
-            const channelAllowed =
-              !allowedChannels ||
-              allowedChannels.length === 0 ||
-              allowedChannels.includes(message.channelId);
+          if (detectionResult?.detected) {
+            await spamActionHandler.handleDetection(detectionResult, message);
+          }
+        } catch (err) {
+          logger.error('[SPAM] Error:', err);
+        }
 
-            if (isMatch && channelAllowed) {
-              await message.channel.send({ content: entry.response });
-              break;
+        // ⭐⭐⭐ SNAPMASTER TRACKING ⭐⭐⭐
+        try {
+          const showcaseChannelId = getGuildChannelId(message.guild?.id, 'showcase');
+          if (message.guild && !showcaseChannelId && !warnedMissingShowcaseGuilds.has(message.guild.id)) {
+            warnedMissingShowcaseGuilds.add(message.guild.id);
+            logger.warn(`[SNAPMASTER] Missing showcase channel mapping for guild ${message.guild.id}.`);
+          }
+
+          if (!message.author.bot && showcaseChannelId && message.channel.id === showcaseChannelId) {
+            const attachments = [...message.attachments.values()];
+            const imageAttachments = attachments.filter((a) => a.contentType?.startsWith('image'));
+            const imageCount = imageAttachments.length;
+
+            if (imageCount > 0) {
+              const link = `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`;
+              const imageUrls = imageAttachments.map((a) => a.url);
+              snapmaster.addSubmission(message.author.id, imageCount, link, imageUrls);
+
+              console.log(`SnapMaster: +${imageCount} submission(s) for ${message.author.tag}`);
             }
           }
-        }
-      } catch (err) {
-        logger.error(`[MESSAGE_CREATE][AUTORESPONDER] Uncaught error: ${err.stack || err}`);
-      }
-
-      // Anti-spam detection
-      try {
-        if (message.author.bot || !message.guild) return;
-
-        const detectionResult = await spamDetector.detectSpam(message, message.member);
-
-        if (detectionResult?.detected) {
-          await spamActionHandler.handleDetection(detectionResult, message);
-        }
-      } catch (err) {
-        logger.error('[SPAM] Error:', err);
-      }
-
-      // NSFW scanning - DISABLED
-      // TODO: Re-enable if NsfwDetector service is restored
-      // try {
-      //   if (
-      //     !message.author.bot &&
-      //     message.guild &&
-      //     !PermissionChecker.hasModRole(message.member) &&
-      //     nsfwDetector.isMonitoredChannel(message.channelId) &&
-      //     message.attachments.size > 0
-      //   ) {
-      //     for (const [, attachment] of message.attachments) {
-      //       if (!attachment.contentType?.startsWith('image/')) continue;
-      //
-      //       const result = await nsfwDetector.classifyImage(attachment.url);
-      //       if (!result || result.skipped) continue;
-      //
-      //       if (result.confidenceLevel === 'high') {
-      //         await nsfwActionHandler.handleHighConfidence(client, message, result.predictions, attachment.url, result.hash);
-      //       } else if (result.confidenceLevel === 'medium') {
-      //         await nsfwActionHandler.handleMediumConfidence(client, message, result.predictions, attachment.url, result.hash);
-      //       }
-      //     }
-      //   }
-      // } catch (err) {
-      //   logger.error('[NSFW] Error during image scanning:', err);
-      // }
-
-      // ⭐⭐⭐ SNAPMASTER TRACKING ⭐⭐⭐
-      try {
-        const showcaseChannelId = getGuildChannelId(message.guild?.id, 'showcase');
-        if (message.guild && !showcaseChannelId && !warnedMissingShowcaseGuilds.has(message.guild.id)) {
-          warnedMissingShowcaseGuilds.add(message.guild.id);
-          logger.warn(`[SNAPMASTER] Missing showcase channel mapping for guild ${message.guild.id}.`);
-        }
-
-        if (!message.author.bot && showcaseChannelId && message.channel.id === showcaseChannelId) {
-          const attachments = [...message.attachments.values()];
-          const imageAttachments = attachments.filter(a => a.contentType?.startsWith("image"));
-          const imageCount = imageAttachments.length;
-
-          if (imageCount > 0) {
-            const link = `https://discord.com/channels/${message.guild.id}/${message.channel.id}/${message.id}`;
-            const imageUrls = imageAttachments.map(a => a.url);
-            snapmaster.addSubmission(message.author.id, imageCount, link, imageUrls);
-
-            console.log(`SnapMaster: +${imageCount} submission(s) for ${message.author.tag}`);
-          }
-        }
-      } catch (err) {
-        logger.error(`[SNAPMASTER] Error: ${err.stack || err}`);
-      }
-
-      // Street Creed tracking
-      if (!message.author.bot && message.guild) {
-        try {
-          await streetCredService.trackMessage(message);
         } catch (err) {
-          logger.error(`[STREET_CRED] trackMessage uncaught: ${err.message}`);
+          logger.error(`[SNAPMASTER] Error: ${err.stack || err}`);
         }
 
-        analyticsService.trackMessageAnalytics(message).catch(err =>
-          logger.error(`[ANALYTICS] trackMessageAnalytics uncaught: ${err.message}`)
-        );
+        // ⭐ StreetCred + Analytics
+        if (!message.author.bot && message.guild) {
+          try {
+            await streetCredService.trackMessage(message);
+          } catch (err) {
+            logger.error(`[STREET_CRED] trackMessage uncaught: ${err.message}`);
+          }
+
+          analyticsService.trackMessageAnalytics(message).catch((err) =>
+            logger.error(`[ANALYTICS] trackMessageAnalytics uncaught: ${err.message}`)
+          );
+        }
       }
-    });
-  }
+    );
+  },
 };
