@@ -42,6 +42,9 @@ const client = new Client({
   ],
 });
 
+const setupGuildProfiles = require('./applyGuildProfiles');
+setupGuildProfiles(client);
+
 const imageOnlyHandler = require('./utils/imageOnlyHandler');
 imageOnlyHandler(client);
 require('./utils/welcomeHandler')(client);
