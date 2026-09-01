@@ -241,13 +241,45 @@ function buildLeaderboardButtons(page, show) {
 }
 
 function formatTierList(cfg) {
-  if (!cfg.tiers.length) return '_No tiers configured._';
-  return cfg.tiers
+  const tiers = Array.isArray(cfg?.tiers) ? cfg.tiers : [];
+  if (!tiers.length) return 'No tiers configured.';
+  return tiers
     .map((tier) => {
       const roleValue = tier.roleId ? `<@&${tier.roleId}>` : '—';
       return `Tier ${tier.tierKey}: **${tier.tierName}** · threshold **${formatScore(tier.threshold)}** · role ${roleValue}`;
     })
     .join('\n');
+}
+
+function chunkTextForEmbed(text, maxLength = 1024) {
+  const safeText = String(text ?? '').trim();
+  if (!safeText) return ['No tiers configured.'];
+
+  const chunks = [];
+  let current = '';
+
+  for (const rawLine of safeText.split('\n')) {
+    let line = rawLine;
+    while (line.length > maxLength) {
+      if (current) {
+        chunks.push(current);
+        current = '';
+      }
+      chunks.push(line.slice(0, maxLength));
+      line = line.slice(maxLength);
+    }
+
+    const next = current ? `${current}\n${line}` : line;
+    if (next.length > maxLength) {
+      if (current) chunks.push(current);
+      current = line;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : ['No tiers configured.'];
 }
 
 // ─── /streetcred-admin ────────────────────────────────────────────────────────
@@ -547,20 +579,32 @@ async function handleConfigShow(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const cfg = await scs.getGuildConfig(interaction.guild.id, { noCache: true });
+  const tiers = Array.isArray(cfg.tiers) ? cfg.tiers : [];
+  const formula = cfg.formula || {};
+  const tiersText = formatTierList(cfg);
+  const tierChunks = chunkTextForEmbed(tiersText, 1024);
+  const fields = [
+    { name: 'Source', value: cfg.source === 'guild_override' ? 'Guild override' : 'Defaults (not overridden for this guild)' },
+    { name: 'System Name', value: String(cfg.systemName || 'StreetCred'), inline: true },
+    { name: 'Dormancy Days', value: String(cfg.dormancyDays ?? 0), inline: true },
+    { name: 'Level-up Channel', value: cfg.levelupChannelId ? `<#${cfg.levelupChannelId}>` : 'Not set (uses existing fallback)', inline: true },
+    { name: 'Base Multiplier', value: String(formula.baseMultiplier ?? 0), inline: true },
+    { name: 'Tenure Divisor', value: String(formula.tenureDivisor ?? 0), inline: true },
+    { name: '\u200b', value: '\u200b', inline: true },
+  ];
+
+  tierChunks.forEach((chunk, index) => {
+    fields.push({
+      name: index === 0 ? `Tiers (${tiers.length})` : `Tiers (cont. ${index + 1})`,
+      value: String(chunk || 'No tiers configured.'),
+      inline: false,
+    });
+  });
 
   const embed = new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle(`⚙️ ${cfg.systemName} Configuration`)
-    .addFields(
-      { name: 'Source', value: cfg.source === 'guild_override' ? 'Guild override' : 'Defaults (not overridden for this guild)' },
-      { name: 'System Name', value: cfg.systemName, inline: true },
-      { name: 'Dormancy Days', value: String(cfg.dormancyDays), inline: true },
-      { name: 'Level-up Channel', value: cfg.levelupChannelId ? `<#${cfg.levelupChannelId}>` : 'Not set (uses existing fallback)', inline: true },
-      { name: 'Base Multiplier', value: String(cfg.formula.baseMultiplier), inline: true },
-      { name: 'Tenure Divisor', value: String(cfg.formula.tenureDivisor), inline: true },
-      { name: '\u200b', value: '\u200b', inline: true },
-      { name: `Tiers (${cfg.tiers.length})`, value: formatTierList(cfg) }
-    )
+    .addFields(fields)
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
