@@ -16,6 +16,35 @@ function formatUserTag(user) {
   return user.username || user.tag || 'Unknown User';
 }
 
+// Helper function for safe member fetch with timeout
+async function fetchMemberSafe(guild, userId, timeoutMs = 2000) {
+  try {
+    let timeoutId;
+    let timedOut = false;
+
+    const fetchPromise = guild.members.fetch(userId).catch(() => null);
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        resolve(null);
+      }, timeoutMs);
+    });
+
+    const result = await Promise.race([fetchPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    
+    if (timedOut) {
+      logger.warn(`[AUDIT_LOGGER] Member fetch timed out for user ${userId} in guild ${guild.id}`);
+      return null;
+    }
+
+    return result;
+  } catch (err) {
+    logger.warn(`[AUDIT_LOGGER] Member fetch error for user ${userId}: ${err.message}`);
+    return null;
+  }
+}
+
 const DEFAULT_EVENTS = {
   guildBanAdd: { enabled: true, name: 'Member Banned', color: 16729943, emoji: '🔨' },
   guildBanRemove: { enabled: true, name: 'Member Unbanned', color: 3069299, emoji: '🔓' },
@@ -657,7 +686,7 @@ class AuditLogger {
 
   async logThreadCreated(client, thread) {
     const owner = thread.ownerId
-      ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } }))
+      ? await fetchMemberSafe(thread.guild, thread.ownerId, 2000)
       : null;
 
     const embed = this.createBaseEmbed('threadCreate', owner?.user, thread.guild);
@@ -680,7 +709,7 @@ class AuditLogger {
 
   async logThreadDeleted(client, thread) {
     const owner = thread.ownerId
-      ? await thread.guild.members.fetch(thread.ownerId).catch(() => ({ user: { id: thread.ownerId } }))
+      ? await fetchMemberSafe(thread.guild, thread.ownerId, 2000)
       : null;
 
     const embed = this.createBaseEmbed('threadDelete', owner?.user, thread.guild);
@@ -703,7 +732,7 @@ class AuditLogger {
 
   async logThreadUpdated(client, oldThread, newThread) {
     const owner = newThread.ownerId
-      ? await newThread.guild.members.fetch(newThread.ownerId).catch(() => ({ user: { id: newThread.ownerId } }))
+      ? await fetchMemberSafe(newThread.guild, newThread.ownerId, 2000)
       : null;
 
     const embed = this.createBaseEmbed('threadUpdate', owner?.user, newThread.guild);
