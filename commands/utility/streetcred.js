@@ -10,11 +10,11 @@ const {
   PermissionFlagsBits,
   ChannelType,
 } = require('discord.js');
-const logger = require('../utils/logger');
-const { PermissionChecker } = require('../utils/permissions');
-const scs = require('../services/StreetCredService');
-const analyticsService = require('../services/AnalyticsService');
-const CONSTANTS = require('../config/constants');
+const logger = require('../../utils/logger');
+const { PermissionChecker } = require('../../utils/permissions');
+const scs = require('../../services/StreetCredService');
+const analyticsService = require('../../services/AnalyticsService');
+const CONSTANTS = require('../../config/constants');
 
 // ─── Shared helpers ────────────────────────────────────────────────────────
 
