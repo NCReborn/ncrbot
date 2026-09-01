@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const runtimeMonitor = require('../../services/runtimeMonitor'); // adjust path if needed
+const runtimeMonitor = require('../../utils/runtimeMonitor'); // adjust path if needed
 
 module.exports = {
   data: new SlashCommandBuilder()
