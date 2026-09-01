@@ -9,58 +9,62 @@ const { trackHandlerExecution } = require('../utils/runtimeMonitor');
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction, client) {
-    return trackHandlerExecution('interactionCreate', {
-      guildId: interaction.guildId || null,
-      channelId: interaction.channelId || null,
-      userId: interaction.user?.id || null,
-      commandName: interaction.commandName || null,
-      customId: interaction.customId || null,
-      interactionType: interaction.type,
-    }, async () => {
-      try {
-        // Handle log scan ticket interactions
-        await handleLogScanTicketInteraction(interaction);
+    return trackHandlerExecution(
+      'interactionCreate',
+      {
+        guildId: interaction.guildId || null,
+        channelId: interaction.channelId || null,
+        userId: interaction.user?.id || null,
+        commandName: interaction.commandName || null,
+        customId: interaction.customId || null,
+        interactionType: interaction.type,
+      },
+      async () => {
+        try {
+          // Route to appropriate handler
+          if (interaction.isModalSubmit()) {
+            await modalHandlers.handle(interaction, client);
 
-        // Route to appropriate handler
-        if (interaction.isModalSubmit()) {
-          await modalHandlers.handle(interaction, client);
+          } else if (interaction.isButton()) {
+            await buttonHandlers.handle(interaction, client);
 
-        } else if (interaction.isButton()) {
-          await buttonHandlers.handle(interaction, client);
+          } else if (
+            interaction.isChannelSelectMenu() &&
+            interaction.customId.startsWith('autoresponder_channels:')
+          ) {
+            await handleAutoResponderChannelSelect(interaction);
 
-        } else if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('autoresponder_channels:')) {
-          await handleAutoResponderChannelSelect(interaction);
+          } else if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
+            const command = client.commands.get(interaction.commandName);
+            if (!command?.autocomplete) return;
 
-        } else if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
-          const command = client.commands.get(interaction.commandName);
-          if (!command?.autocomplete) return;
+            try {
+              await command.autocomplete(interaction);
+            } catch (error) {
+              logger.error(`[AUTOCOMPLETE] /${interaction.commandName} failed:`, error);
+              try { await interaction.respond([]); } catch {}
+            }
 
-          try {
-            await command.autocomplete(interaction);
-          } catch (error) {
-            logger.error(`[AUTOCOMPLETE] /${interaction.commandName} failed:`, error);
-            try { await interaction.respond([]); } catch {}
+          } else if (interaction.type === InteractionType.ApplicationCommand) {
+            await commandHandlers.handle(interaction, client);
           }
+        } catch (error) {
+          logger.error('[INTERACTION] Unhandled error:', error);
 
-        } else if (interaction.type === InteractionType.ApplicationCommand) {
-          await commandHandlers.handle(interaction, client);
-        }
-      } catch (error) {
-        logger.error('[INTERACTION] Unhandled error:', error);
+          const errorMessage = {
+            content: 'An unexpected error occurred.',
+            ephemeral: true,
+          };
 
-        const errorMessage = {
-          content: 'An unexpected error occurred.',
-          ephemeral: true
-        };
-
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(errorMessage).catch(() => {});
-        } else if (interaction.isRepliable()) {
-          await interaction.reply(errorMessage).catch(() => {});
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorMessage).catch(() => {});
+          } else if (interaction.isRepliable()) {
+            await interaction.reply(errorMessage).catch(() => {});
+          }
         }
       }
-    });
-  }
+    );
+  },
 };
 
 async function handleAutoResponderChannelSelect(interaction) {
@@ -68,38 +72,48 @@ async function handleAutoResponderChannelSelect(interaction) {
   if (!guildId) {
     await interaction.update({
       content: 'This action can only be used in a server.',
-      components: []
+      components: [],
     });
     return;
   }
 
   const trigger = interaction.customId.slice('autoresponder_channels:'.length);
-  const selectedChannelIds = interaction.values; // array of channel ID strings
+  const selectedChannelIds = interaction.values;
 
-  const existing = loadResponses(guildId).find(r => r.trigger.toLowerCase() === trigger.toLowerCase());
+  const existing = loadResponses(guildId).find(
+    (r) => r.trigger.toLowerCase() === trigger.toLowerCase()
+  );
+
   if (!existing) {
     await interaction.update({
       content: `Could not find auto-response for trigger \`${trigger}\`. It may have been deleted.`,
-      components: []
+      components: [],
     });
     return;
   }
 
-  // Validate selected channels belong to this guild
   const guildChannelIds = new Set(interaction.guild.channels.cache.keys());
-  const validChannelIds = selectedChannelIds.filter(id => guildChannelIds.has(id));
+  const validChannelIds = selectedChannelIds.filter((id) => guildChannelIds.has(id));
 
-  upsertResponse(guildId, existing.trigger, existing.response, existing.wildcard, validChannelIds);
+  upsertResponse(
+    guildId,
+    existing.trigger,
+    existing.response,
+    existing.wildcard,
+    validChannelIds
+  );
 
   const scopeMsg =
     validChannelIds.length > 0
-      ? `Now scoped to: ${validChannelIds.map(id => `<#${id}>`).join(', ')}`
+      ? `Now scoped to: ${validChannelIds.map((id) => `<#${id}>`).join(', ')}`
       : 'Now global (triggers in all channels).';
 
-  logger.info(`[AUTORESPONDER] Channel scope updated for trigger "${trigger}" by ${interaction.user.tag}: [${validChannelIds.join(', ')}]`);
+  logger.info(
+    `[AUTORESPONDER] Channel scope updated for trigger "${trigger}" by ${interaction.user.tag}: [${validChannelIds.join(', ')}]`
+  );
 
   await interaction.update({
     content: `✅ Channel scope updated for trigger \`${trigger}\`.\n${scopeMsg}`,
-    components: []
+    components: [],
   });
 }
