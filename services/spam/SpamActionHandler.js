@@ -21,6 +21,35 @@ const spamDetector = require('./SpamDetector');
 /** Emoji severity icons for triggered rule lines */
 const SEVERITY_ICON = { critical: '🔴', high: '⚠️', warning: '🟡' };
 
+// Helper function for safe member fetch with timeout
+async function fetchMemberSafe(guild, userId, timeoutMs = 2000) {
+  try {
+    let timeoutId;
+    let timedOut = false;
+
+    const fetchPromise = guild.members.fetch(userId).catch(() => null);
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        resolve(null);
+      }, timeoutMs);
+    });
+
+    const result = await Promise.race([fetchPromise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    
+    if (timedOut) {
+      logger.warn(`[SPAM] Member fetch timed out for user ${userId} in guild ${guild.id}`);
+      return null;
+    }
+
+    return result;
+  } catch (err) {
+    logger.warn(`[SPAM] Member fetch error for user ${userId}: ${err.message}`);
+    return null;
+  }
+}
+
 /**
  * Returns the set of protected channel IDs for a guild.
  * Uses live config from spamDetector.config.
@@ -303,7 +332,7 @@ class SpamActionHandler {
     }
 
     try {
-      const member = await message.guild.members.fetch(userId).catch(() => null);
+      const member = await fetchMemberSafe(message.guild, userId, 2000);
       if (member) {
         const timeoutSeconds = this.getTimeoutSeconds(triggeredRules);
         const hours = timeoutSeconds / 3600;
@@ -458,7 +487,7 @@ class SpamActionHandler {
         return interaction.reply({ content: 'This alert is already resolved.', ephemeral: true });
       }
 
-      const member = await interaction.guild.members.fetch(userId).catch(() => null);
+      const member = await fetchMemberSafe(interaction.guild, userId, 2000);
 
       let actionDescription = '';
 
