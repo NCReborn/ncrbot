@@ -1,7 +1,5 @@
 const logger = require('../utils/logger');
 const { InteractionType } = require('discord.js');
-const { handleLogScanTicketInteraction } = require('../utils/logScanTicket');
-
 const modalHandlers = require('../handlers/modalHandlers');
 const buttonHandlers = require('../handlers/buttonHandlers');
 const commandHandlers = require('../handlers/commandHandlers');
