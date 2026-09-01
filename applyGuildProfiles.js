@@ -1,5 +1,6 @@
 const { Events } = require("discord.js");
 const guildProfiles = require("./botProfileConfig");
+const logger = require("./utils/logger");
 
 async function applyProfileForGuild(guild) {
   const profile = guildProfiles[guild.id];
@@ -11,9 +12,9 @@ async function applyProfileForGuild(guild) {
   if (typeof profile.nickname === "string" && me.nickname !== profile.nickname) {
     try {
       await me.setNickname(profile.nickname, "Applying per-guild bot profile config");
-      console.log(`[Profile] ${guild.name}: nickname -> ${profile.nickname}`);
+      logger.info(`[Profile] ${guild.name}: nickname -> ${profile.nickname}`);
     } catch (error) {
-      console.error(`[Profile] ${guild.name}: failed to set nickname`, error.message);
+      logger.error(`[Profile] ${guild.name}: failed to set nickname`, { error: error.message });
     }
   }
 
@@ -21,9 +22,9 @@ async function applyProfileForGuild(guild) {
   if (typeof profile.avatar === "string") {
     try {
       await me.setAvatar(profile.avatar);
-      console.log(`[Profile] ${guild.name}: avatar updated`);
+      logger.info(`[Profile] ${guild.name}: avatar updated`);
     } catch (error) {
-      console.error(`[Profile] ${guild.name}: failed to set avatar`, error.message);
+      logger.error(`[Profile] ${guild.name}: failed to set avatar`, { error: error.message });
     }
   }
 }
