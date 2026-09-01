@@ -261,60 +261,67 @@ class SpamActionHandler {
     return fields;
   }
 
-  async sendOrUpdateAlert(userId, embed, guildId) {
-    const alertKey = buildAlertKey(guildId, userId);
-    const lock = this.alertLocks.get(alertKey) || Promise.resolve();
+async sendOrUpdateAlert(userId, embed, guildId) {
+  const alertKey = buildAlertKey(guildId, userId);
+  const lock = this.alertLocks.get(alertKey) || Promise.resolve();
 
-    const operation = lock.then(async () => {
-      try {
-        const alertChannelId = getAlertChannelId(guildId);
-        if (!alertChannelId) {
-          logger.error(`[SPAM] No alertChannelId configured for guild ${guildId}`);
+  const operation = lock.then(() =>
+    withTimeout(
+      (async () => {
+        try {
+          const alertChannelId = getAlertChannelId(guildId);
+          if (!alertChannelId) {
+            logger.error(`[SPAM] No alertChannelId configured for guild ${guildId}`);
+            return null;
+          }
+
+          const alertChannel = await this.client.channels.fetch(alertChannelId);
+          const components = [this.buildActionRow(userId)];
+
+          const existingAlert = this.activeAlerts.get(alertKey);
+          if (existingAlert) {
+            if (existingAlert.locked) return existingAlert.message;
+            await existingAlert.message.edit({ embeds: [embed], components });
+            existingAlert.embed = embed;
+            logger.info(
+              `[SPAM] Edited existing alert for user ${userId} in guild ${guildId} (message ${existingAlert.message.id})`
+            );
+            return existingAlert.message;
+          }
+
+          const message = await alertChannel.send({ embeds: [embed], components });
+
+          this.activeAlerts.set(alertKey, {
+            message,
+            embed,
+            locked: false
+          });
+
+          logger.info(
+            `[SPAM] Created new alert for user ${userId} in guild ${guildId} (message ${message.id})`
+          );
+
+          return message;
+        } catch (err) {
+          logger.error(`[SPAM] Error sending alert in guild ${guildId}: ${err.message}`);
           return null;
         }
+      })(),
+      5000,
+      `sendOrUpdateAlert(${alertKey})`
+    )
+  );
 
-        const alertChannel = await this.client.channels.fetch(alertChannelId);
-        const components = [this.buildActionRow(userId)];
+  this.alertLocks.set(alertKey, operation);
 
-        const existingAlert = this.activeAlerts.get(alertKey);
-        if (existingAlert) {
-          if (existingAlert.locked) return existingAlert.message;
-          await existingAlert.message.edit({ embeds: [embed], components });
-          existingAlert.embed = embed;
-          logger.info(
-            `[SPAM] Edited existing alert for user ${userId} in guild ${guildId} (message ${existingAlert.message.id})`
-          );
-          return existingAlert.message;
-        }
+  operation.finally(() => {
+    if (this.alertLocks.get(alertKey) === operation) {
+      this.alertLocks.delete(alertKey);
+    }
+  });
 
-        const message = await alertChannel.send({ embeds: [embed], components });
-
-        this.activeAlerts.set(alertKey, {
-          message,
-          embed,
-          locked: false
-        });
-        logger.info(
-          `[SPAM] Created new alert for user ${userId} in guild ${guildId} (message ${message.id})`
-        );
-
-        return message;
-      } catch (err) {
-        logger.error(`[SPAM] Error sending alert in guild ${guildId}: ${err.message}`);
-        return null;
-      }
-    });
-
-    this.alertLocks.set(alertKey, operation);
-    operation.finally(() => {
-      if (this.alertLocks.get(alertKey) === operation) {
-        this.alertLocks.delete(alertKey);
-      }
-    });
-
-    return operation;
-  }
-
+  return operation;
+}
   async applyAutomaticAction(userId, message, triggeredRules, evidence, guildId) {
     const actionsTaken = [];
 
