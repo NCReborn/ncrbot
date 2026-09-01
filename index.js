@@ -6,17 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
 const { logMissingRequiredGuildChannelMappings } = require('./utils/guildConfig');
+const { installProcessErrorHandlers, startRuntimeMonitor } = require('./utils/runtimeMonitor');
 
-// Error handling
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err && err.stack ? err.stack : err);
-  try { logger.error('Uncaught Exception:', err && err.stack ? err.stack : err); } catch(e) {}
-  process.exit(1);
-});
-process.on('unhandledRejection', (reason, _promise) => {
-  console.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason);
-  try { logger.error('Unhandled Rejection:', reason && reason.stack ? reason.stack : reason); } catch(e) {}
-});
+installProcessErrorHandlers(logger);
 
 // Graceful shutdown
 process.on('SIGINT', () => {
@@ -49,6 +41,8 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
   ],
 });
+
+startRuntimeMonitor(client, logger);
 
 const imageOnlyHandler = require('./utils/imageOnlyHandler');
 imageOnlyHandler(client);
@@ -122,28 +116,7 @@ client.once('ready', () => {
   logMissingRequiredGuildChannelMappings(client);
 });
 
-client.on('error', (error) => {
-  logger.error(`[DISCORD] Client error: ${error && error.stack ? error.stack : error}`);
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  logger.error('[DISCORD] Failed to login', { error });
+  process.exit(1);
 });
-
-client.on('warn', (warning) => {
-  logger.warn(`[DISCORD] ${warning}`);
-});
-
-client.on('shardDisconnect', (event, shardId) => {
-  logger.warn(`[DISCORD] Shard ${shardId} disconnected (code=${event.code}, reason=${event.reason || 'n/a'}, clean=${event.wasClean})`);
-});
-
-client.on('shardReconnecting', (shardId) => {
-  logger.info(`[DISCORD] Shard ${shardId} reconnecting...`);
-});
-
-client.on('shardResume', (shardId, replayedEvents) => {
-  logger.info(`[DISCORD] Shard ${shardId} resumed (replayed events: ${replayedEvents})`);
-});
-
-client.on('invalidated', () => {
-  logger.error('[DISCORD] Session invalidated. A full reconnect is required.');
-});
-
-client.login(process.env.DISCORD_TOKEN);
