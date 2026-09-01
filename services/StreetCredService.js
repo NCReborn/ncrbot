@@ -711,7 +711,10 @@ async function runDormancyCheck(guild) {
 async function stripAllRoles(guild, onProgress) {
   const cfg = await getGuildConfig(guild.id);
   const scRoleIds = allStreetCredRoleIds(cfg.tiers);
-  const members = await guild.members.fetch();
+  
+  // Fetch all members with timeout protection
+  const members = await fetchWithTimeout(() => guild.members.fetch(), 10000) || new Map();
+  
   const withRoles = members.filter((m) => m.roles.cache.some((r) => scRoleIds.has(r.id)));
   const total = withRoles.size;
   let stripped = 0;
