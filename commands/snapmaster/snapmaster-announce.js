@@ -7,7 +7,7 @@ const {
     EmbedBuilder
 } = require("discord.js");
 
-const { PermissionChecker } = require("../utils/permissions");
+const { PermissionChecker } = require("../../utils/permissions");
 
 module.exports = {
     data: new SlashCommandBuilder()
