@@ -1,11 +1,11 @@
 // commands/changelog.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { fetchRevision, processModFiles, computeDiff } = require('../utils/nexusApi');
-const guildConfigManager = require('../config/guildConfigManager');
-const revisionState = require('../utils/revisionState');
-const GameVersionManager = require('../utils/GameVersionManager');
-const changelogGenerator = require('../services/changelog/ChangelogGenerator');
-const logger = require('../utils/logger');
+const { fetchRevision, processModFiles, computeDiff } = require('../../utils/nexusApi');
+const guildConfigManager = require('../../config/guildConfigManager');
+const revisionState = require('../../utils/revisionState');
+const GameVersionManager = require('../../utils/GameVersionManager');
+const changelogGenerator = require('../../services/changelog/ChangelogGenerator');
+const logger = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
