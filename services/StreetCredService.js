@@ -211,18 +211,29 @@ async function trackMessage(message) {
       joinedAt,
     });
 
-    if (result.changed || result.prevTier === 0) {
-      // Re-fetch the member in case the cache is stale
-      const freshMember = await guild.members.fetch(userId).catch(() => member);
-      await applyTierRole(freshMember, result.tier);
+if (result.changed || result.prevTier === 0) {
+  // Re-fetch the member in case the cache is stale (with timeout)
+  let freshMember = member;
+  try {
+    const fetchPromise = guild.members.fetch(userId);
+    freshMember = await Promise.race([
+      fetchPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 5000))
+    ]).catch(() => member);
+  } catch (err) {
+    logger.warn(`[STREET_CRED] Member fetch timeout for ${userId}: ${err.message}`);
+  }
+  
+  // Silently skip role application if it fails (don't crash)
+  await applyTierRole(freshMember, result.tier).catch(() => {});
 
-      if (result.changed && result.tier > result.prevTier && result.prevTier !== 0) {
-        logger.info(
-          `[STREET_CRED] ${author.tag} levelled up: SC-${result.prevTier} → SC-${result.tier} ` +
-          `(score: ${result.score.toFixed(0)}, messages: ${result.messages})`
-        );
-      }
-    }
+  if (result.changed && result.tier > result.prevTier && result.prevTier !== 0) {
+    logger.info(
+      `[STREET_CRED] ${author.tag} levelled up: SC-${result.prevTier} → SC-${result.tier} ` +
+      `(score: ${result.score.toFixed(0)}, messages: ${result.messages})`
+    );
+  }
+}
 
     // If member was DORMANT, reactivate
     const pool = await getPool();
