@@ -136,7 +136,7 @@ client.once('clientReady', () => {
 });
 
 // Start runtime monitor
-startRuntimeMonitor(client, logger);
+// startRuntimeMonitor(client, logger);
 
 // Login
 client.login(process.env.DISCORD_TOKEN).catch((error) => {
