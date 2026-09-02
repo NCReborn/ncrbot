@@ -404,11 +404,12 @@ module.exports = {
       config.guilds[guildId].rules.multiChannelSpam = {};
 
     config.guilds[guildId].rules.multiChannelSpam.channelCount = count;
+    config.guilds[guildId].rules.multiChannelSpam.enabled = true;
 
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `Multi-Channel Spam threshold set to **${count} channels**.`,
+      content: `Multi-Channel Spam threshold set to **${count} channels**. Rule enabled.`,
       ephemeral: true
     });
   },
@@ -431,13 +432,15 @@ module.exports = {
 
     const ruleCfg = config.guilds[guildId].rules.rapidPosting;
 
+    if (!ruleCfg.excludeChannels) ruleCfg.excludeChannels = [];
     if (!ruleCfg.excludeChannels.includes(channel.id))
       ruleCfg.excludeChannels.push(channel.id);
+    ruleCfg.enabled = true;
 
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `Added <#${channel.id}> to Rapid Posting exclude list.`,
+      content: `Added <#${channel.id}> to Rapid Posting exclude list. Rule enabled.`,
       ephemeral: true
     });
   },
@@ -460,13 +463,15 @@ module.exports = {
 
     const ruleCfg = config.guilds[guildId].rules.imageSpam;
 
+    if (!ruleCfg.excludeChannels) ruleCfg.excludeChannels = [];
     if (!ruleCfg.excludeChannels.includes(channel.id))
       ruleCfg.excludeChannels.push(channel.id);
+    ruleCfg.enabled = true;
 
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `Added <#${channel.id}> to Image Spam exclude list.`,
+      content: `Added <#${channel.id}> to Image Spam exclude list. Rule enabled.`,
       ephemeral: true
     });
   },
@@ -489,13 +494,15 @@ module.exports = {
 
     const ruleCfg = config.guilds[guildId].rules.channelCarpetBomb;
 
+    if (!ruleCfg.watchedChannels) ruleCfg.watchedChannels = [];
     if (!ruleCfg.watchedChannels.includes(channel.id))
       ruleCfg.watchedChannels.push(channel.id);
+    ruleCfg.enabled = true;
 
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `Added <#${channel.id}> as a watched Carpet-Bomb channel.`,
+      content: `Added <#${channel.id}> as a watched Carpet-Bomb channel. Rule enabled.`,
       ephemeral: true
     });
   },
@@ -513,11 +520,12 @@ module.exports = {
       config.guilds[guildId].rules.newAccountMonitoring = {};
 
     config.guilds[guildId].rules.newAccountMonitoring.accountAgeDays = days;
+    config.guilds[guildId].rules.newAccountMonitoring.enabled = true;
 
     this.writeConfig(configPath, config);
 
     await interaction.reply({
-      content: `New Account threshold set to **${days} days**.`,
+      content: `New Account threshold set to **${days} days**. Rule enabled.`,
       ephemeral: true
     });
   },
