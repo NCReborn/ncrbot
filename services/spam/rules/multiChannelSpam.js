@@ -1,15 +1,19 @@
 // services/spam/rules/multiChannelSpam.js
 
-module.exports = function multiChannelSpamRule(message, activity, config = {}) {
-  if (!config?.enabled) return { triggered: false };
+const { RULE_DEFAULTS } = require('../spamConfigResolver');
 
+module.exports = function multiChannelSpamRule(message, activity, config = {}) {
+  if (!config || config.enabled !== true || !activity?.messages) return { triggered: false };
+
+  const ruleConfig = { ...RULE_DEFAULTS.multiChannelSpam, ...config };
   const now = Date.now();
-  const timeWindow = (config.timeWindowSeconds || 10) * 1000;
+  const timeWindow = Number(ruleConfig.timeWindowSeconds ?? RULE_DEFAULTS.multiChannelSpam.timeWindowSeconds) * 1000;
+  const channelCount = Number(ruleConfig.channelCount ?? RULE_DEFAULTS.multiChannelSpam.channelCount);
 
   const recentMessages = activity.messages.filter(msg => now - msg.timestamp < timeWindow);
   const uniqueChannels = new Set(recentMessages.map(msg => msg.channelId));
 
-  if (uniqueChannels.size >= config.channelCount) {
+  if (recentMessages.length > 0 && uniqueChannels.size >= channelCount) {
     const timeSpan = ((now - recentMessages[0].timestamp) / 1000).toFixed(0);
 
     return {
