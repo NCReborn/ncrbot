@@ -207,20 +207,18 @@ module.exports = {
   async showStatus(interaction) {
     const config = spamDetector.config;
     const guildId = interaction.guildId;
-
-    const guildCfg = config.guilds?.[guildId];
-    const alertChannelId = guildCfg?.alertChannelId || config.alertChannelId;
-
-    const cfgRules = guildCfg?.rules || config.rules;
+    const effectiveConfig = spamDetector.getEffectiveGuildConfig(guildId);
+    const cfgRules = effectiveConfig.rules || {};
+    const alertChannelId = effectiveConfig.alertChannelId;
 
     const embed = new EmbedBuilder()
       .setTitle('🛡️ Anti-Spam System Status')
-      .setColor(config.enabled ? 0x00FF00 : 0xFF0000)
+      .setColor(effectiveConfig.enabled ? 0x00FF00 : 0xFF0000)
       .setTimestamp()
       .addFields([
         {
           name: 'System Status',
-          value: config.enabled ? '✅ Enabled' : '❌ Disabled',
+          value: effectiveConfig.enabled ? '✅ Enabled' : '❌ Disabled',
           inline: true
         },
         {
@@ -230,7 +228,7 @@ module.exports = {
         },
         {
           name: 'Default Timeout',
-          value: `${config.defaultTimeoutSeconds / 3600} hours`,
+          value: `${effectiveConfig.defaultTimeoutSeconds / 3600} hours`,
           inline: true
         }
       ]);
@@ -297,7 +295,7 @@ module.exports = {
 
     // Protected Channels
     const protectedChannels = [];
-    const guildProtected = guildCfg?.protectedChannels || config.protectedChannels || {};
+    const guildProtected = effectiveConfig.protectedChannels || {};
     for (const [name, id] of Object.entries(guildProtected)) {
       protectedChannels.push(`• **${name}**: <#${id}>`);
     }
@@ -310,13 +308,13 @@ module.exports = {
     // Whitelist
     embed.addFields([{
       name: 'Whitelist',
-      value: `${config.whitelist.users.length} user(s), ${config.whitelist.roles.length} role(s)`,
+      value: `${effectiveConfig.whitelist.users.length} user(s), ${effectiveConfig.whitelist.roles.length} role(s)`,
       inline: true
     }]);
 
     // Debug
-    const debugEnabled = config.debug?.enabled ? 'Enabled' : 'Disabled';
-    const debugUser = config.debug?.testUserId ? `<@${config.debug.testUserId}>` : 'Not set';
+    const debugEnabled = effectiveConfig.debug?.enabled ? 'Enabled' : 'Disabled';
+    const debugUser = effectiveConfig.debug?.testUserId ? `<@${effectiveConfig.debug.testUserId}>` : 'Not set';
     embed.addFields([{
       name: 'Debug Mode',
       value: `${debugEnabled}\nUser: ${debugUser}`,

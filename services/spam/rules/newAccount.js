@@ -1,16 +1,19 @@
 // services/spam/rules/newAccount.js
 
+const { RULE_DEFAULTS } = require('../spamConfigResolver');
+
 module.exports = function newAccountRule(member, config = {}, triggeredRules = []) {
-  if (!config?.enabled) return { triggered: false };
+  if (!config || config.enabled !== true) return { triggered: false };
   if (!member?.user?.createdTimestamp) return { triggered: false };
 
+  const ruleConfig = { ...RULE_DEFAULTS.newAccountMonitoring, ...config };
   const accountAgeHours = Math.floor((Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60));
-  const ageDays = config.accountAgeDays || 7;
+  const ageDays = Number(ruleConfig.accountAgeDays ?? RULE_DEFAULTS.newAccountMonitoring.accountAgeDays);
   const isNew = accountAgeHours < (ageDays * 24);
 
   if (!isNew) return { triggered: false };
 
-  if (config.requiresOtherTrigger && triggeredRules.length === 0) {
+  if (ruleConfig.requiresOtherTrigger && triggeredRules.length === 0) {
     return { triggered: false };
   }
 

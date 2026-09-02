@@ -5,6 +5,7 @@ const path = require('path');
 const logger = require('../../utils/logger');
 const CONSTANTS = require('../../config/constants');
 const userActivityTracker = require('./UserActivityTracker');
+const { getEffectiveSpamConfig } = require('./spamConfigResolver');
 
 // Load rule modules
 const multiChannelSpam = require('./rules/multiChannelSpam');
@@ -52,11 +53,14 @@ class SpamDetector {
     this.config = this.loadConfig();
   }
 
+  getEffectiveGuildConfig(guildId) {
+    return getEffectiveSpamConfig(this.config, guildId);
+  }
+
   isProtectedChannel(channelId, guildId) {
     if (!channelId) return false;
 
-    const guildCfg = this.config.guilds?.[guildId];
-    const protected_ = guildCfg?.protectedChannels || this.config.protectedChannels || {};
+    const protected_ = this.getEffectiveGuildConfig(guildId).protectedChannels || {};
 
     return Object.values(protected_).includes(channelId);
   }
@@ -184,15 +188,14 @@ class SpamDetector {
   }
 
   async detectSpam(message, member) {
-    if (!this.config.enabled) return null;
     if (message.author.bot) return null;
 
     const guildId = message.guildId;
     const userId = message.author.id;
     const key = `${guildId}:${userId}`;
-
-    const guildCfg = this.config.guilds?.[guildId];
-    const cfg = guildCfg?.rules || this.config.rules || {};
+    const effectiveConfig = this.getEffectiveGuildConfig(guildId);
+    if (!effectiveConfig.enabled) return null;
+    const cfg = effectiveConfig.rules || {};
 
     const isDebugTestMessage = this.isDebugTestMessage(message);
     if (!isDebugTestMessage && this.isWhitelisted(member)) return null;
@@ -272,7 +275,7 @@ class SpamDetector {
       return sum + (severityPoints[rule.severity] || 0);
     }, 0);
 
-    const threshold = this.config.confidenceThreshold ?? 3;
+    const threshold = effectiveConfig.confidenceThreshold ?? 3;
 
     const confidenceLevel =
       confidenceScore < threshold ? "low" : "high";

@@ -1,11 +1,15 @@
 // services/spam/rules/channelCarpetBomb.js
 
-module.exports = function channelCarpetBombRule(message, activity, config = {}) {
-  if (!config?.enabled) return { triggered: false };
+const { RULE_DEFAULTS } = require('../spamConfigResolver');
 
+module.exports = function channelCarpetBombRule(message, activity, config = {}) {
+  if (!config || config.enabled !== true || !activity?.messages) return { triggered: false };
+
+  const ruleConfig = { ...RULE_DEFAULTS.channelCarpetBomb, ...config };
   const now = Date.now();
-  const timeWindow = (config.timeWindowSeconds || 10) * 1000;
-  const watchedSet = new Set(config.watchedChannels || []);
+  const timeWindow = Number(ruleConfig.timeWindowSeconds ?? RULE_DEFAULTS.channelCarpetBomb.timeWindowSeconds) * 1000;
+  const watchedSet = new Set(ruleConfig.watchedChannels || []);
+  const minChannelHits = Number(ruleConfig.minChannelHits ?? RULE_DEFAULTS.channelCarpetBomb.minChannelHits);
 
   const recentWatchedMessages = activity.messages.filter(msg =>
     now - msg.timestamp < timeWindow && watchedSet.has(msg.channelId)
@@ -13,7 +17,7 @@ module.exports = function channelCarpetBombRule(message, activity, config = {}) 
 
   const uniqueWatchedChannels = new Set(recentWatchedMessages.map(msg => msg.channelId));
 
-  if (uniqueWatchedChannels.size >= config.minChannelHits) {
+  if (recentWatchedMessages.length > 0 && uniqueWatchedChannels.size >= minChannelHits) {
     const earliestTimestamp = Math.min(...recentWatchedMessages.map(m => m.timestamp));
     const timeSpan = ((now - earliestTimestamp) / 1000).toFixed(0);
 
