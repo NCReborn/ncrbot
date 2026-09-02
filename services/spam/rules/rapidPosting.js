@@ -1,11 +1,11 @@
 // services/spam/rules/rapidPosting.js
 
-module.exports = function rapidPostingRule(message, activity, config) {
-  if (!config.enabled) return { triggered: false };
-  if (config.excludeChannels.includes(message.channelId)) return { triggered: false };
+module.exports = function rapidPostingRule(message, activity, config = {}) {
+  if (!config?.enabled) return { triggered: false };
+  if ((config.excludeChannels || []).includes(message.channelId)) return { triggered: false };
 
   const now = Date.now();
-  const timeWindow = config.timeWindowSeconds * 1000;
+  const timeWindow = (config.timeWindowSeconds || 10) * 1000;
 
   const recentMessages = activity.messages.filter(msg => now - msg.timestamp < timeWindow);
 
