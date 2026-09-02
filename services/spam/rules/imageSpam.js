@@ -1,11 +1,11 @@
 // services/spam/rules/imageSpam.js
 
-module.exports = function imageSpamRule(message, activity, config) {
-  if (!config.enabled) return { triggered: false };
-  if (config.excludeChannels.includes(message.channelId)) return { triggered: false };
+module.exports = function imageSpamRule(message, activity, config = {}) {
+  if (!config?.enabled) return { triggered: false };
+  if ((config.excludeChannels || []).includes(message.channelId)) return { triggered: false };
 
   const now = Date.now();
-  const timeWindow = config.timeWindowSeconds * 1000;
+  const timeWindow = (config.timeWindowSeconds || 10) * 1000;
 
   const recentImages = activity.images.filter(img => now - img.timestamp < timeWindow);
 

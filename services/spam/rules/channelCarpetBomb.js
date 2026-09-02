@@ -1,11 +1,11 @@
 // services/spam/rules/channelCarpetBomb.js
 
-module.exports = function channelCarpetBombRule(message, activity, config) {
-  if (!config.enabled) return { triggered: false };
+module.exports = function channelCarpetBombRule(message, activity, config = {}) {
+  if (!config?.enabled) return { triggered: false };
 
   const now = Date.now();
-  const timeWindow = config.timeWindowSeconds * 1000;
-  const watchedSet = new Set(config.watchedChannels);
+  const timeWindow = (config.timeWindowSeconds || 10) * 1000;
+  const watchedSet = new Set(config.watchedChannels || []);
 
   const recentWatchedMessages = activity.messages.filter(msg =>
     now - msg.timestamp < timeWindow && watchedSet.has(msg.channelId)

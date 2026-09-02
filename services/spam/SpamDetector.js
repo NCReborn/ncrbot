@@ -192,7 +192,7 @@ class SpamDetector {
     const key = `${guildId}:${userId}`;
 
     const guildCfg = this.config.guilds?.[guildId];
-    const cfg = guildCfg?.rules || this.config.rules;
+    const cfg = guildCfg?.rules || this.config.rules || {};
 
     const isDebugTestMessage = this.isDebugTestMessage(message);
     if (!isDebugTestMessage && this.isWhitelisted(member)) return null;

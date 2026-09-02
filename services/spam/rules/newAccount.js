@@ -1,10 +1,12 @@
 // services/spam/rules/newAccount.js
 
-module.exports = function newAccountRule(member, config, triggeredRules) {
-  if (!config.enabled) return { triggered: false };
+module.exports = function newAccountRule(member, config = {}, triggeredRules = []) {
+  if (!config?.enabled) return { triggered: false };
+  if (!member?.user?.createdTimestamp) return { triggered: false };
 
   const accountAgeHours = Math.floor((Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60));
-  const isNew = accountAgeHours < (config.accountAgeDays * 24);
+  const ageDays = config.accountAgeDays || 7;
+  const isNew = accountAgeHours < (ageDays * 24);
 
   if (!isNew) return { triggered: false };
 
@@ -17,6 +19,6 @@ module.exports = function newAccountRule(member, config, triggeredRules) {
     ruleName: "New Account",
     score: 1,
     evidence: [],
-    description: `Account <${config.accountAgeDays} days old (${accountAgeHours} hours)`
+    description: `Account <${ageDays} days old (${accountAgeHours} hours)`
   };
 };
