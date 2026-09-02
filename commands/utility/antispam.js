@@ -198,7 +198,7 @@ module.exports = {
       logger.error('[ANTISPAM] Error executing command:', error);
       await interaction.reply({
         content: '❌ An error occurred while executing the command.',
-        ephemeral: true
+         import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
       });
     }
   },
@@ -321,7 +321,7 @@ module.exports = {
       inline: false
     }]);
 
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed],  import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); } });
   },
 
   // CONFIG HELPERS
@@ -342,7 +342,7 @@ module.exports = {
     const guildId = interaction.guildId;
 
     if (channel.guildId !== guildId) {
-      return interaction.reply({ content: '❌ That channel does not belong to this guild.', ephemeral: true });
+      return interaction.reply({ content: '❌ That channel does not belong to this guild.', flags: MessageFlags.Ephemeral });
     }
 
     const { configPath, config } = this.readConfig();
@@ -356,7 +356,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Alert channel set to <#${channel.id}>.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   },
 
@@ -367,7 +367,7 @@ module.exports = {
     const channel = interaction.options.getChannel('channel');
 
     if (channel.guildId !== guildId) {
-      return interaction.reply({ content: '❌ That channel does not belong to this guild.', ephemeral: true });
+      return interaction.reply({ content: '❌ That channel does not belong to this guild.', flags: MessageFlags.Ephemeral });
     }
 
     const { configPath, config } = this.readConfig();
@@ -383,7 +383,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Protected channel **${name}** set to <#${channel.id}>.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   },
 
@@ -408,7 +408,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Multi-Channel Spam threshold set to **${count} channels**. Rule enabled.`,
-      ephemeral: true
+     flags: MessageFlags.Ephemeral
     });
   },
 
@@ -417,7 +417,7 @@ module.exports = {
     const channel = interaction.options.getChannel('channel');
 
     if (channel.guildId !== guildId) {
-      return interaction.reply({ content: '❌ Channel is not in this guild.', ephemeral: true });
+      return interaction.reply({ content: '❌ Channel is not in this guild.', flags: MessageFlags.Ephemeral });
     }
 
     const { configPath, config } = this.readConfig();
@@ -439,7 +439,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Added <#${channel.id}> to Rapid Posting exclude list. Rule enabled.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -448,7 +448,7 @@ module.exports = {
     const channel = interaction.options.getChannel('channel');
 
     if (channel.guildId !== guildId) {
-      return interaction.reply({ content: '❌ Channel is not in this guild.', ephemeral: true });
+      return interaction.reply({ content: '❌ Channel is not in this guild.',  import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); } });
     }
 
     const { configPath, config } = this.readConfig();
@@ -470,7 +470,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Added <#${channel.id}> to Image Spam exclude list. Rule enabled.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -479,7 +479,7 @@ module.exports = {
     const channel = interaction.options.getChannel('channel');
 
     if (channel.guildId !== guildId) {
-      return interaction.reply({ content: '❌ Channel is not in this guild.', ephemeral: true });
+      return interaction.reply({ content: '❌ Channel is not in this guild.',  import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); } });
     }
 
     const { configPath, config } = this.readConfig();
@@ -501,7 +501,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Added <#${channel.id}> as a watched Carpet-Bomb channel. Rule enabled.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -524,7 +524,7 @@ module.exports = {
 
     await interaction.reply({
       content: `New Account threshold set to **${days} days**. Rule enabled.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -537,7 +537,7 @@ module.exports = {
 
     await interaction.reply({
       content: `${enabled ? 'Enabled' : 'Disabled'} debug mode.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -550,7 +550,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Debug test user set to ${user.tag}.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -562,7 +562,7 @@ module.exports = {
 
     await interaction.reply({
       content: 'Debug test user cleared.',
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -575,7 +575,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Reset anti-spam state for ${user.tag}.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   },
 
@@ -587,7 +587,7 @@ module.exports = {
 
     await interaction.reply({
       content: `Reset all anti-spam state.`,
-      ephemeral: true
+       import { MessageFlags } from 'discord.js';  if (channel.guildId !== guildId) {     return interaction.reply({         content: '❌ That channel does not belong to this guild.',         flags: MessageFlags.Ephemeral     }); }
     });
   }
 };
