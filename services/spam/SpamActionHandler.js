@@ -21,6 +21,22 @@ const spamDetector = require('./SpamDetector');
 /** Emoji severity icons for triggered rule lines */
 const SEVERITY_ICON = { critical: '🔴', high: '⚠️', warning: '🟡' };
 
+async function withTimeout(promise, timeoutMs, operationLabel = 'operation') {
+  let timeoutId;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`${operationLabel} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // Helper function for safe member fetch with timeout
 async function fetchMemberSafe(guild, userId, timeoutMs = 2000) {
   try {
@@ -156,7 +172,13 @@ class SpamActionHandler {
         fields: updatedFields
       });
 
-      await this.markPendingReview(userId, alertMessage, updatedEmbed, guildId);
+      if (alertMessage) {
+        await this.markPendingReview(userId, alertMessage, updatedEmbed, guildId);
+      } else {
+        logger.warn(
+          `[SPAM] Auto-action completed for user ${userId} in guild ${guildId}, but alert message was unavailable`
+        );
+      }
     }
   }
 
@@ -265,52 +287,57 @@ async sendOrUpdateAlert(userId, embed, guildId) {
   const alertKey = buildAlertKey(guildId, userId);
   const lock = this.alertLocks.get(alertKey) || Promise.resolve();
 
-  const operation = lock.then(() =>
-    withTimeout(
-      (async () => {
-        try {
-          const alertChannelId = getAlertChannelId(guildId);
-          if (!alertChannelId) {
-            logger.error(`[SPAM] No alertChannelId configured for guild ${guildId}`);
-            return null;
-          }
+  const operation = lock
+    .catch((err) => {
+      logger.error(`[SPAM] Previous alert operation failed for ${alertKey}: ${err.message}`);
+      return null;
+    })
+    .then(async () => {
+      try {
+        return await withTimeout(
+          (async () => {
+            const alertChannelId = getAlertChannelId(guildId);
+            if (!alertChannelId) {
+              logger.error(`[SPAM] No alertChannelId configured for guild ${guildId}`);
+              return null;
+            }
 
-          const alertChannel = await this.client.channels.fetch(alertChannelId);
-          const components = [this.buildActionRow(userId)];
+            const alertChannel = await this.client.channels.fetch(alertChannelId);
+            const components = [this.buildActionRow(userId)];
 
-          const existingAlert = this.activeAlerts.get(alertKey);
-          if (existingAlert) {
-            if (existingAlert.locked) return existingAlert.message;
-            await existingAlert.message.edit({ embeds: [embed], components });
-            existingAlert.embed = embed;
+            const existingAlert = this.activeAlerts.get(alertKey);
+            if (existingAlert) {
+              if (existingAlert.locked) return existingAlert.message;
+              await existingAlert.message.edit({ embeds: [embed], components });
+              existingAlert.embed = embed;
+              logger.info(
+                `[SPAM] Edited existing alert for user ${userId} in guild ${guildId} (message ${existingAlert.message.id})`
+              );
+              return existingAlert.message;
+            }
+
+            const message = await alertChannel.send({ embeds: [embed], components });
+
+            this.activeAlerts.set(alertKey, {
+              message,
+              embed,
+              locked: false
+            });
+
             logger.info(
-              `[SPAM] Edited existing alert for user ${userId} in guild ${guildId} (message ${existingAlert.message.id})`
+              `[SPAM] Created new alert for user ${userId} in guild ${guildId} (message ${message.id})`
             );
-            return existingAlert.message;
-          }
 
-          const message = await alertChannel.send({ embeds: [embed], components });
-
-          this.activeAlerts.set(alertKey, {
-            message,
-            embed,
-            locked: false
-          });
-
-          logger.info(
-            `[SPAM] Created new alert for user ${userId} in guild ${guildId} (message ${message.id})`
-          );
-
-          return message;
-        } catch (err) {
-          logger.error(`[SPAM] Error sending alert in guild ${guildId}: ${err.message}`);
-          return null;
-        }
-      })(),
-      5000,
-      `sendOrUpdateAlert(${alertKey})`
-    )
-  );
+            return message;
+          })(),
+          5000,
+          `sendOrUpdateAlert(${alertKey})`
+        );
+      } catch (err) {
+        logger.error(`[SPAM] Error sending alert in guild ${guildId}: ${err.message}`);
+        return null;
+      }
+    });
 
   this.alertLocks.set(alertKey, operation);
 
