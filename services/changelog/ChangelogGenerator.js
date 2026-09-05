@@ -126,7 +126,7 @@ class ChangelogGenerator {
       version,
       game_version: gameVersion,
       date: new Date().toISOString().slice(0, 10),
-      author: 'Preem Team Bot',
+      author: 'Choomba',
       source_channel: groupConfig.name ? `#${groupConfig.name}` : '#changelog-feed',
       added_items: addedItems,
       updated_items: changedItems,
