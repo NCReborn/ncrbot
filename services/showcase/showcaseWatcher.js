@@ -14,7 +14,14 @@ const { dispatchShowcaseToSite } = require("../../utils/siteShowcaseDispatcher")
 const logger = require("../../logger"); // adjust path to match your existing logger
 
 const SHOWCASE_CHANNEL_ID = process.env.SHOWCASE_CHANNEL_ID;
-const STAFF_ROLE_ID = process.env.SHOWCASE_STAFF_ROLE_ID;
+
+// Comma-separated list of role IDs that count as "staff" for instant ⭐
+// picks — e.g. SHOWCASE_STAFF_ROLE_ID=111111111111111111,222222222222222222
+const STAFF_ROLE_IDS = (process.env.SHOWCASE_STAFF_ROLE_ID || "")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
 const REACTION_THRESHOLD = parseInt(process.env.SHOWCASE_REACTION_THRESHOLD || "10", 10);
 const STAFF_EMOJI = process.env.SHOWCASE_STAFF_EMOJI || "⭐";
 
@@ -94,10 +101,11 @@ function initShowcaseWatcher(client) {
       const message = reaction.message;
       if (submitted.has(message.id)) return;
 
-      // Instant staff pick: the star, from someone with the staff role.
-      if (reaction.emoji.name === STAFF_EMOJI && STAFF_ROLE_ID) {
+      // Instant staff pick: the star, from someone with one of the staff roles.
+      if (reaction.emoji.name === STAFF_EMOJI && STAFF_ROLE_IDS.length) {
         const member = await message.guild.members.fetch(user.id).catch(() => null);
-        if (member?.roles.cache.has(STAFF_ROLE_ID)) {
+        const isStaff = member && STAFF_ROLE_IDS.some((roleId) => member.roles.cache.has(roleId));
+        if (isStaff) {
           await tryFeature(message, submitted);
           return;
         }
@@ -114,7 +122,7 @@ function initShowcaseWatcher(client) {
     }
   });
 
-  logger.info(`[showcase] Watching #${SHOWCASE_CHANNEL_ID} (threshold=${REACTION_THRESHOLD}, staff emoji=${STAFF_EMOJI})`);
+  logger.info(`[showcase] Watching #${SHOWCASE_CHANNEL_ID} (threshold=${REACTION_THRESHOLD}, staff emoji=${STAFF_EMOJI}, staff roles=${STAFF_ROLE_IDS.join(",") || "none"})`);
 }
 
 module.exports = { initShowcaseWatcher };
