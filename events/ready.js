@@ -3,6 +3,7 @@ const revisionMonitor = require('../services/RevisionMonitor');
 const cron = require('node-cron');
 const streetCredService = require('../services/StreetCredService');
 const snapsmithService = require('../services/SnapSmithService');
+const { initShowcaseWatcher } = require('../services/showcase/showcaseWatcher');
 
 // ⭐ SnapMaster
 const snapmaster = require('../utils/snapmaster');
@@ -22,6 +23,9 @@ module.exports = {
     } catch (err) {
       logger.error('[READY] Error starting revision monitor:', err);
     }
+
+    initShowcaseWatcher(client); // add this
+    logger.info('[READY] Showcase watcher started'); // add this
 
     // Daily dormancy check — runs at 03:00 every day
     cron.schedule('0 3 * * *', async () => {
