@@ -5,7 +5,7 @@
 // A GitHub Action there (.github/workflows/showcase-dispatch.yml) runs
 // scripts/apply-showcase.js against the payload and pushes the result.
 
-const logger = require("../logger"); // adjust path to match your existing logger
+const logger = require("./logger"); // adjust path to match your existing logger
 
 const SITE_OWNER = "mquiny";
 const SITE_REPO = "Preem-Team";
