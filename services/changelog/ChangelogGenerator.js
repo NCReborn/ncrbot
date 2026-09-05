@@ -119,18 +119,17 @@ class ChangelogGenerator {
         }).join('\n')
       : '';
 
-    return {
-      collection_slug: collection.slug,
-      version,
-      game_version: gameVersion,
-      date: new Date().toISOString().slice(0, 10),
-      author: 'Preem Team Bot',
-      source_channel: groupConfig.name ? `#${groupConfig.name}` : '#changelog-feed',
-      added_items: addedItems,
-      changed_items: changedItems,
-      fixed_items: '',
-      removed_items: removedItems
-    };
+return {
+  collection_slug: collection.slug,
+  version,
+  game_version: gameVersion,
+  date: new Date().toISOString().slice(0, 10),
+  author: 'Preem Team Bot',
+  source_channel: groupConfig.name ? `#${groupConfig.name}` : '#changelog-feed',
+  added_items: addedItems,
+  updated_items: changedItems,
+  removed_items: removedItems
+};
   }
 
   async sendModChanges(channel, template, revisionData) {
