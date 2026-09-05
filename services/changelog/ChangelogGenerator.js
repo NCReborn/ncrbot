@@ -71,12 +71,13 @@ class ChangelogGenerator {
       logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId}) in guild ${guildId}`);
 
       // Push the same changelog to the Preem Team website (no-op unless
-      // this collection's slug is listed in SITE_CHANGELOG_SLUGS)
+      // this collection's slug is allow-listed AND this is the configured
+      // CPE guild -- see utils/siteChangelogDispatcher.js)
       const slug = revisionData.collections && revisionData.collections[0]
         ? revisionData.collections[0].slug
         : null;
       if (slug) {
-        const sitePayload = this.buildSiteChangelogPayload(revisionInfo, revisionData, groupConfig);
+        const sitePayload = this.buildSiteChangelogPayload(revisionInfo, revisionData, groupConfig, guildId);
         await siteChangelogDispatcher.dispatchChangelogToSite(sitePayload, slug);
       }
     } catch (error) {
@@ -85,8 +86,8 @@ class ChangelogGenerator {
   }
 
   // Builds the payload consumed by the Preem-Team site's changelog-dispatch
-  // GitHub Action — field names match docs/changelog/template.md exactly.
-  buildSiteChangelogPayload(revisionInfo, revisionData, groupConfig) {
+  // GitHub Action -- field names match docs/changelog/template.md exactly.
+  buildSiteChangelogPayload(revisionInfo, revisionData, groupConfig, guildId) {
     const { diffs } = revisionData;
     const { collections, gameVersion } = revisionInfo;
     const collection = collections[0];
@@ -119,17 +120,18 @@ class ChangelogGenerator {
         }).join('\n')
       : '';
 
-return {
-  collection_slug: collection.slug,
-  version,
-  game_version: gameVersion,
-  date: new Date().toISOString().slice(0, 10),
-  author: 'Choomba',
-  source_channel: groupConfig.name ? `#${groupConfig.name}` : '#changelog-feed',
-  added_items: addedItems,
-  updated_items: changedItems,
-  removed_items: removedItems
-};
+    return {
+      collection_slug: collection.slug,
+      guild_id: guildId,
+      version,
+      game_version: gameVersion,
+      date: new Date().toISOString().slice(0, 10),
+      author: 'Preem Team Bot',
+      source_channel: groupConfig.name ? `#${groupConfig.name}` : '#changelog-feed',
+      added_items: addedItems,
+      updated_items: changedItems,
+      removed_items: removedItems
+    };
   }
 
   async sendModChanges(channel, template, revisionData) {
