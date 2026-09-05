@@ -4,18 +4,21 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../utils/logger');
 const GameVersionManager = require('../../utils/GameVersionManager');
 const guildConfigManager = require('../../config/guildConfigManager');
+const siteChangelogDispatcher = require('../../utils/siteChangelogDispatcher');
 
 // Templates
 const NCRTemplate = require('./templates/NCRTemplate');
 const E33Template = require('./templates/E33Template');
 const Sub2Template = require('./templates/Sub2Template');
+const CPETemplate = require('./templates/CPETemplate');
 
 class ChangelogGenerator {
   constructor() {
     this.templates = {
       ncr: NCRTemplate,
       e33: E33Template,
-      sub2: Sub2Template
+      sub2: Sub2Template,
+      cpe: CPETemplate
     };
   }
 
@@ -66,9 +69,68 @@ class ChangelogGenerator {
       await this.sendModChanges(channel, template, revisionData);
 
       logger.info(`[CHANGELOG] Posted to ${groupConfig.name} (${channelId}) in guild ${guildId}`);
+
+      // Push the same changelog to the Preem Team website (no-op unless
+      // this collection's slug is listed in SITE_CHANGELOG_SLUGS)
+      const slug = revisionData.collections && revisionData.collections[0]
+        ? revisionData.collections[0].slug
+        : null;
+      if (slug) {
+        const sitePayload = this.buildSiteChangelogPayload(revisionInfo, revisionData, groupConfig);
+        await siteChangelogDispatcher.dispatchChangelogToSite(sitePayload, slug);
+      }
     } catch (error) {
       logger.error(`[CHANGELOG] Error generating changelog for guild ${guildId}:`, error);
     }
+  }
+
+  // Builds the payload consumed by the Preem-Team site's changelog-dispatch
+  // GitHub Action — field names match docs/changelog/template.md exactly.
+  buildSiteChangelogPayload(revisionInfo, revisionData, groupConfig) {
+    const { diffs } = revisionData;
+    const { collections, gameVersion } = revisionInfo;
+    const collection = collections[0];
+
+    const version = collections.length === 1
+      ? `${collection.display}-${collection.newRev}`
+      : collections.map(c => `${c.display}-${c.newRev}`).join('/');
+
+    const addedItems = (diffs.added && diffs.added.length)
+      ? this.sortModsAlphabetically(diffs.added).map(mod => {
+          const name = mod.name.replace(/[\[\]()|]/g, '');
+          const url = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `- [${name}](${url}) (v${mod.version})`;
+        }).join('\n')
+      : '';
+
+    const changedItems = (diffs.updated && diffs.updated.length)
+      ? this.sortUpdatedModsAlphabetically(diffs.updated).map(mod => {
+          const name = mod.before.name.replace(/[\[\]()|]/g, '');
+          const url = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
+          return `- [${name}](${url}) (v${mod.before.version} → v${mod.after.version})`;
+        }).join('\n')
+      : '';
+
+    const removedItems = (diffs.removed && diffs.removed.length)
+      ? this.sortModsAlphabetically(diffs.removed).map(mod => {
+          const name = mod.name.replace(/[\[\]()|]/g, '');
+          const url = `https://www.nexusmods.com/${mod.domainName}/mods/${mod.modId}`;
+          return `- [${name}](${url}) (v${mod.version})`;
+        }).join('\n')
+      : '';
+
+    return {
+      collection_slug: collection.slug,
+      version,
+      game_version: gameVersion,
+      date: new Date().toISOString().slice(0, 10),
+      author: 'Preem Team Bot',
+      source_channel: groupConfig.name ? `#${groupConfig.name}` : '#changelog-feed',
+      added_items: addedItems,
+      changed_items: changedItems,
+      fixed_items: '',
+      removed_items: removedItems
+    };
   }
 
   async sendModChanges(channel, template, revisionData) {
@@ -102,7 +164,6 @@ class ChangelogGenerator {
 
       const updatedList = sortedUpdated
         .map(mod => {
-          // Clean mod names safely
           const modName = mod.before.name.replace(/[\[\]()|]/g, '');
           const modUrl = `https://www.nexusmods.com/${mod.before.domainName}/mods/${mod.before.modId}`;
           return `• [${modName}](${modUrl}) (v${mod.before.version} → v${mod.after.version})`;
