@@ -1,7 +1,7 @@
 require('dotenv').config();
 require('./utils/envCheck').checkEnv();
 
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
@@ -41,6 +41,11 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.GuildMessageReactions,
+  ],
+  partials: [
+    Partials.Message,
+    Partials.Reaction,
+    Partials.User,
   ],
 });
 
