@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const filePath = path.join(__dirname, '../data/autoResponses.json');
 const logger = require('./logger');
+const { dispatchAutorespondersToSite } = require('./siteAutoresponderDispatcher');
 
 function readStore() {
   if (!fs.existsSync(filePath)) return { guilds: {}, legacyGlobal: [] };
@@ -95,6 +96,10 @@ function upsertResponse(guildId, trigger, response, wildcard, allowedChannelIds 
   }
   store.guilds[guildId] = responses;
   writeStore(store);
+
+  // Fire-and-forget -- dispatcher itself is a no-op for any guild other
+  // than the one the site publishes for, and swallows its own errors.
+  dispatchAutorespondersToSite(guildId, store.guilds[guildId]);
 }
 
 // Delete response
@@ -104,6 +109,8 @@ function deleteResponse(guildId, trigger) {
   const responses = ensureGuildResponses(store, guildId, { migrateLegacy: true });
   store.guilds[guildId] = responses.filter(r => r.trigger.toLowerCase() !== trigger.toLowerCase());
   writeStore(store);
+
+  dispatchAutorespondersToSite(guildId, store.guilds[guildId]);
 }
 
 module.exports = {
