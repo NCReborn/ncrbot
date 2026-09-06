@@ -14,6 +14,17 @@ const { trackHandlerExecution } = require('../utils/runtimeMonitor');
 const snapmaster = require('../utils/snapmaster');
 const warnedMissingShowcaseGuilds = new Set();
 
+// SnapMaster is an NCR-only feature (its data store and /snapmaster-scan
+// are both single-guild already). It used to resolve its channel via the
+// same generic getGuildChannelId(guildId, 'showcase') lookup the website's
+// Choomba showcase watcher uses -- which meant any guild added to
+// SHOWCASE_CHANNEL_IDS for that unrelated feature (e.g. the CPE guild's
+// #gallery, for preemteam.com) also got its posts counted as SnapMaster
+// submissions. Gating on this guild ID keeps the two features from
+// sharing scope again in the future, regardless of what else gets added
+// to SHOWCASE_CHANNEL_IDS.
+const SNAPMASTER_GUILD_ID = '1285796904160202752';
+
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
@@ -72,10 +83,17 @@ module.exports = {
           logger.error('[SPAM] Error:', err);
         }
 
-        // ⭐⭐⭐ SNAPMASTER TRACKING ⭐⭐⭐
+        // ⭐⭐⭐ SNAPMASTER TRACKING (NCR guild only -- see SNAPMASTER_GUILD_ID above) ⭐⭐⭐
         try {
-          const showcaseChannelId = getGuildChannelId(message.guild?.id, 'showcase');
-          if (message.guild && !showcaseChannelId && !warnedMissingShowcaseGuilds.has(message.guild.id)) {
+          const showcaseChannelId = message.guild?.id === SNAPMASTER_GUILD_ID
+            ? getGuildChannelId(message.guild.id, 'showcase')
+            : null;
+
+          if (
+            message.guild?.id === SNAPMASTER_GUILD_ID &&
+            !showcaseChannelId &&
+            !warnedMissingShowcaseGuilds.has(message.guild.id)
+          ) {
             warnedMissingShowcaseGuilds.add(message.guild.id);
             logger.warn(`[SNAPMASTER] Missing showcase channel mapping for guild ${message.guild.id}.`);
           }
