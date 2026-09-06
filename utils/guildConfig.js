@@ -1,5 +1,18 @@
 const logger = require('./logger');
 const CONSTANTS = require('../config/constants');
+const moderatorRolesByGuild = require('../config/moderatorRoles.json');
+
+// Single source of truth for "who counts as a moderator" per guild --
+// consumed by utils/permissions.js (hasModRole) and
+// services/spam/SpamDetector.js (isWhitelisted). Used to hardcode NCR's
+// role IDs directly in each of those files independently, which meant
+// every other guild's real moderators were silently unrecognized (e.g.
+// CPE mods got no anti-spam exemption at all). Add a guild's entry here
+// once, both call sites pick it up automatically.
+function getModeratorRoleIds(guildId) {
+  if (!guildId) return [];
+  return moderatorRolesByGuild[guildId] || [];
+}
 
 function parseCsvList(value) {
   if (!value) return [];
@@ -113,5 +126,6 @@ function logMissingRequiredGuildChannelMappings(client) {
 module.exports = {
   getConfiguredGuildIds,
   getGuildChannelId,
+  getModeratorRoleIds,
   logMissingRequiredGuildChannelMappings,
 };

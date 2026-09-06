@@ -1,17 +1,21 @@
-const CONSTANTS = require('../config/constants');
+const { getModeratorRoleIds } = require('./guildConfig');
 
 class PermissionChecker {
   /**
-   * Check if member has moderator role
+   * Check if member has moderator role. Role IDs come from
+   * config/moderatorRoles.json, keyed per guild -- was previously a
+   * single hardcoded NCR-only role list, so every other guild's real
+   * moderators (non-Administrator) were silently never recognized here.
    */
   static hasModRole(member) {
     if (!member) return false;
-    
+
     if (member.permissions.has('Administrator')) {
       return true;
     }
-    
-    return CONSTANTS.ROLES.MODERATOR.some(roleId => 
+
+    const roleIds = getModeratorRoleIds(member.guild?.id);
+    return roleIds.some(roleId =>
       member.roles.cache.has(roleId)
     );
   }

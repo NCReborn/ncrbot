@@ -30,8 +30,10 @@ const COLLECTION_MAPPINGS = {
 };
 
 // ===== ROLE IDS =====
+// MODERATOR moved to config/moderatorRoles.json (per-guild, was
+// hardcoded to NCR's IDs only -- see utils/guildConfig.js's
+// getModeratorRoleIds).
 const ROLES = {
-  MODERATOR: ['1370874936456908931', '1288633895910375464'],
   PING_BANNED: '1456763426159329555',
   SUPPORT: '1456751771841204295',
 };

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
-const CONSTANTS = require('../../config/constants');
+const { getModeratorRoleIds } = require('../../utils/guildConfig');
 const userActivityTracker = require('./UserActivityTracker');
 const { getEffectiveSpamConfig } = require('./spamConfigResolver');
 
@@ -72,7 +72,9 @@ class SpamDetector {
 
     if (this.config.whitelist.roles.some(roleId => member.roles.cache.has(roleId))) return true;
 
-    if (CONSTANTS.ROLES.MODERATOR.some(roleId => member.roles.cache.has(roleId))) return true;
+    // Was hardcoded to NCR's role IDs only, so every other guild's real
+    // moderators got zero anti-spam exemption. See config/moderatorRoles.json.
+    if (getModeratorRoleIds(member.guild?.id).some(roleId => member.roles.cache.has(roleId))) return true;
 
     if (member.premiumSince) return true;
 
