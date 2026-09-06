@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require("discord.js");
 const snapmaster = require("../../utils/snapmaster");
 const { PermissionChecker } = require("../../utils/permissions");
 
@@ -17,7 +17,7 @@ module.exports = {
         if (!PermissionChecker.hasModRole(interaction.member)) {
             return interaction.reply({
                 content: "❌ You do not have permission to use this command.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -27,7 +27,7 @@ module.exports = {
         if (!data || data.messages.length === 0) {
             return interaction.reply({
                 content: `❌ No SnapMaster submissions found for ${user}.`,
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 

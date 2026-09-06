@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const guildConfigManager = require('../../config/guildConfigManager');
 const GameVersionManager = require('../../utils/GameVersionManager');
 const logger = require('../../utils/logger');
@@ -142,7 +142,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const guildId = interaction.guild.id;
     const config = guildConfigManager.loadGuildConfig(guildId);

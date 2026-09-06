@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const auditLogger = require('../../utils/auditLogger');
 const logger = require('../../utils/logger');
 
@@ -62,7 +62,7 @@ module.exports = {
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
       await interaction.reply({ 
         content: 'You do not have permission to use this command. Administrator permissions required.', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
       return;
     }
@@ -81,12 +81,12 @@ module.exports = {
           const eventConfig = auditLogger.getEventConfig(guildId, eventName);
           await interaction.reply({
             content: `✅ **${eventConfig.name}** audit logging has been **${enabled ? 'enabled' : 'disabled'}** for this server.`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
         } else {
           await interaction.reply({
             content: '❌ Failed to toggle event. Event not found.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
         }
 
@@ -96,7 +96,7 @@ module.exports = {
         if (!channel.isTextBased()) {
           await interaction.reply({
             content: '❌ The audit log channel must be a text channel.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
           return;
         }
@@ -104,7 +104,7 @@ module.exports = {
         if (channel.guildId !== interaction.guildId) {
           await interaction.reply({
             content: '❌ The audit log channel must belong to this server.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
           return;
         }
@@ -115,7 +115,7 @@ module.exports = {
         } catch (error) {
           await interaction.reply({
             content: `❌ I don't have permission to send messages in ${channel}. Please ensure I have Send Messages and Embed Links permissions.`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
           return;
         }
@@ -124,7 +124,7 @@ module.exports = {
         
         await interaction.reply({
           content: `✅ Audit log channel has been set to ${channel} for this server.`,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
 
       } else if (subcommand === 'status') {
@@ -201,14 +201,14 @@ module.exports = {
           text: 'This server only • Use /auditlog toggle to enable/disable events • /auditlog channel to set audit channel'
         });
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       }
 
     } catch (error) {
       logger.error('Error in auditlog command:', error);
       await interaction.reply({
         content: '❌ An error occurred while processing the command.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }

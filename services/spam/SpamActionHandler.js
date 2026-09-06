@@ -3,7 +3,8 @@
 const {
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  MessageFlags
 } = require('discord.js');
 
 const {
@@ -518,7 +519,7 @@ async sendOrUpdateAlert(userId, embed, guildId) {
       const alert = this.activeAlerts.get(alertKey);
 
       if (!alert || alert.locked) {
-        return interaction.reply({ content: 'This alert is already resolved.', ephemeral: true });
+        return interaction.reply({ content: 'This alert is already resolved.', flags: MessageFlags.Ephemeral });
       }
 
       const member = await fetchMemberSafe(interaction.guild, userId, 2000);
@@ -543,11 +544,11 @@ async sendOrUpdateAlert(userId, embed, guildId) {
         case 'spam_adjustTimeout':
           return interaction.reply({
             content: 'Timeout adjustment is not implemented yet.',
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
 
         default:
-          return interaction.reply({ content: 'Unknown action.', ephemeral: true });
+          return interaction.reply({ content: 'Unknown action.', flags: MessageFlags.Ephemeral });
       }
 
       await this.lockAlert(
@@ -562,7 +563,7 @@ async sendOrUpdateAlert(userId, embed, guildId) {
 
       await interaction.reply({
         content: `✅ Action applied: ${actionDescription}`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
 
       logger.info(
@@ -572,7 +573,7 @@ async sendOrUpdateAlert(userId, embed, guildId) {
       logger.error(`[SPAM] Error handling interaction: ${err.message}`);
       await interaction.reply({
         content: '❌ An error occurred while processing your action.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       }).catch(() => {});
     }
   }

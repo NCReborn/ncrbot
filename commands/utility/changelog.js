@@ -1,5 +1,5 @@
 // commands/changelog.js
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { fetchRevision, processModFiles, computeDiff } = require('../../utils/nexusApi');
 const guildConfigManager = require('../../config/guildConfigManager');
 const revisionState = require('../../utils/revisionState');
@@ -67,7 +67,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
       const guildId = interaction.guild.id;

@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-const { PermissionFlagsBits, ActionRowBuilder, ChannelSelectMenuBuilder, ChannelType } = require('discord.js');
+const { PermissionFlagsBits, ActionRowBuilder, ChannelSelectMenuBuilder, ChannelType, MessageFlags } = require('discord.js');
 const { upsertResponse, loadResponses } = require('../utils/autoResponder');
 const fs = require('fs');
 const path = require('path');
@@ -26,7 +26,7 @@ class ModalHandlers {
     fs.writeFileSync(VERSION_FILE, JSON.stringify({ version, changes }, null, 2));
     await interaction.reply({ 
       content: `Version updated to **${version}**!`, 
-      ephemeral: true 
+      flags: MessageFlags.Ephemeral 
     });
     
     logger.info(`[VERSION] Updated to ${version} by ${interaction.user.tag}`);
@@ -37,7 +37,7 @@ class ModalHandlers {
     if (!guildId) {
       await interaction.reply({
         content: 'This action can only be used in a server.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -50,7 +50,7 @@ class ModalHandlers {
     if (!trigger || !response) {
       await interaction.reply({ 
         content: 'Trigger and response are required.', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
       return;
     }
@@ -85,7 +85,7 @@ class ModalHandlers {
         `${currentScope}\n` +
         `Use the menu below to restrict this trigger to specific channels, or dismiss to keep the current scope.`,
       components: [row],
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 
@@ -95,7 +95,7 @@ class ModalHandlers {
     if (!guildMember.permissions.has(PermissionFlagsBits.Administrator)) {
       await interaction.reply({ 
         content: 'You do not have permission to use this command.', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
       return;
     }
@@ -105,13 +105,13 @@ class ModalHandlers {
     if (msg.length > 2000) {
       await interaction.reply({ 
         content: `Message too long (${msg.length}/2000).`, 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
       return;
     }
 
     await interaction.channel.send({ content: msg });
-    await interaction.reply({ content: 'Message sent!', ephemeral: true });
+    await interaction.reply({ content: 'Message sent!', flags: MessageFlags.Ephemeral });
     
     logger.info(`[NCRBOT_MSG] Posted by ${interaction.user.tag} in #${interaction.channel.name}`);
   }

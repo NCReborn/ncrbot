@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-const { InteractionType } = require('discord.js');
+const { InteractionType, MessageFlags } = require('discord.js');
 const modalHandlers = require('../handlers/modalHandlers');
 const buttonHandlers = require('../handlers/buttonHandlers');
 const commandHandlers = require('../handlers/commandHandlers');
@@ -53,7 +53,7 @@ module.exports = {
 
           const errorMessage = {
             content: 'An unexpected error occurred.',
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           };
 
           if (interaction.replied || interaction.deferred) {

@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const SpamActionHandler = require('../services/spam/SpamActionHandler');
 const { handleLeaderboardButton } = require('../commands/utility/streetcred.js');
 
@@ -25,7 +25,7 @@ class ButtonHandlers {
     if (adminOnly.includes(id) && !isAdmin) {
       await interaction.reply({ 
         content: 'This control is admin only.', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
       return;
     }
@@ -34,7 +34,7 @@ class ButtonHandlers {
     if (id === 'reload') {
       await interaction.reply({ 
         content: '⚠️ Reload functionality is currently disabled. Please restart the bot instead.', 
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral 
       });
       return;
     }
@@ -62,7 +62,7 @@ class ButtonHandlers {
     }
 
     await interaction.deferUpdate();
-    await interaction.followUp({ content: resultMsg, ephemeral: true });
+    await interaction.followUp({ content: resultMsg, flags: MessageFlags.Ephemeral });
   }
 }
 

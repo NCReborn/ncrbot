@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,7 +12,7 @@ module.exports = {
 
         await interaction.reply({
             content: `**Servers I'm currently in:**\n${guilds.join('\n')}`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
     }
 };

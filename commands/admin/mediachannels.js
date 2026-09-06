@@ -1,5 +1,5 @@
 // commands/mediachannels.js
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const mediaChannelService = require('../../services/MediaChannelService');
 const logger = require('../../utils/logger');
 
@@ -39,14 +39,14 @@ module.exports = {
       if (!result.success) {
         return interaction.reply({
           content: `⚠️ <#${channel.id}> is already image-only.`,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
 
       logger.info(`[MEDIA_CHANNELS] Added image-only channel ${channel.id} in guild ${guildId}`);
       return interaction.reply({
         content: `✅ <#${channel.id}> added to image-only enforcement.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
 
@@ -59,14 +59,14 @@ module.exports = {
       if (!result.success) {
         return interaction.reply({
           content: `⚠️ <#${channel.id}> is not in the image-only list.`,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
 
       logger.info(`[MEDIA_CHANNELS] Removed image-only channel ${channel.id} in guild ${guildId}`);
       return interaction.reply({
         content: `✅ <#${channel.id}> removed from image-only enforcement.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
 
@@ -84,7 +84,7 @@ module.exports = {
 
       return interaction.reply({
         content: `**Image-only channels:**\n${imageList}\n\n**File-only channels:**\n${fileList}`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }

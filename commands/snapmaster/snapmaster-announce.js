@@ -4,7 +4,8 @@ const {
     TextInputBuilder,
     TextInputStyle,
     ActionRowBuilder,
-    EmbedBuilder
+    EmbedBuilder,
+    MessageFlags
 } = require("discord.js");
 
 const { PermissionChecker } = require("../../utils/permissions");
@@ -19,7 +20,7 @@ module.exports = {
         if (!PermissionChecker.hasModRole(interaction.member)) {
             return interaction.reply({
                 content: "❌ You do not have permission to use this command.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -53,7 +54,7 @@ module.exports = {
 
         await interaction.reply({
             content: "📢 Announcement posted.",
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
 
         await interaction.channel.send({

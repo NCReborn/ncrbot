@@ -1,3 +1,4 @@
+const { MessageFlags } = require('discord.js');
 const logger = require('../utils/logger');
 
 class CommandHandlers {
@@ -17,7 +18,7 @@ class CommandHandlers {
 
       const errorMessage = {
         content: 'There was an error executing this command!',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       };
 
       if (interaction.replied || interaction.deferred) {

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder, ChannelType, MessageFlags } = require("discord.js");
 const snapmaster = require("../../utils/snapmaster");
 const { PermissionChecker } = require("../../utils/permissions");
 const logger = require("../../utils/logger");
@@ -16,13 +16,13 @@ module.exports = {
         if (!PermissionChecker.hasModRole(interaction.member)) {
             return interaction.reply({
                 content: "❌ You do not have permission to use this command.",
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
         await interaction.reply({
             content: "🔄 Building SnapMaster forum… this may take a moment.",
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         });
 
         try {
