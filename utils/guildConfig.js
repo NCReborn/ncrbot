@@ -1,6 +1,7 @@
 const logger = require('./logger');
 const CONSTANTS = require('../config/constants');
 const moderatorRolesByGuild = require('../config/moderatorRoles.json');
+const staffRolesByGuild = require('../config/staffRoles.json');
 
 // Single source of truth for "who counts as a moderator" per guild --
 // consumed by utils/permissions.js (hasModRole) and
@@ -12,6 +13,16 @@ const moderatorRolesByGuild = require('../config/moderatorRoles.json');
 function getModeratorRoleIds(guildId) {
   if (!guildId) return [];
   return moderatorRolesByGuild[guildId] || [];
+}
+
+// "Staff" here is a narrower, display-only concept than moderator --
+// used to hide staff from member-facing leaderboards (Discord and the
+// site). Deliberately separate from moderatorRoles.json: e.g. CPE's
+// "Helper" role grants moderator-level command access but isn't
+// staff for leaderboard purposes, per how that role's meant to be used.
+function getStaffRoleIds(guildId) {
+  if (!guildId) return [];
+  return staffRolesByGuild[guildId] || [];
 }
 
 function parseCsvList(value) {
@@ -127,5 +138,6 @@ module.exports = {
   getConfiguredGuildIds,
   getGuildChannelId,
   getModeratorRoleIds,
+  getStaffRoleIds,
   logMissingRequiredGuildChannelMappings,
 };

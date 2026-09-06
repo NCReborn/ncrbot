@@ -2,6 +2,8 @@ const logger = require('../utils/logger');
 const revisionMonitor = require('../services/RevisionMonitor');
 const cron = require('node-cron');
 const streetCredService = require('../services/StreetCredService');
+const { buildLeaderboardPayload } = require('../services/StreetCredSiteSnapshot');
+const { dispatchStreetCredToSite } = require('../utils/siteStreetCredDispatcher');
 const snapsmithService = require('../services/SnapSmithService');
 const { initShowcaseWatcher } = require('../services/showcase/showcaseWatcher');
 
@@ -116,5 +118,25 @@ module.exports = {
     });
 
     logger.info('[READY] SnapMaster monthly reset cron registered (1st @ 00:00 UTC)');
+
+    // Daily StreetCred site leaderboard snapshot — runs at 05:00 UTC.
+    // dispatchStreetCredToSite is itself a no-op for every guild except
+    // the one the site publishes for, so this loop stays harmless even
+    // though it iterates every guild the bot is in.
+    cron.schedule('0 5 * * *', async () => {
+      logger.info('[STREET_CRED] Running daily site leaderboard snapshot…');
+      for (const [, guild] of client.guilds.cache) {
+        try {
+          await guild.members.fetch().catch(() => {});
+          const cfg = await streetCredService.getGuildConfig(guild.id);
+          const activeRows = await streetCredService.getAllActive(guild.id);
+          const entries = buildLeaderboardPayload(guild, activeRows, cfg, streetCredService.getTierLabel);
+          await dispatchStreetCredToSite(guild.id, entries);
+        } catch (err) {
+          logger.error(`[STREET_CRED] Site snapshot failed for guild ${guild.id}: ${err.message}`);
+        }
+      }
+    });
+    logger.info('[READY] StreetCred site leaderboard cron registered (runs at 05:00)');
   }
 };

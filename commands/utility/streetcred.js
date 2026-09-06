@@ -15,6 +15,7 @@ const { PermissionChecker } = require('../../utils/permissions');
 const scs = require('../../services/StreetCredService');
 const analyticsService = require('../../services/AnalyticsService');
 const CONSTANTS = require('../../config/constants');
+const { getStaffRoleIds } = require('../../utils/guildConfig');
 
 // ─── Shared helpers ────────────────────────────────────────────────────────
 
@@ -158,7 +159,9 @@ async function buildLeaderboardEmbed(guild, requestingUser, page, show) {
 
   if (show === 'members') {
     const allActive = await scs.getAllActive(guild.id);
-    const staffRoleIds = new Set(Object.values(CONSTANTS.HELPER_ROLES));
+    // Was hardcoded to NCR's Ripperdoc role only, so CPE staff never
+    // got hidden from this view. See config/staffRoles.json.
+    const staffRoleIds = new Set(getStaffRoleIds(guild.id));
 
     await guild.members.fetch().catch(() => {});
 
