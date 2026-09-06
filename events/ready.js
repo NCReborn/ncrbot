@@ -6,6 +6,10 @@ const { buildLeaderboardPayload } = require('../services/StreetCredSiteSnapshot'
 const { dispatchStreetCredToSite } = require('../utils/siteStreetCredDispatcher');
 const snapsmithService = require('../services/SnapSmithService');
 const { initShowcaseWatcher } = require('../services/showcase/showcaseWatcher');
+const collectionHealthService = require('../services/CollectionHealthService');
+const guildConfigManager = require('../config/guildConfigManager');
+const { getGuildChannelId } = require('../utils/guildConfig');
+const { fetchRevision } = require('../utils/nexusApi');
 
 // ⭐ SnapMaster
 const snapmaster = require('../utils/snapmaster');
@@ -138,5 +142,58 @@ module.exports = {
       }
     });
     logger.info('[READY] StreetCred site leaderboard cron registered (runs at 05:00)');
+
+    // Hourly collection-health batch — opt-in per guild via
+    // COLLECTION_HEALTH_CHANNEL_IDS (see utils/guildConfig.js). Spreads
+    // checking every mod in a collection across ~24 runs instead of one
+    // sweep, so even a 900+ mod collection stays well under Nexus's API
+    // rate limits. Posts a report to the configured channel once a full
+    // sweep completes, then starts the next one from scratch.
+    cron.schedule('0 * * * *', async () => {
+      for (const [, guild] of client.guilds.cache) {
+        const reportChannelId = getGuildChannelId(guild.id, 'collectionHealth');
+        if (!reportChannelId) continue; // not opted in for this guild
+
+        const guildConfig = guildConfigManager.loadGuildConfig(guild.id);
+        for (const collection of guildConfig.collections || []) {
+          try {
+            let modFiles = [];
+            if (!collectionHealthService.hasActiveSweep(guild.id, collection.slug)) {
+              const revisionData = await fetchRevision(
+                collection.slug,
+                null,
+                process.env.NEXUS_API_KEY,
+                process.env.APP_NAME,
+                process.env.APP_VERSION
+              );
+              modFiles = revisionData.modFiles || [];
+            }
+
+            const result = await collectionHealthService.runBatch(guild.id, collection.slug, modFiles, {
+              apiKey: process.env.NEXUS_API_KEY,
+              appName: process.env.APP_NAME,
+              appVersion: process.env.APP_VERSION
+            });
+
+            if (result.done) {
+              const channel = await client.channels.fetch(reportChannelId).catch(() => null);
+              if (channel) {
+                const embed = collectionHealthService.buildHealthReportEmbed(collection.display, result.results);
+                await channel.send({ embeds: [embed] });
+              } else {
+                logger.warn(`[COLLECTION_HEALTH] Report channel ${reportChannelId} not found for guild ${guild.id}`);
+              }
+              collectionHealthService.resetSweep(guild.id, collection.slug);
+              logger.info(`[COLLECTION_HEALTH] Sweep complete for ${collection.display} in guild ${guild.id} (${result.totalMods} mods)`);
+            } else {
+              logger.info(`[COLLECTION_HEALTH] ${collection.display}: ${result.checkedSoFar}/${result.totalMods} checked this sweep`);
+            }
+          } catch (err) {
+            logger.error(`[COLLECTION_HEALTH] Batch failed for ${collection.slug} in guild ${guild.id}: ${err.message}`);
+          }
+        }
+      }
+    });
+    logger.info('[READY] Collection health hourly cron registered');
   }
 };

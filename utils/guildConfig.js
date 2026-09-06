@@ -79,6 +79,10 @@ function getBotSpamChannelMap() {
   return parseGuildChannelMap(process.env.BOT_SPAM_CHANNEL_IDS);
 }
 
+function getCollectionHealthChannelMap() {
+  return parseGuildChannelMap(process.env.COLLECTION_HEALTH_CHANNEL_IDS);
+}
+
 function getGuildChannelId(guildId, channelType) {
   if (!guildId) return null;
 
@@ -97,6 +101,10 @@ function getGuildChannelId(guildId, channelType) {
     if (configured) return configured;
     if (legacySingleGuildId === guildId) return CONSTANTS.CHANNELS.BOT_SPAM || null;
     return null;
+  }
+
+  if (channelType === 'collectionHealth') {
+    return getCollectionHealthChannelMap()[guildId] || null;
   }
 
   return null;
