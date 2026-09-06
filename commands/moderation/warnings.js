@@ -18,7 +18,7 @@ module.exports = {
     const user = interaction.options.getUser('user');
 
     try {
-      const warnings = moderationService.getUserWarnings(user.id);
+      const warnings = moderationService.getUserWarnings(user.id, interaction.guildId);
 
       if (warnings.length === 0) {
         await interaction.reply({

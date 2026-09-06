@@ -19,7 +19,7 @@ module.exports = {
     const moderator = interaction.user;
 
     try {
-      const count = moderationService.clearUserWarnings(user.id);
+      const count = moderationService.clearUserWarnings(user.id, interaction.guildId);
 
       if (count === 0) {
         await interaction.reply({
